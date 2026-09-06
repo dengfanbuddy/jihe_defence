@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>集合防御 · 单位 / 弹道 / 状态形象设计</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+    <div class="brand">
+        <span class="brand-mark" id="brandMark"></span>
+        <span>
+            <span class="brand-txt display">集合防御 · 形象设计</span><br>
+            <span class="brand-sub">UNITS / PROJECTILES / STATUS</span>
+        </span>
+    </div>
+
+    <a class="btn" href="index.html">← 通用 Glyph 图鉴</a>
+
+    <label class="ctrl">主题
+        <select id="themeSel">
+            <option value="light">纸面 Paper</option>
+            <option value="dark">夜场 Night</option>
+        </select>
+    </label>
+
+    <label class="ctrl">PNG 尺寸
+        <select id="scaleSel">
+            <option value="256">256 px</option>
+            <option value="512" selected>512 px</option>
+            <option value="1024">1024 px</option>
+            <option value="2048">2048 px</option>
+        </select>
+    </label>
+
+    <label class="ctrl"><input type="checkbox" id="bgChk"> 导出含底色</label>
+
+    <button class="btn" id="dlAllSvg">批量 SVG</button>
+    <button class="btn primary" id="dlAllPng">批量 PNG</button>
+</div>
+
+<div class="wrap">
+
+    <div class="hero">
+        <h1 class="display">把 <em>Glyphica</em> 的语法<br>套进我们自己的战斗系统</h1>
+        <p>这一版不再是通用练习：每一个形象都直接绑定项目里的真实配置 ——
+            <code>units.json</code> 的碰撞半径与 AI 类型、<code>abilities.json</code> 的 11 个技能、
+            <code>element_effects.json</code> 的 9 种元素状态。</p>
+        <p>共 <b>3 名我方单位 · 8 只怪物 · 8 种弹道与技能 · 9 个状态标记 · 5 张 AI 行为图</b>，
+            体量严格按 <code>collision_radius</code> 等比，附件严格由 AI 类型决定。全部纯几何 SVG，可导出 SVG / PNG。</p>
+        <div class="srcs">
+            <span>units.json · 11 条</span><span>abilities.json · 11 条</span><span>element_effects.json · 9 条</span><span>attributes.json · 16 条</span>
+        </div>
+    </div>
+
+    <section>
+        <div class="sec-head"><span class="idx display">01</span><h2 class="display">本作专属规则</h2></div>
+        <p class="sec-desc">在通用 Glyph 规范之上，为「集合防御」追加的 6 条硬约定。</p>
+        <div class="rule-grid" id="rules"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">02</span><h2 class="display">我方单位</h2></div>
+        <p class="sec-desc">墨色主导 + 强调色核心。三名单位的剪影里都写进了各自的技能与射程。</p>
+        <div class="grid wide" id="heroGrid"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">03</span><h2 class="display">怪物图鉴</h2></div>
+        <p class="sec-desc">强调色主导 + 墨色轮廓。外围附件由 AI 类型决定，本体造型由体量与定位决定。</p>
+        <div class="filters" id="mFilters"></div>
+        <div class="grid wide" id="monGrid"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">04</span><h2 class="display">体量对照</h2></div>
+        <p class="sec-desc">按 <code>units.json</code> 的 <code>collision_radius</code> 等比排列（10 → 40）。
+            这是验证"缩到实际游戏尺寸还能不能分辨"的唯一标准。</p>
+        <div class="arena" id="ruler"></div>
+        <div class="dl-row">
+            <button class="btn tiny" data-dl="ruler-svg">下载对照图 SVG</button>
+            <button class="btn tiny" data-dl="ruler-png">下载对照图 PNG</button>
+        </div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">05</span><h2 class="display">AI 行为语言</h2></div>
+        <p class="sec-desc">五种 AI 各自的运动轨迹图。怪物身上的外围附件，就是从这五张图里抽出来的。</p>
+        <div class="grid" id="aiGrid"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">06</span><h2 class="display">弹道与技能</h2></div>
+        <p class="sec-desc"><code>Projectile.ts</code> 是匀速直线 + 终点快照，所以普攻一律直线尾迹 + 末端锁定十字；
+            范围技能则用同心椭圆表达俯视角作用域。</p>
+        <div class="grid" id="shotGrid"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">07</span><h2 class="display">状态标记</h2></div>
+        <p class="sec-desc">逐条对应 <code>element_effects.json</code>。可叠加（intensity）画底部层数点，独占（exclusive）不画。</p>
+        <div class="grid icons" id="markGrid"></div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="idx display">08</span><h2 class="display">战场预览</h2></div>
+        <p class="sec-desc">三名我方单位 + 五类怪物 + 真实弹道同框，检验阵营色规则在满屏时是否成立。</p>
+        <div class="arena" id="arena"></div>
+        <div class="dl-row">
+            <button class="btn tiny" data-dl="arena-svg">下载场景 SVG</button>
+            <button class="btn tiny" data-dl="arena-png">下载场景 PNG</button>
+        </div>
+    </section>
+
+    <footer>
+        数值来源：<code>assets/resources/tb/units.json</code> · <code>abilities.json</code> · <code>element_effects.json</code> · <code>attributes.json</code>。<br>
+        风格参考 <a href="https://playglyphica.com/" target="_blank" rel="noopener">Glyphica: Typing Survival</a>，图形均为原创。
+    </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="assets/art.js"></script>
+<script src="assets/art-ours.js"></script>
+<script src="assets/data-ours.js"></script>
+<script src="assets/app-ours.js"></script>
+</body>
+</html>

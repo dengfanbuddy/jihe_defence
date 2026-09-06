@@ -1,0 +1,122 @@
+
+/* ==========================================================================
+   Hero 设计页追加样式（二）：4 品质 白/蓝/黄/红 + 道具图标 + 抽卡表
+   ========================================================================== */
+
+/* ---- 品质配色（固定色，明暗主题通用） ---- */
+.q-white { --qc: #8a857c; --qb: var(--line-strong); }
+.q-blue  { --qc: #3b7bd4; --qb: #3b7bd4; }
+.q-gold  { --qc: #c9a227; --qb: #c9a227; }
+.q-red   { --qc: #b03a2e; --qb: #b03a2e; }
+
+.q-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 22px; padding: 0 6px; border-radius: 3px;
+    font-size: 12px; font-weight: 700; letter-spacing: .03em;
+    color: #fff; background: var(--qb); border: 1px solid var(--qb); flex: none;
+}
+.q-white.q-badge { color: var(--ink-soft); background: var(--bg); }
+
+.q-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--qb); margin-right: 8px; vertical-align: middle; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.q-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 3px;
+    font-size: 11px; font-weight: 700; color: #fff; background: var(--qb);
+}
+.q-chip.q-white { color: var(--ink-soft); background: var(--bg); border: 1px solid var(--line-strong); }
+
+.q-stars { color: var(--qb); letter-spacing: 1px; font-size: 13px; }
+.q-th { color: var(--qc); }
+
+.q-legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 14px; }
+.q-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
+
+/* ---- 道具卡 ---- */
+.card.item { padding: 14px 16px 16px; }
+.item-head { display: flex; align-items: center; gap: 10px; }
+.item-icon {
+    width: 48px; height: 48px; flex: none; border-radius: 4px; overflow: hidden;
+    background: linear-gradient(145deg, var(--bg), var(--bg-edge));
+    border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+}
+.item-icon img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+.item-title { flex: 1; min-width: 0; }
+.item-title b { display: block; font-size: 16px; line-height: 1.2; }
+.item-title .en { font-size: 10.5px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.item-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.cost { font-size: 12px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
+.suggest {
+    margin-top: 8px; font-size: 12.5px; line-height: 1.6; color: var(--accent);
+    border-left: 2px solid var(--accent); padding-left: 8px; font-weight: 500;
+}
+.attr-line { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 11px; color: var(--ink-soft); }
+.attr-line .dot { color: var(--muted); }
+
+.skill-glyph {
+    width: 48px; height: 48px; flex: none; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: #fff; background: var(--qb);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
+}
+
+/* ---- 抽卡概率表 ---- */
+.draw-table-wrap { overflow-x: auto; border: 1px solid var(--line); margin: 8px 0 16px; }
+.draw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.draw-table th, .draw-table td { padding: 10px 14px; text-align: center; border-bottom: 1px solid var(--line); }
+.draw-table th { font-size: 12px; letter-spacing: .06em; color: var(--ink-soft); }
+.draw-table td:first-child, .draw-table th:first-child { text-align: left; color: var(--ink-soft); }
+.draw-table tbody tr { transition: background .12s; }
+.draw-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.grid .card { height: 100%; }
+
+/* ==========================================================================
+   左侧浮动章节导航（sticky） — 长页面快速跳转
+   ========================================================================== */
+.side-nav {
+    position: fixed; left: 14px; top: 74px; z-index: 40;
+    display: flex; flex-direction: column; gap: 2px;
+    width: 132px; padding: 8px 6px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 3px; box-shadow: var(--shadow);
+}
+.side-nav-title {
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted); padding: 3px 8px 5px;
+}
+.side-nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 3px;
+    font-size: 12px; color: var(--ink-soft);
+    border-bottom: none; transition: background .14s, color .14s;
+}
+.side-nav a:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--ink); }
+.side-nav a i {
+    flex: none; width: 20px; font-style: normal;
+    font-size: 10px; color: var(--muted); font-family: ui-monospace, Consolas, monospace;
+    text-align: center; letter-spacing: 0;
+}
+.side-nav a span { white-space: nowrap; }
+.side-nav a.on { background: var(--accent); color: var(--on-accent); }
+.side-nav a.on i { color: var(--on-accent); }
+.side-nav-top { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
+.side-nav-top i { font-size: 12px; }
+
+/* 宽屏时给主内容让出左侧空间，避免遮挡 */
+@media (min-width: 1500px) {
+    .wrap { padding-left: 176px; }
+}
+
+/* 中等屏：右侧吸附（内容仍居中，不会被遮挡） */
+@media (min-width: 1180px) and (max-width: 1499px) {
+    .side-nav { left: auto; right: 14px; }
+}
+
+/* 窄屏：折叠成贴边小条（只显示序号） */
+@media (max-width: 1179px) {
+    .side-nav { width: 40px; padding: 6px 4px; left: 6px; top: 70px; }
+    .side-nav-title { display: none; }
+    .side-nav a { flex-direction: column; gap: 2px; padding: 6px 0; }
+    .side-nav a span { display: none; }
+    .side-nav a i { width: auto; font-size: 11px; }
+}

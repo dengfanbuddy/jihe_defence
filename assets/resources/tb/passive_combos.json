@@ -1,0 +1,162 @@
+[
+  {
+    "id": 1, "code": "combo_sniper",
+    "name": "狙击进阶",
+    "skills": ["psn_sniper_headshot", "attack_boost"],
+    "nextId": 2,
+    "unlockLevel": 5,
+    "quality": "rare"
+  },
+  {
+    "id": 2, "code": "combo_sniper_2",
+    "name": "狙击精通",
+    "skills": ["pierce", "attack_percent"],
+    "nextId": 3,
+    "unlockLevel": 15,
+    "quality": "epic"
+  },
+  {
+    "id": 3, "code": "combo_sniper_3",
+    "name": "死神狙击",
+    "skills": ["kill_explosion", "damage_immunity"],
+    "nextId": 0,
+    "unlockLevel": 25,
+    "quality": "legendary"
+  },
+  {
+    "id": 10, "code": "combo_elemental",
+    "name": "元素之力",
+    "skills": ["element_fire", "element_ice"],
+    "nextId": 11,
+    "unlockLevel": 3,
+    "quality": "rare"
+  },
+  {
+    "id": 11, "code": "combo_elemental_2",
+    "name": "元素精通",
+    "skills": ["element_lightning", "element_poison"],
+    "nextId": 12,
+    "unlockLevel": 10,
+    "quality": "epic"
+  },
+  {
+    "id": 12, "code": "combo_elemental_3",
+    "name": "元素掌控",
+    "skills": ["element_shadow", "kill_explosion"],
+    "nextId": 0,
+    "unlockLevel": 20,
+    "quality": "legendary"
+  },
+  {
+    "id": 20, "code": "combo_survival",
+    "name": "生存之道",
+    "skills": ["hp_boost", "life_steal"],
+    "nextId": 21,
+    "unlockLevel": 5,
+    "quality": "rare"
+  },
+  {
+    "id": 21, "code": "combo_survival_2",
+    "name": "钢铁意志",
+    "skills": ["shield", "vengeance"],
+    "nextId": 22,
+    "unlockLevel": 15,
+    "quality": "epic"
+  },
+  {
+    "id": 22, "code": "combo_survival_3",
+    "name": "不死之身",
+    "skills": ["damage_immunity", "heavy_strike"],
+    "nextId": 0,
+    "unlockLevel": 25,
+    "quality": "legendary"
+  },
+  {
+    "id": 30, "code": "combo_economy",
+    "name": "经济优势",
+    "skills": ["gold_boost", "exp_boost"],
+    "nextId": 31,
+    "unlockLevel": 3,
+    "quality": "rare"
+  },
+  {
+    "id": 31, "code": "combo_economy_2",
+    "name": "滚雪球",
+    "skills": ["gold_boost", "sub_projectile"],
+    "nextId": 0,
+    "unlockLevel": 12,
+    "quality": "epic"
+  },
+  {
+    "id": 40, "code": "combo_attack",
+    "name": "攻击强化",
+    "skills": ["attack_boost", "attack_percent"],
+    "nextId": 41,
+    "unlockLevel": 2,
+    "quality": "common"
+  },
+  {
+    "id": 41, "code": "combo_attack_2",
+    "name": "毁灭打击",
+    "skills": ["crit_rate", "heavy_strike"],
+    "nextId": 42,
+    "unlockLevel": 10,
+    "quality": "rare"
+  },
+  {
+    "id": 42, "code": "combo_attack_3",
+    "name": "致命一击",
+    "skills": ["atk_speed", "sub_projectile"],
+    "nextId": 0,
+    "unlockLevel": 20,
+    "quality": "epic"
+  },
+  {
+    "id": 50, "code": "combo_frost",
+    "name": "冰霜之道",
+    "skills": ["element_ice", "psn_frost_aura"],
+    "nextId": 51,
+    "unlockLevel": 5,
+    "quality": "rare"
+  },
+  {
+    "id": 51, "code": "combo_frost_2",
+    "name": "永冻领域",
+    "skills": ["fullscreen_freeze", "hp_boost"],
+    "nextId": 0,
+    "unlockLevel": 15,
+    "quality": "epic"
+  },
+  {
+    "id": 60, "code": "combo_venom",
+    "name": "剧毒之道",
+    "skills": ["element_poison", "psn_corrosive_skin"],
+    "nextId": 61,
+    "unlockLevel": 5,
+    "quality": "rare"
+  },
+  {
+    "id": 61, "code": "combo_venom_2",
+    "name": "致命毒雾",
+    "skills": ["psn_greed_alchemy", "kill_explosion"],
+    "nextId": 0,
+    "unlockLevel": 15,
+    "quality": "epic"
+  },
+  {
+    "id": 70, "code": "combo_thunder",
+    "name": "雷霆之道",
+    "skills": ["element_lightning", "psn_zeus_static_mark"],
+    "nextId": 71,
+    "unlockLevel": 5,
+    "quality": "rare"
+  },
+  {
+    "id": 71, "code": "combo_thunder_2",
+    "name": "雷霆万钧",
+    "skills": ["airstrike", "atk_speed"],
+    "nextId": 0,
+    "unlockLevel": 15,
+    "quality": "epic"
+  }
+]

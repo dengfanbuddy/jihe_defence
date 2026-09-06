@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>怪物图鉴 · 51 怪物 / 4 阶段 / 20 最终Boss</title>
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style-extra.css">
+</head>
+<body id="top">
+
+<div class="topbar">
+    <div class="brand">
+        <span class="brand-mark" id="brandMark"></span>
+        <span>
+            <span class="brand-txt display">怪物图鉴</span><br>
+            <span class="brand-sub">MONSTERS / STAGE BOSS / FINAL BOSS</span>
+        </span>
+    </div>
+
+    <a class="btn" href="../monster-design/index.html">通用 Glyph 图鉴 ←</a>
+    <a class="btn" href="../monster-design/ours.html">单位/弹道设计 ←</a>
+    <a class="btn" href="../hero-design/index.html">英雄设计库 →</a>
+
+    <label class="ctrl">主题
+        <select id="themeSel"><option value="light">纸面 Paper</option><option value="dark">夜场 Night</option></select>
+    </label>
+    <label class="ctrl">PNG 尺寸
+        <select id="scaleSel">
+            <option value="256">256 px</option><option value="512" selected>512 px</option>
+            <option value="1024">1024 px</option><option value="2048">2048 px</option>
+        </select>
+    </label>
+    <label class="ctrl"><input type="checkbox" id="bgChk"> 导出含底色</label>
+    <button class="btn primary" data-dump="1">导出 monster-design.json</button>
+</div>
+
+<nav class="side-nav" id="sideNav" aria-label="章节导航">
+    <span class="side-nav-title">章节</span>
+    <a href="#sec-overview" data-spy="sec-overview"><i>01</i><span>总览</span></a>
+    <a href="#sec-stages" data-spy="sec-stages"><i>02</i><span>阶段推进</span></a>
+    <a href="#sec-special" data-spy="sec-special"><i>03</i><span>全局特殊Boss</span></a>
+    <a href="#sec-final" data-spy="sec-final"><i>04</i><span>最终Boss</span></a>
+    <a href="#sec-catalog" data-spy="sec-catalog"><i>05</i><span>全图鉴</span></a>
+    <a href="#sec-config" data-spy="sec-config"><i>06</i><span>配置导出</span></a>
+    <a href="#top" class="side-nav-top" data-spy="top"><i>▲</i><span>回顶部</span></a>
+</nav>
+
+<div class="wrap">
+
+    <div class="hero">
+        <h1 class="display">51 只怪物 · <em>Dota2 基因</em> × 阶段与难度</h1>
+        <p>以 dota2 的怪物/野怪/首领为灵感，改造成本作的分阶段推进体系：
+            <b>4 个阶段</b>（每阶段 3 小怪 + 3 精英 + 1 守关Boss）、<b>3 个全局特殊Boss</b>（金币 / 击杀 / 防守，均不主动攻击）、
+            以及最终阶段后的 <b>20 个最终Boss</b>。</p>
+        <p>小怪与精英<b>攻击频率都很低</b>（攻频 0.6~1.0 左右），但攻击力与血量更高；Boss 带小技能，最终Boss 带 1~2 个主动技能。
+            全部形象为参数化生成的原创 Glyph 徽记，可导出 SVG / PNG。</p>
+        <div class="srcs">
+            <span>units.json · 11 条</span><span>enemies.json · 8 条</span><span>abilities.json · 11 条</span>
+            <span>element_effects.json · 9 条</span><span>dota2 怪物参考</span>
+        </div>
+    </div>
+
+    <section id="sec-overview">
+        <div class="sec-head"><span class="idx display">01</span><h2 class="display">总览</h2></div>
+        <div class="ov-grid">
+            <div class="ov-card"><b id="ovTotal">0</b><span>怪物总数</span></div>
+            <div id="ovCat" class="ov-grid" style="grid-column:span 3;grid-template-columns:repeat(auto-fill,minmax(120px,1fr))"></div>
+        </div>
+        <h3 class="sec-hdd">元素分布</h3>
+        <div id="ovElem"></div>
+    </section>
+
+    <section id="sec-stages">
+        <div class="sec-head"><span class="idx display">02</span><h2 class="display">阶段推进</h2></div>
+        <p class="sec-desc">4 个阶段，难度倍率逐段提高（阶段1 = 1.0 → 阶段4 = 3.6）。每阶段 3 种小怪 + 3 种精英 + 1 只守关Boss。
+            小怪/精英<b>攻频低、血攻高</b>；守关Boss 带小技能。</p>
+        <div id="stageGrid"></div>
+    </section>
+
+    <section id="sec-special">
+        <div class="sec-head"><span class="idx display">03</span><h2 class="display">全局特殊Boss</h2></div>
+        <p class="sec-desc">3 只<b>不会主动攻击</b>的任务 / 收益首领：金币Boss（击杀爆金币）、击杀Boss（限时击杀拿经验）、防守Boss（攻防核心，需拆解）。
+            三者把奖励或任务目标直接画在剪影上。</p>
+        <div class="grid wide" id="specialGrid"></div>
+    </section>
+
+    <section id="sec-final">
+        <div class="sec-head"><span class="idx display">04</span><h2 class="display">最终Boss · 难度循环</h2></div>
+        <p class="sec-desc">本作设 100 级难度，<b>每 5 级一个类型的最终Boss</b>（难度1-5→第1只 … 难度96-100→第20只），
+            之后<b>循环这 20 只</b>，仅按 <code>difficultyMultiplier</code> 提高属性。每只最终Boss 都带 1~2 个主动技能。</p>
+        <h3 class="sec-hdd">难度 → 最终Boss 对照</h3>
+        <div id="cycleNote"></div>
+        <div class="cycle-table-wrap" style="overflow-x:auto;border:1px solid var(--line)">
+            <table class="cycle-table" id="cycleTable"></table>
+        </div>
+        <div class="grid wide" id="finalGrid"></div>
+    </section>
+
+    <section id="sec-catalog">
+        <div class="sec-head"><span class="idx display">05</span><h2 class="display">全图鉴</h2></div>
+        <p class="sec-desc">按「档位 / 元素 / 阶段」汇总筛选全部怪物。共 <b id="catalogCount">0</b> 只。</p>
+        <div class="filters" id="mFilters"></div>
+        <div class="grid wide" id="catalogGrid"></div>
+    </section>
+
+    <section id="sec-config">
+        <div class="sec-head"><span class="idx display">06</span><h2 class="display">配置导出</h2></div>
+        <p class="sec-desc">全部怪物聚合为 JSON，可直接查看或下载用于游戏配置（含最终Boss 难度循环说明）。</p>
+        <div class="export-box">
+            <button class="btn" data-dump="1">下载 monster-design.json</button>
+            <textarea id="cfgOut" spellcheck="false" readonly></textarea>
+        </div>
+    </section>
+
+    <footer>
+        数值与结构参考：<code>assets/resources/tb/units.json</code> · <code>enemies.json</code> · <code>phases.json</code> ·
+        <code>abilities.json</code> · <code>element_effects.json</code>。<br>
+        风格参考 <a href="https://playglyphica.com/" target="_blank" rel="noopener">Glyphica: Typing Survival</a>，图形均为参数化原创，灵感来自 Dota 2 怪物/野怪/首领。数值为策划初稿，落地前需平衡测试。
+    </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../monster-design/assets/art.js"></script>
+<script src="assets/art-boss.js"></script>
+<script src="assets/data-monsters-a.js"></script>
+<script src="assets/data-monsters-b.js"></script>
+<script src="assets/data-monsters-c.js"></script>
+<script src="assets/app-boss.js"></script>
+</body>
+</html>

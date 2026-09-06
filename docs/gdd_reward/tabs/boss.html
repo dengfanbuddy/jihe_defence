@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经济Boss · 奖励数值设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article>
+  <div class="tab-intro">经济Boss：专门的金币 Boss / 经验 Boss，击杀一次性大量奖励。</div>
+
+  <h2>设计核心</h2>
+  <div class="callout info"><strong>为什么不"又给金币又给经验"：</strong>如果一只 Boss 同时爆出海量金币和经验的，一刀下去两个资源全溢出，直接废掉整局经济。拆成两类专属 Boss，玩家按当前需求做策略取舍。</div>
+
+  <h2>两类经济 Boss</h2>
+  <div class="grid c2">
+    <div class="card">
+      <h4>黄金魔像 <span class="q l">gold_boss</span></h4>
+      <p class="pitch">"我需要钱抽卡 / 刷装备"</p>
+      <p>血量偏高但防御低、出手慢，<strong>好打</strong>，主打经济引擎。金币基数 250（约常规 Boss 5 倍），不吐经验。</p>
+      <p class="why">效果：一次性金币爆发，用于局内滚雪球。</p>
+    </div>
+    <div class="card">
+      <h4>经验贤者 <span class="q u">exp_boss</span></h4>
+      <p class="pitch">"我急着升级英雄 / 玩家等级"</p>
+      <p>略微耐打、放控场拖延，主打成长加速。经验基数 800（约常规 Boss 4 倍），不吐金币。</p>
+      <p class="why">效果：一次性经验爆发，加速跨局成长。</p>
+    </div>
+  </div>
+
+  <h2>奖励对比（相对常规 Boss）</h2>
+  <table>
+    <thead><tr><th scope="col">Boss</th><th scope="col">rewardType</th><th scope="col">金币<br>（基数）</th><th scope="col">经验<br>（基数）</th><th scope="col">一次性放大</th><th scope="col">策略价值</th></tr></thead>
+    <tbody>
+      <tr><td>黄金魔像</td><td><span class="q l">gold_boss</span></td><td><strong>250 ×10</strong></td><td>5</td><td>金币 ×10</td><td>局内经济滚雪球</td></tr>
+      <tr><td>经验贤者</td><td><span class="q u">exp_boss</span></td><td>1</td><td><strong>800 ×10</strong></td><td>经验 ×10</td><td>跨局成长加速</td></tr>
+      <tr><td>深渊领主</td><td><span class="q e">boss</span></td><td>40</td><td>200</td><td>无</td><td>常规压制 Boss</td></tr>
+    </tbody>
+  </table>
+
+  <h2>局内取舍</h2>
+  <div class="grid c3">
+    <div class="card"><h4>钱不够</h4><p>优先集火黄金魔像，一波拿到巨额金币，刷新 / 买装备 / 升级。</p></div>
+    <div class="card"><h4>等级卡住</h4><p>优先集火经验贤者，一次性高额经验加速升级。</p></div>
+    <div class="card"><h4>双资源平衡</h4><p>两只经济 Boss 分开出现，玩家按当前阶段需求选择，资源不会双溢出。</p></div>
+  </div>
+
+  <h2>出场时机建议</h2>
+  <table>
+    <thead><tr><th scope="col">阶段</th><th scope="col">建议部署</th></tr></thead>
+    <tbody>
+      <tr><td>阶段 1-2</td><td>不出现，避免前期经济崩坏。</td></tr>
+      <tr><td>阶段 3</td><td>视情况出现 1 只经济 Boss（随机），作为节奏点。</td></tr>
+      <tr><td>阶段 4-5</td><td>各出现 1 只，形成前后期经济/成长双高峰。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn"><strong>实现现状：</strong>两个经济 Boss 已加入 <code>units.json</code>（id 10/11，复用 <code>monster_9</code> 预制件），由 <code>rewardType</code> 驱动一次性放大。出场脚本（何时刷哪只）尚未在 <code>spawnBoss</code> 中实现，属 <span class="q n">待定</span> 部分。</div>
+
+  <div class="callout bad"><strong>注意：</strong>这两个经济 Boss 复用了 <code>prefabs/units/monster_9</code> 预制件（未新增美术资源）。若需要独立外观，需补对应 prefab，此处为占位引用。</div>
+</article>
+</body>
+</html>

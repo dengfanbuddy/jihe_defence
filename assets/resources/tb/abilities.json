@@ -1,0 +1,220 @@
+[
+  {
+    "id": 1,
+    "name": "火球术",
+    "behavior": "unit_target",
+    "cooldown": 3,
+    "mana_cost": 20,
+    "cast_range": 600,
+    "damage_type": "magical",
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "damage",
+        "value": 60
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 1,
+        "duration": 3
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "霜冻新星",
+    "behavior": "aoe",
+    "cooldown": 6,
+    "mana_cost": 35,
+    "cast_range": 500,
+    "damage_type": "magical",
+    "targeting": "lowest_hp",
+    "effects": [
+      {
+        "type": "aoe_damage",
+        "value": 40,
+        "radius": 250
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 2,
+        "duration": 2.5
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "圣光术",
+    "behavior": "unit_target",
+    "cooldown": 8,
+    "mana_cost": 30,
+    "cast_range": 500,
+    "damage_type": null,
+    "targeting": "lowest_hp",
+    "effects": [
+      {
+        "type": "heal",
+        "value": 80
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "战吼",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 25,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 9,
+        "duration": 8
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "闪电链",
+    "behavior": "no_target",
+    "cooldown": 10,
+    "mana_cost": 40,
+    "cast_range": 0,
+    "damage_type": "magical",
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "execute_script",
+        "script_id": "lightning_chain"
+      }
+    ],
+    "script_id": "Ability_LightningChain"
+  },
+  {
+    "id": 6,
+    "name": "荆棘光环(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 10,
+        "duration": -1
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "偷钱(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 13,
+        "duration": -1
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "飞镖·一阶",
+    "behavior": "attack",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": "physical",
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "damage",
+        "value": 50,
+        "projectile_speed": 1200
+      }
+    ],
+    "upgrades_to": 9,
+    "projectile_prefab": "prefabs/projectiles/ability_8"
+  },
+  {
+    "id": 9,
+    "name": "淬毒飞镖·二阶",
+    "behavior": "attack",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": "physical",
+    "targeting": "lowest_hp",
+    "effects": [
+      {
+        "type": "damage",
+        "value": 75,
+        "projectile_speed": 1200
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 1,
+        "duration": 3
+      }
+    ],
+    "upgrades_to": 10,
+    "projectile_prefab": "prefabs/projectiles/ability_9"
+  },
+  {
+    "id": 10,
+    "name": "审判飞镖·三阶",
+    "behavior": "attack",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": "physical",
+    "targeting": "lowest_hp",
+    "effects": [
+      {
+        "type": "damage",
+        "value": 100,
+        "projectile_speed": 1200
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 1,
+        "duration": 3
+      },
+      {
+        "type": "steal_gold",
+        "value": 20
+      }
+    ],
+    "projectile_prefab": "prefabs/projectiles/ability_10"
+  },
+  {
+    "id": 11,
+    "name": "毒镖",
+    "behavior": "no_target",
+    "cooldown": 8,
+    "mana_cost": 30,
+    "cast_range": 0,
+    "damage_type": "magical",
+    "targeting": "strongest",
+    "effects": [
+      {
+        "type": "projectile",
+        "value": 0,
+        "speed": 1000,
+        "targeting": "strongest",
+        "target_count": 5,
+        "hit_effects": []
+      }
+    ],
+    "projectile_prefab": "prefabs/projectiles/ability_11"
+  }
+]

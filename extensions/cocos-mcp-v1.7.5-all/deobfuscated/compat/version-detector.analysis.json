@@ -1,0 +1,98 @@
+{
+  "path": "compat/version-detector.js",
+  "size": 37085,
+  "isObfuscated": true,
+  "decoderName": "_0x10bf",
+  "cacheProp": "\\x50\\x67\\x6c\\x69\\x43\\x74",
+  "exports": {
+    "getCreatorVersion": {
+      "type": "function",
+      "returns": {
+        "major": 3,
+        "minor": 8,
+        "patch": 0,
+        "raw": "3.8.0 (default)",
+        "confirmed": false
+      }
+    },
+    "initVersionDetector": {
+      "type": "function",
+      "returns": {
+        "major": 3,
+        "minor": 8,
+        "patch": 0,
+        "raw": "3.8.0 (default)",
+        "confirmed": false
+      }
+    },
+    "destroyVersionDetector": {
+      "type": "function"
+    },
+    "isAtLeast": {
+      "type": "function",
+      "returns": false
+    },
+    "isV38OrAbove": {
+      "type": "function",
+      "returns": true
+    },
+    "getVersionSlug": {
+      "type": "function",
+      "returns": "3.8"
+    }
+  },
+  "notes": [
+    "OK: decoder=_0x10bf, cacheProp=\\x50\\x67\\x6c\\x69\\x43\\x74, strings=1225"
+  ],
+  "printableStrings": [
+    "3085300XlUUyF",
+    "1015515VEhDhe",
+    "2855733zYxpFg",
+    "3187060lgZubM",
+    "1808328OSplpa",
+    "565615WhZvnl",
+    "249864rHniyA",
+    "Detector",
+    "duling n",
+    "confirme",
+    " retries",
+    " succeed",
+    " still u",
+    "ng retri",
+    "35gBNZxw",
+    "80oAtRHw",
+    "22kqhXbm",
+    "getCreat",
+    "orVersio",
+    "initVers",
+    "ionDetec",
+    "destroyV",
+    "isAtLeas",
+    "2VGJkdJ",
+    "6GqyeeL",
+    "efault)",
+    "unknown",
+    "string",
+    "!T5\\tn",
+    "f\\tVsY",
+    "\\rQKJ_",
+    "onSlug",
+    "naQRY",
+    "QEmgi",
+    "RsAFo",
+    "yfwLh",
+    "2\\!<b",
+    "bosHc",
+    "major",
+    "EnWbf",
+    "m~+0R",
+    "A1NmN",
+    ".g\\r",
+    "2`)",
+    "raw",
+    "C1K",
+    "Nr(",
+    "`VJ",
+    "tor"
+  ]
+}

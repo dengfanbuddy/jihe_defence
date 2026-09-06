@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>英雄设计库 · 30 英雄 / 道具 / 肉鸽技能 / 击杀 Buff</title>
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style-extra.css">
+</head>
+<body id="top">
+
+<div class="topbar">
+    <div class="brand">
+        <span class="brand-mark" id="brandMark"></span>
+        <span>
+            <span class="brand-txt display">英雄设计库</span><br>
+            <span class="brand-sub">30 HEROES · ITEMS · ROGUE SKILLS · BUFFS</span>
+        </span>
+    </div>
+
+    <a class="btn" href="../monster-design/index.html">通用 Glyph 图鉴 ←</a>
+    <a class="btn" href="../monster-design/ours.html">怪物设计 ←</a>
+
+    <label class="ctrl">主题
+        <select id="themeSel"><option value="light">纸面 Paper</option><option value="dark">夜场 Night</option></select>
+    </label>
+    <label class="ctrl">PNG 尺寸
+        <select id="scaleSel">
+            <option value="256">256 px</option><option value="512" selected>512 px</option>
+            <option value="1024">1024 px</option><option value="2048">2048 px</option>
+        </select>
+    </label>
+    <label class="ctrl"><input type="checkbox" id="bgChk"> 导出含底色</label>
+    <button class="btn primary" data-dump="1">导出 hero-design.json</button>
+</div>
+
+<nav class="side-nav" id="sideNav" aria-label="章节导航">
+    <span class="side-nav-title">章节</span>
+    <a href="#sec-overview" data-spy="sec-overview"><i>01</i><span>总览</span></a>
+    <a href="#sec-heroes" data-spy="sec-heroes"><i>02</i><span>英雄图鉴</span></a>
+    <a href="#sec-items" data-spy="sec-items"><i>03</i><span>肉鸽商店 · 道具</span></a>
+    <a href="#sec-skills" data-spy="sec-skills"><i>04</i><span>额外技能库</span></a>
+    <a href="#sec-buffs" data-spy="sec-buffs"><i>05</i><span>击杀商店 Buff</span></a>
+    <a href="#sec-config" data-spy="sec-config"><i>06</i><span>配置导出</span></a>
+    <a href="#top" class="side-nav-top" data-spy="top"><i>▲</i><span>回顶部</span></a>
+</nav>
+
+<div class="wrap">
+
+    <div class="hero">
+        <h1 class="display">30 位英雄 · <em>Dota2 基因</em> × 塔防重构</h1>
+        <p>继承 dota2 英雄的标志性机制，改造成本作「1 被动 + 1 普攻 + 1 技能」、且三者各自在
+            <b>Lv.1 / 10 / 20 / 30</b> 各强化一次的结构。数值完全套用项目英雄文档的属性倾向映射表与成长侧重。</p>
+        <p>同时设计了一套**局内肉鸽商店**：48 件可合成道具（dota2 装备改编）、30 个额外技能槽技能、
+            20 个击杀商店永久 Buff。所有局内增益均为百分比、同类加法叠加。</p>
+        <div class="srcs">
+            <span>heroes.json 属性体系</span><span>dota2 135 英雄参考</span>
+            <span>dota2 293 装备改编</span><span>element_effects.json 元素</span>
+        </div>
+    </div>
+
+    <section id="sec-overview">
+        <div class="sec-head"><span class="idx display">01</span><h2 class="display">总览</h2></div>
+        <div id="ovCards">
+            <div class="ov-card"><b id="ovHeroCount">0</b><span>英雄</span></div>
+            <div class="ov-card"><b id="ovItemCount">0</b><span>道具</span></div>
+            <div class="ov-card"><b id="ovSkillCount">0</b><span>额外技能</span></div>
+            <div class="ov-card"><b id="ovBuffCount">0</b><span>击杀 Buff</span></div>
+        </div>
+
+        <h3 class="sec-hdd">流派分布</h3>
+        <div id="ovArche"></div>
+
+        <h3 class="sec-hdd">Lv.1 属性总表（点击跳转英雄卡）</h3>
+        <div id="ovTableWrap">
+            <table id="ovTable">
+                <thead><tr>
+                    <th>英雄</th><th>英文</th><th>流派</th><th>元素</th><th>成长</th>
+                    <th>攻击</th><th>生命</th><th>射程</th><th>攻速</th><th>难度</th><th>解锁</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="sec-heroes">
+        <div class="sec-head"><span class="idx display">02</span><h2 class="display">英雄图鉴</h2></div>
+        <p class="sec-desc">按「流派 / 元素」筛选。被动与普攻为固定效果，**仅技能随英雄等级（Lv.1/10/20/30）升级**。
+            每张卡含 Lv.1 基础属性 + 被动 / 普攻（静态）+ 技能 ×4 级 + 推荐构筑。右上角 SVG / PNG 可导出英雄徽记。</p>
+        <div class="filters" id="archFilters"></div>
+        <div class="filters" id="elemFilters"></div>
+        <p class="sec-desc" style="margin-bottom:14px">共 <b id="heroCount">0</b> 位英雄</p>
+        <div class="grid wide" id="heroGrid"></div>
+    </section>
+
+    <section id="sec-items">
+        <div class="sec-head"><span class="idx display">03</span><h2 class="display">肉鸽商店 · 道具</h2></div>
+        <p class="sec-desc">对应 dota2 <b>全部 293 件装备</b>，按 4 品质分级：<b>白 / 蓝 / 黄 / 红</b>（依品质与价值换算），
+            无合成概念，随商店/掉落获得。图标为 dota2 官方装备图。</p>
+        <div class="q-legend" id="itemLegend"></div>
+        <div class="filters" id="itemFilters"></div>
+        <p class="sec-desc" style="margin-bottom:14px">共 <b id="itemCount">0</b> 件</p>
+        <div id="itemGrid"></div>
+    </section>
+
+    <section id="sec-skills">
+        <div class="sec-head"><span class="idx display">04</span><h2 class="display">额外技能库</h2></div>
+        <p class="sec-desc">30 个可抽取到 3 个额外技能槽的技能，抽到同名自动升 1 级。品质为 <b>白 / 蓝 / 黄 / 红</b> 四档，
+            同品质内按权重分配；<b>英雄等级越高，高品质抽取概率越高</b>（见下方抽卡表）。</p>
+        <div class="q-legend" id="skillLegend"></div>
+        <h3 class="sec-hdd">品质抽取概率（随英雄等级提升）</h3>
+        <div class="draw-table-wrap"><table class="draw-table" id="drawTable"></table></div>
+        <div class="filters" id="skillFilters"></div>
+        <p class="sec-desc" style="margin-bottom:14px">共 <b id="skillCount">0</b> 个</p>
+        <div id="skillGrid"></div>
+    </section>
+
+    <section id="sec-buffs">
+        <div class="sec-head"><span class="idx display">05</span><h2 class="display">击杀商店 Buff</h2></div>
+        <p class="sec-desc">20 个用「击杀点」购买的永久 Buff，可重复购买、价格递增。均为百分比加成，同类加法叠加，触及属性上限后失效。</p>
+        <div class="grid" id="buffGrid"></div>
+    </section>
+
+    <section id="sec-config">
+        <div class="sec-head"><span class="idx display">06</span><h2 class="display">配置导出</h2></div>
+        <p class="sec-desc">全部数据聚合为 JSON，可直接查看或下载用于游戏配置。</p>
+        <div class="export-box">
+            <button class="btn" data-dump="1">下载 hero-design.json</button>
+            <textarea id="cfgOut" spellcheck="false" readonly></textarea>
+        </div>
+    </section>
+
+    <footer>
+        数据参考：<code>assets/resources/tb/heroes.json</code> · <code>docs/prd/肉鸽塔防_英雄设计文档.md</code> · Dota 2 英雄与装备。
+        本页所有图形为参数化生成的原创徽记，仅复用 Glyphica 视觉语法；数值为策划初稿，用于配置落地前需平衡测试。
+    </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../monster-design/assets/art.js"></script>
+<script src="assets/art-hero.js"></script>
+<script src="assets/data-heroes-a.js"></script>
+<script src="assets/data-heroes-b.js"></script>
+<script src="assets/data-heroes-c.js"></script>
+<script src="assets/data-items.js"></script>
+<script src="assets/data-skills.js"></script>
+<script src="assets/data-draw.js"></script>
+<script src="assets/app-hero.js"></script>
+</body>
+</html>

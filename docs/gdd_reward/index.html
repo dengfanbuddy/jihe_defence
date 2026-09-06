@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金币/经验奖励数值设计 · 策划</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  body{ display:flex; flex-direction:column; min-height:100dvh; overflow:hidden; }
+  .masthead{ padding:22px 28px 16px; border-bottom:1px solid var(--line); }
+  .masthead h1{ font-size:23px; font-weight:700; letter-spacing:-0.01em; }
+  .masthead .sub{ color:var(--muted); margin-top:5px; font-size:14px; }
+  .masthead .chips{ margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; }
+  .stage{ flex:1 1 auto; position:relative; }
+  .stage iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--bg); }
+  .tabbar{ position:relative; z-index:10; background:var(--panel); border-top:2px solid var(--line);
+    display:flex; align-items:stretch; overflow-x:auto; scrollbar-width:thin; }
+  .tabbtn{ border:none; background:transparent; color:var(--muted); font:inherit; font-size:13.5px; font-weight:500;
+    padding:12px 20px; cursor:pointer; white-space:nowrap; border-right:1px solid var(--line); }
+  .tabbtn.is-active{ color:var(--accent-ink); background:var(--accent); font-weight:600; }
+  .tabbtn:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+</style>
+</head>
+<body>
+
+  <header class="masthead">
+    <h1>金币 / 经验奖励数值设计</h1>
+    <div class="sub">击杀经济 · 塔防 Roguelike · Cocos Creator 3.8.6</div>
+    <div class="chips">
+      <span class="chip a">设计定案 v1.0</span>
+      <span class="chip">策划组</span>
+      <span class="chip warn">部分待调优</span>
+    </div>
+  </header>
+
+  <main class="stage">
+    <iframe id="panel" title="奖励数值设计内容" src="tabs/overview.html"></iframe>
+  </main>
+
+  <nav class="tabbar" role="tablist" aria-label="奖励数值设计分页">
+    <button class="tabbtn is-active" role="tab" aria-selected="true" data-src="tabs/overview.html" data-id="overview">总览</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-src="tabs/number.html" data-id="number">数值</button>
+    <button class="tabbtn" role="tab" aria-selected="false" data-src="tabs/boss.html" data-id="boss">经济Boss</button>
+  </nav>
+
+</body>
+</html>
+
+<script>
+  const btns = [...document.querySelectorAll('.tabbtn')];
+  const iframe = document.getElementById('panel');
+  const set = (src) => {
+    iframe.src = src;
+    if (location.hash !== '#'+src) history.replaceState(null,'','#'+src);
+  };
+  btns.forEach((b,i) => {
+    b.addEventListener('click', () => {
+      btns.forEach(x=>{ x.classList.toggle('is-active', x===b); x.setAttribute('aria-selected', x===b?'true':'false'); });
+      set(b.dataset.src);
+    });
+    b.addEventListener('keydown', e => {
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+        e.preventDefault();
+        const n = (i + (e.key==='ArrowRight'?1:-1) + btns.length) % btns.length;
+        btns[n].focus(); btns[n].click();
+      }
+    });
+  });
+  const q = new URLSearchParams(location.search).get('tab');
+  if (q){ const b = btns.find(x=>x.dataset.src.endsWith(q+'.html')) || btns.find(x=>x.dataset.id===q); if(b) b.click(); }
+</script>

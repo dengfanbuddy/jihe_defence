@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scene_Game_Stage 战斗架构梳理</title>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --border: #e2e5ea; --text: #1f2430;
+    --muted: #6b7280; --blue: #2563eb; --teal: #0d9488; --amber: #d97706;
+    --red: #dc2626; --green: #16a34a; --purple: #7c3aed;
+    --blue-bg: #eff6ff; --teal-bg: #f0fdfa; --amber-bg: #fffbeb;
+    --red-bg: #fef2f2; --green-bg: #f0fdf4; --purple-bg: #f5f3ff;
+    --gray-bg: #f3f4f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.65;
+    padding-bottom: 80px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ===== Header ===== */
+  .page-head { padding: 48px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  .page-head h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+  .page-head p { color: var(--muted); margin-top: 8px; font-size: 15px; }
+  .badge-row { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-block; padding: 3px 12px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 500; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted);
+  }
+  .badge.b { color: var(--blue); border-color: #bfdbfe; background: var(--blue-bg); }
+  .badge.t { color: var(--teal); border-color: #99f6e4; background: var(--teal-bg); }
+  .badge.a { color: var(--amber); border-color: #fde68a; background: var(--amber-bg); }
+  .badge.r { color: var(--red); border-color: #fecaca; background: var(--red-bg); }
+  .badge.g { color: var(--green); border-color: #bbf7d0; background: var(--green-bg); }
+
+  /* ===== Section ===== */
+  section { margin-bottom: 44px; }
+  .sec-title { font-size: 21px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .sec-title .idx {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--blue); color: #fff; flex-shrink: 0;
+  }
+  .sec-desc { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+  /* ===== Cards ===== */
+  .grid { display: grid; gap: 14px; }
+  .grid.c2 { grid-template-columns: 1fr 1fr; }
+  .grid.c3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid.c4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 860px) { .grid.c2, .grid.c3, .grid.c4 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .card p { font-size: 13.5px; color: var(--muted); }
+  .card .file {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12px; color: var(--blue); background: var(--blue-bg);
+    padding: 1px 7px; border-radius: 5px; font-weight: 500;
+  }
+
+  /* ===== Callout ===== */
+  .callout { border-radius: 10px; padding: 14px 18px; font-size: 13.5px; margin-top: 14px; }
+  .callout.blue { background: var(--blue-bg); border: 1px solid #bfdbfe; color: #1e40af; }
+  .callout.teal { background: var(--teal-bg); border: 1px solid #99f6e4; color: #115e59; }
+  .callout.amber { background: var(--amber-bg); border: 1px solid #fde68a; color: #92400e; }
+  .callout.red { background: var(--red-bg); border: 1px solid #fecaca; color: #991b1b; }
+  .callout strong { font-weight: 600; }
+  .callout code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+  /* ===== Code ===== */
+  pre {
+    background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 18px 20px;
+    font-size: 13px; line-height: 1.7; overflow-x: auto; font-family: ui-monospace, Consolas, monospace;
+  }
+  pre .c { color: #64748b; } /* comment */
+  pre .k { color: #93c5fd; } /* keyword */
+  pre .s { color: #86efac; } /* string */
+  pre .f { color: #fbbf24; } /* function */
+
+  /* ===== Diagram ===== */
+  .diagram {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto;
+  }
+  .diagram svg { display: block; margin: 0 auto; min-width: 600px; }
+  .diagram-cap { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+
+  /* ===== Table ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--gray-bg); font-weight: 600; font-size: 13px; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 12px; background: var(--gray-bg); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, Consolas, monospace; }
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+  .tag.logic { background: var(--blue-bg); color: var(--blue); }
+  .tag.view { background: var(--teal-bg); color: var(--teal); }
+  .tag.config { background: var(--amber-bg); color: var(--amber); }
+  .tag.ui { background: var(--purple-bg); color: var(--purple); }
+  .tag.pool { background: var(--red-bg); color: var(--red); }
+
+  /* ===== TOC ===== */
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 40px; }
+  .toc h2 { font-size: 15px; margin-bottom: 12px; color: var(--muted); font-weight: 600; }
+  .toc ol { padding-left: 22px; }
+  .toc li { margin: 6px 0; font-size: 14px; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .sub { color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); align-items: center; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HEADER ================= -->
+  <div class="page-head">
+    <h1>Scene_Game_Stage 战斗架构梳理</h1>
+    <p>以战斗场景为起点，梳理战斗逻辑、对象池、事件驱动的完整链路。文件：<code>assets/scripts/game/game_stage/scene/Scene_Game_Stage.ts</code></p>
+    <div class="badge-row">
+      <span class="badge b">纯逻辑 battle/（零 cc 依赖）</span>
+      <span class="badge t">表现层 entityview/（依赖 cc）</span>
+      <span class="badge a">配置 TbRoot 管线</span>
+      <span class="badge r">对象池</span>
+      <span class="badge g">事件驱动</span>
+    </div>
+  </div>
+
+  <!-- ================= TOC ================= -->
+  <div class="toc">
+    <h2>目录</h2>
+    <ol>
+      <li><a href="#s1">架构总览：四层分层 + 两条通道</a> <span class="sub">逻辑层 / 表现层 / 配置层 / UI 层</span></li>
+      <li><a href="#s2">生命周期流程：show → initBattle → selectHero → 战斗 → finish</a> <span class="sub">状态机 + 关键时序</span></li>
+      <li><a href="#s3">每帧战斗循环（tick）</a> <span class="sub">英雄 AI → 弹道表现 → ctx.Tick 推进</span></li>
+      <li><a href="#s4">对象池配对：MonsterPool = EntityPool + EntityViewPool</a> <span class="sub">逻辑池与表现池组合 + 异步竞态防护</span></li>
+      <li><a href="#s5">事件驱动：ctx 发事件 → 场景订阅 → 统计/回收/UI 同步</a> <span class="sub">OnDeath / OnEntityAdded / OnProjectileHit</span></li>
+      <li><a href="#s6">核心类职责速查</a> <span class="sub">Entity / AbilitySystem / ModifierSystem / DamagePipeline</span></li>
+      <li><a href="#s7">已知问题与 TODO</a></li>
+    </ol>
+  </div>
+
+  <!-- ================= S1 架构总览 ================= -->
+  <section id="s1">
+    <div class="sec-title"><span class="idx">1</span>架构总览：四层分层 + 两条通道</div>
+    <div class="sec-desc">Scene_Game_Stage 是"总控"，连接四个层次。怪物/弹道遵循"逻辑对象 + 表现 View"双对象模式，中间通过 <code>view</code> 字段和事件解耦。</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 520" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .lbl { font: 500 12.5px sans-serif; fill: #6b7280; }
+            .lblB { font: 500 12.5px sans-serif; fill: #2563eb; }
+            .lblT { font: 500 12.5px sans-serif; fill: #0d9488; }
+            .lblA { font: 500 12.5px sans-serif; fill: #d97706; }
+            .lblP { font: 500 12.5px sans-serif; fill: #7c3aed; }
+            .t1 { font: 600 14px sans-serif; fill: #1f2430; }
+            .t2 { font: 400 12px sans-serif; fill: #6b7280; }
+          </style>
+        </defs>
+
+        <!-- ===== 第 1 行：配置层 ===== -->
+        <rect x="40" y="20" width="920" height="78" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1"/>
+        <text class="lblA" x="60" y="44">配置层 · TbRoot 全局管线（Main.start 时 loadTbs 一次性加载）</text>
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="60" y="54" width="150" height="32" rx="7" fill="#fff" stroke="#fbbf24" stroke-width="1"/>
+          <text class="t2" x="135" y="75">units.json</text>
+          <rect x="230" y="54" width="160" height="32" rx="7" fill="#fff" stroke="#fbbf24" stroke-width="1"/>
+          <text class="t2" x="310" y="75">abilities.json</text>
+          <rect x="410" y="54" width="165" height="32" rx="7" fill="#fff" stroke="#fbbf24" stroke-width="1"/>
+          <text class="t2" x="492" y="75">modifiers.json</text>
+          <rect x="595" y="54" width="120" height="32" rx="7" fill="#fff" stroke="#fbbf24" stroke-width="1"/>
+          <text class="t2" x="655" y="75">relics.json</text>
+          <rect x="735" y="54" width="115" height="32" rx="7" fill="#fff" stroke="#fbbf24" stroke-width="1"/>
+          <text class="t2" x="792" y="75">attributes.json</text>
+        </g>
+
+        <!-- ===== 第 2 行：逻辑层 ===== -->
+        <rect x="40" y="120" width="920" height="150" rx="12" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+        <text class="lblB" x="60" y="144">逻辑层 · battle/（纯 TS，零 cc 依赖，可脱离场景测试）</text>
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="60" y="156" width="200" height="46" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="160" y="176">BattleContext</text>
+          <text class="t2" x="160" y="193">实体表 / 弹道 / Tick 推进</text>
+          <rect x="280" y="156" width="150" height="46" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="355" y="176">Entity</text>
+          <text class="t2" x="355" y="193">属性/技能/状态/AI</text>
+          <rect x="450" y="156" width="150" height="46" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="525" y="176">Projectile</text>
+          <text class="t2" x="525" y="193">弹道两阶段结算</text>
+          <rect x="620" y="156" width="150" height="46" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="695" y="176">DamagePipeline</text>
+          <text class="t2" x="695" y="193">5 阶段伤害管线</text>
+          <rect x="790" y="156" width="150" height="46" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="865" y="176">EventBus</text>
+          <text class="t2" x="865" y="193">全局 + 实例双形态</text>
+          <rect x="60" y="214" width="880" height="42" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+          <text class="t1" x="500" y="231">组合子系统</text>
+          <text class="t2" x="500" y="248">AbilitySystem ｜ ModifierSystem ｜ StatusSystem ｜ AttributeSystem ｜ MonsterAI</text>
+        </g>
+
+        <!-- ===== 第 3 行：表现层 ===== -->
+        <rect x="40" y="292" width="920" height="110" rx="12" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1"/>
+        <text class="lblT" x="60" y="316">表现层 · game_stage/entityview/（依赖 cc，只管渲染）</text>
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="60" y="328" width="180" height="44" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="150" y="348">MonsterPool</text>
+          <text class="t2" x="150" y="364">组合池（唯一入口）</text>
+          <rect x="260" y="328" width="160" height="44" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="340" y="348">EntityView</text>
+          <text class="t2" x="340" y="364">位置同步/绑定</text>
+          <rect x="440" y="328" width="180" height="44" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="530" y="348">ProjectileViewPool</text>
+          <text class="t2" x="530" y="364">弹道节点池</text>
+          <rect x="640" y="328" width="160" height="44" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="720" y="348">ProjectileView</text>
+          <text class="t2" x="720" y="364">跟随逻辑位置</text>
+          <rect x="820" y="328" width="120" height="44" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="880" y="348">Hero</text>
+          <text class="t2" x="880" y="364">英雄节点组件</text>
+        </g>
+
+        <!-- ===== 第 4 行：UI 层 ===== -->
+        <rect x="40" y="424" width="920" height="76" rx="12" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1"/>
+        <text class="lblP" x="60" y="448">UI 层 · 响应式 Store + 视图（只读 store，不碰战斗逻辑）</text>
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="60" y="458" width="260" height="32" rx="7" fill="#fff" stroke="#a78bfa" stroke-width="1"/>
+          <text class="t2" x="190" y="479">battleStore（hp/gold/enemiesAlive）</text>
+          <rect x="340" y="458" width="200" height="32" rx="7" fill="#fff" stroke="#a78bfa" stroke-width="1"/>
+          <text class="t2" x="440" y="479">View_Game_Stage</text>
+          <rect x="560" y="458" width="200" height="32" rx="7" fill="#fff" stroke="#a78bfa" stroke-width="1"/>
+          <text class="t2" x="660" y="479">HeroSelectPanel</text>
+          <rect x="780" y="458" width="160" height="32" rx="7" fill="#fff" stroke="#a78bfa" stroke-width="1"/>
+          <text class="t2" x="860" y="479">全局 EventBus</text>
+        </g>
+
+        <!-- 层间连接 -->
+        <g stroke="#94a3b8" stroke-width="1.4">
+          <line x1="500" y1="98" x2="500" y2="120" marker-end="url(#arrow)"/>
+          <text class="lbl" x="515" y="113">查询</text>
+          <line x1="500" y1="270" x2="500" y2="292" marker-end="url(#arrow)"/>
+          <text class="lbl" x="518" y="285">view 绑定/事件</text>
+          <line x1="500" y1="402" x2="500" y2="424" marker-end="url(#arrow)"/>
+          <text class="lbl" x="520" y="417">store 投影</text>
+        </g>
+      </svg>
+      <div class="diagram-cap">四层架构：配置（TbRoot）→ 逻辑（battle/ 纯 TS）→ 表现（entityview/ cc）→ UI（响应式 store）</div>
+    </div>
+
+    <div class="callout blue"><strong>核心原则：</strong>逻辑层不 import 任何 cc 模块，所以可以脱离场景做单元测试、无头模拟，甚至未来接服务端权威。表现层通过 <code>entity.view</code> 字段绑定，通过 <code>ctx.bus</code> 事件感知战斗变化。</div>
+  </section>
+
+  <!-- ================= S2 生命周期 ================= -->
+  <section id="s2">
+    <div class="sec-title"><span class="idx">2</span>生命周期流程：show → initBattle → selectHero → 战斗 → finish</div>
+    <div class="sec-desc">Scene_Game_Stage 是 BaseView 子类，由 UIManager 控制显隐；内部由 FSM（HeroSelection → Battle → Pause）管理阶段。</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 560" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .p1 { font: 600 13.5px sans-serif; fill: #1f2430; }
+            .p2 { font: 400 11.5px sans-serif; fill: #6b7280; }
+            .pf { font: 500 11.5px sans-serif; fill: #2563eb; font-family: ui-monospace, Consolas, monospace; }
+          </style>
+        </defs>
+
+        <!-- 纵向时间线 -->
+        <g font-family="sans-serif" text-anchor="middle">
+          <!-- 1 show -->
+          <rect x="60" y="30" width="250" height="56" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.4"/>
+          <text class="p1" x="185" y="52">show()</text>
+          <text class="pf" x="185" y="70">resetRun → 订阅全局事件</text>
+          <line x1="185" y1="86" x2="185" y2="118" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+          <!-- 2 initBattle -->
+          <rect x="60" y="118" width="250" height="64" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.4"/>
+          <text class="p1" x="185" y="140">initBattle()</text>
+          <text class="pf" x="185" y="158">new BattleContext + 两个池</text>
+          <text class="pf" x="185" y="172">注册脚本逃逸口 + AI</text>
+          <line x1="185" y1="182" x2="185" y2="214" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+          <!-- 3 selectHero -->
+          <rect x="60" y="214" width="250" height="84" rx="10" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.4"/>
+          <text class="p1" x="185" y="236">selectHero()（UI 选人）</text>
+          <text class="pf" x="185" y="254">CreateEntityFromDef → this.hero</text>
+          <text class="pf" x="185" y="268">hero.bind(this.hero)（Hero 组件）</text>
+          <text class="pf" x="185" y="282">bindBattleEvents() 订阅战斗事件</text>
+          <text class="pf" x="185" y="296">syncHeroToStore() → UI 血条</text>
+          <line x1="185" y1="298" x2="185" y2="330" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+          <!-- 4 战斗中 update 循环 -->
+          <rect x="60" y="330" width="250" height="80" rx="10" fill="#fffbeb" stroke="#fbbf24" stroke-width="1.4"/>
+          <text class="p1" x="185" y="352">update() 每帧（Battle 状态）</text>
+          <text class="pf" x="185" y="370">checkStage（阶段推进/刷怪计时）</text>
+          <text class="pf" x="185" y="384">tick(dt)（战斗循环，见 §3）</text>
+          <text class="pf" x="185" y="398">暂停检查 isPaused</text>
+          <line x1="185" y1="410" x2="185" y2="442" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+
+          <!-- 5 finish -->
+          <rect x="60" y="442" width="250" height="84" rx="10" fill="#fef2f2" stroke="#f87171" stroke-width="1.4"/>
+          <text class="p1" x="185" y="464">finish(victory) / exit()</text>
+          <text class="pf" x="185" y="482">releasePrefabs() 卸载预制件</text>
+          <text class="pf" x="185" y="496">BATTLE_ENDED 全局事件</text>
+          <text class="pf" x="185" y="510">UIManager → Scene_Menu</text>
+          <text class="pf" x="185" y="524">onDestroy: ctx.bus.clear()</text>
+        </g>
+
+        <!-- 右侧：状态机 -->
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="520" y="60" width="420" height="380" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+          <text class="lbl" x="730" y="86" fill="#6b7280">FSM 状态机（platform/fsm）</text>
+
+          <rect x="560" y="104" width="340" height="52" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.4"/>
+          <text class="p1" x="730" y="126">HeroSelectionState</text>
+          <text class="pf" x="730" y="144">showSelectHeroPanel = true</text>
+
+          <line x1="730" y1="156" x2="730" y2="184" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+          <text class="lbl" x="742" y="174">选完英雄</text>
+
+          <rect x="560" y="184" width="340" height="52" rx="10" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.4"/>
+          <text class="p1" x="730" y="206">BattleState（战斗中）</text>
+          <text class="pf" x="730" y="224">update → tick 循环</text>
+
+          <line x1="730" y1="236" x2="730" y2="264" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+          <text class="lbl" x="742" y="254">暂停</text>
+
+          <rect x="560" y="264" width="340" height="52" rx="10" fill="#fffbeb" stroke="#fbbf24" stroke-width="1.4"/>
+          <text class="p1" x="730" y="286">PauseState</text>
+          <text class="pf" x="730" y="304">isPaused → update 提前 return</text>
+
+          <line x1="730" y1="316" x2="730" y2="344" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow2)"/>
+          <text class="lbl" x="742" y="334">继续/退出</text>
+
+          <rect x="560" y="344" width="340" height="52" rx="10" fill="#fef2f2" stroke="#f87171" stroke-width="1.4"/>
+          <text class="p1" x="730" y="366">结束 → finish()</text>
+          <text class="pf" x="730" y="384">回到主菜单 / 结算面板(TODO)</text>
+        </g>
+      </svg>
+      <div class="diagram-cap">生命周期主线（左）+ FSM 状态机（右）。注意 selectHero 里 heroNode 上的 Hero 组件跨局持久，复用分支需重建实体到新 ctx</div>
+    </div>
+
+    <div class="callout amber"><strong>注意：</strong><code>Hero</code> 组件挂在 <code>heroNode</code> 上，<b>跨局持久</b>。二次开局时走 <code>hero.entity</code> 复用分支：旧实体须 <code>ctx.RemoveEntity</code> 移出旧上下文，再 <code>CreateEntityFromDef</code> 建到新 ctx，且必须重新 <code>bindBattleEvents()</code>（新 ctx 是新的事件总线）。</div>
+  </section>
+
+  <!-- ================= S3 每帧战斗循环 ================= -->
+  <section id="s3">
+    <div class="sec-title"><span class="idx">3</span>每帧战斗循环（tick）</div>
+    <div class="sec-desc">这是战斗每帧的推进顺序，也是理解"谁驱动谁"的关键。</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 460" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .t1 { font: 600 13.5px sans-serif; fill: #1f2430; }
+            .t2 { font: 400 11.5px sans-serif; fill: #6b7280; }
+            .tf { font: 500 11.5px sans-serif; fill: #2563eb; font-family: ui-monospace, Consolas, monospace; }
+          </style>
+        </defs>
+
+        <!-- 横向流程 5 步 -->
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="40" y="60" width="168" height="72" rx="10" fill="#fef2f2" stroke="#f87171" stroke-width="1.4"/>
+          <text class="t1" x="124" y="86">update()</text>
+          <text class="tf" x="124" y="104">checkStage(dt)</text>
+          <text class="t2" x="124" y="120">阶段推进 + 刷怪计时</text>
+
+          <line x1="208" y1="96" x2="238" y2="96" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow3)"/>
+
+          <rect x="238" y="60" width="168" height="72" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.4"/>
+          <text class="t1" x="322" y="86">tick(dt)</text>
+          <text class="tf" x="322" y="104">1. heroAI()</text>
+          <text class="t2" x="322" y="120">普攻索敌 + 自动施法</text>
+
+          <line x1="406" y1="96" x2="436" y2="96" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow3)"/>
+
+          <rect x="436" y="60" width="168" height="72" rx="10" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.4"/>
+          <text class="t1" x="520" y="86">2. updateProjectiles()</text>
+          <text class="tf" x="520" y="104">为新弹道建视图</text>
+          <text class="t2" x="520" y="120">配置驱动 prefab 路径</text>
+
+          <line x1="604" y1="96" x2="634" y2="96" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow3)"/>
+
+          <rect x="634" y="60" width="168" height="72" rx="10" fill="#fffbeb" stroke="#fbbf24" stroke-width="1.4"/>
+          <text class="t1" x="718" y="86">3. ctx.Tick(dt)</text>
+          <text class="tf" x="718" y="104">推进核心战斗</text>
+          <text class="t2" x="718" y="120">实体/弹道/调度器</text>
+
+          <line x1="802" y1="96" x2="832" y2="96" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow3)"/>
+
+          <rect x="832" y="60" width="128" height="72" rx="10" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.4"/>
+          <text class="t1" x="896" y="86">（商店/胜负</text>
+          <text class="t1" x="896" y="104">当前注释）</text>
+          <text class="t2" x="896" y="120">TODO 后续启用</text>
+        </g>
+
+        <!-- ctx.Tick 内部展开 -->
+        <rect x="40" y="180" width="920" height="150" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+        <text class="t2" x="60" y="206" fill="#6b7280">ctx.Tick(dt) 内部（BattleContext.ts:225）</text>
+
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="60" y="220" width="200" height="56" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="160" y="240">实体 Tick</text>
+          <text class="t2" x="160" y="257">for e of spatialMap</text>
+          <text class="t2" x="160" y="270">HP恢复/冷却/Modifier/AI</text>
+
+          <line x1="260" y1="248" x2="290" y2="248" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow3)"/>
+
+          <rect x="290" y="220" width="200" height="56" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="390" y="240">弹道推进</text>
+          <text class="t2" x="390" y="257">p.tick(dt) → 到达?</text>
+          <text class="t2" x="390" y="270">snapToEnd → onHit</text>
+
+          <line x1="490" y1="248" x2="520" y2="248" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow3)"/>
+
+          <rect x="520" y="220" width="200" height="56" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="620" y="240">调度器</text>
+          <text class="t2" x="620" y="257">schedule(delay, cb)</text>
+          <text class="t2" x="620" y="270">倒计时 → 执行</text>
+
+          <line x1="720" y1="248" x2="750" y2="248" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow3)"/>
+
+          <rect x="750" y="220" width="190" height="56" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1.2"/>
+          <text class="t1" x="845" y="240">时间推进</text>
+          <text class="t2" x="845" y="257">this.time += dt</text>
+        </g>
+
+        <!-- 下方：AI 驱动说明 -->
+        <rect x="40" y="356" width="920" height="84" rx="10" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1"/>
+        <text class="t1" x="60" y="382" fill="#115e59">怪物 AI 驱动链路（纯逻辑，表现跟随）</text>
+        <text class="t2" x="60" y="404" fill="#0f766e">Entity.Tick → this.ai.update(dt) → ChaseAI.findTarget() 找英雄（GetTeamEntities(1)）</text>
+        <text class="t2" x="60" y="422" fill="#0f766e">→ moveToward 推进 entity.position → EntityView.update 每帧 setPosition 同步到节点</text>
+      </svg>
+      <div class="diagram-cap">每帧循环：checkStage（刷怪）→ heroAI（英雄行动）→ 弹道视图 → ctx.Tick（世界推进）</div>
+    </div>
+
+    <div class="callout blue"><strong>顺序说明：</strong>英雄 AI 在 ctx.Tick 之前，保证"英雄命令 → 世界结算"同帧生效；弹道视图在 Tick 前创建，使新发射的弹道当帧就有表现。</div>
+  </section>
+
+  <!-- ================= S4 对象池 ================= -->
+  <section id="s4">
+    <div class="sec-title"><span class="idx">4</span>对象池配对：MonsterPool = EntityPool + EntityViewPool</div>
+    <div class="sec-desc">怪物是"逻辑实体 + 表现节点"的 1:1 配对，场景层只面对一个组合池，配对顺序由池内部保证。</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 420" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .t1 { font: 600 13.5px sans-serif; fill: #1f2430; }
+            .t2 { font: 400 11.5px sans-serif; fill: #6b7280; }
+            .tf { font: 500 11.5px sans-serif; fill: #7c3aed; font-family: ui-monospace, Consolas, monospace; }
+          </style>
+        </defs>
+
+        <!-- 组合池 -->
+        <rect x="340" y="30" width="320" height="64" rx="12" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.4"/>
+        <text class="t1" x="500" y="54" text-anchor="middle" fill="#5b21b6">MonsterPool（场景层唯一入口）</text>
+        <text class="tf" x="500" y="74" text-anchor="middle">acquire(def) / release(entity) / preload() / releasePrefabs()</text>
+
+        <!-- 两个子池 -->
+        <line x1="420" y1="94" x2="280" y2="130" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow4)"/>
+        <line x1="580" y1="94" x2="700" y2="130" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#arrow4)"/>
+
+        <rect x="90" y="130" width="380" height="120" rx="12" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.2"/>
+        <text class="t1" x="280" y="156" text-anchor="middle" fill="#1e40af">EntityPool（battle/ 纯逻辑）</text>
+        <text class="t2" x="280" y="178" text-anchor="middle">Map&lt;unitId, Entity[]&gt; 按单位 id 分桶</text>
+        <text class="t2" x="280" y="196" text-anchor="middle">acquire: 取/建实体 + Reinit + ctx.AddEntity</text>
+        <text class="t2" x="280" y="214" text-anchor="middle">release: ctx.RemoveEntity + ResetForPool + 回池</text>
+        <text class="t2" x="280" y="232" text-anchor="middle">复用实体：uid 不变，子系统只创建一次</text>
+
+        <rect x="530" y="130" width="380" height="120" rx="12" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.2"/>
+        <text class="t1" x="720" y="156" text-anchor="middle" fill="#115e59">EntityViewPool（entityview/ 表现）</text>
+        <text class="t2" x="720" y="178" text-anchor="middle">Map&lt;prefabPath, cc.NodePool&gt; 按预制件分桶</text>
+        <text class="t2" x="720" y="196" text-anchor="middle">acquire: 取节点 + EntityView.bind + active</text>
+        <text class="t2" x="720" y="214" text-anchor="middle">release: unbind + 隐藏 + NodePool.put</text>
+        <text class="t2" x="720" y="232" text-anchor="middle">prefabCache 预制件缓存（load 一次）</text>
+
+        <!-- 生命周期配对 -->
+        <rect x="90" y="280" width="820" height="116" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+        <text class="t1" x="110" y="306" fill="#374151">生命周期配对（顺序由 MonsterPool 内部保证）</text>
+
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="110" y="318" width="360" height="60" rx="8" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.2"/>
+          <text class="t1" x="290" y="340" fill="#115e59">刷怪</text>
+          <text class="tf" x="290" y="358">monsterPool.acquire(def)</text>
+          <text class="t2" x="290" y="372">→ entityPool.acquire（逻辑入战）</text>
+
+          <line x1="470" y1="348" x2="520" y2="348" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrow4)"/>
+
+          <rect x="520" y="318" width="380" height="60" rx="8" fill="#fef2f2" stroke="#f87171" stroke-width="1.2"/>
+          <text class="t1" x="710" y="340" fill="#991b1b">死亡回收</text>
+          <text class="tf" x="710" y="358">monsterPool.release(entity)</text>
+          <text class="t2" x="710" y="372">→ viewPool.release（先表现）→ entityPool.release（后逻辑）</text>
+        </g>
+      </svg>
+      <div class="diagram-cap">组合池：逻辑池与表现池 1:1 配对，释放顺序"先表现后逻辑"（unbind 需要 entity 引用还在）</div>
+    </div>
+
+    <div class="callout red"><strong>异步竞态防护：</strong><code>viewPool.acquire</code> 是异步的（resources.load 预制件）。若实体在视图创建前就死亡/回收：<code>EntityViewPool.release</code> 先置 <code>_viewRecycled</code> 标记，晚到的回调看到标记即放弃创建 → 节点不泄漏。实体复用前 <code>Reinit()</code> 清除标记。</div>
+
+    <div class="callout teal"><strong>弹道池同理：</strong>ProjectileViewPool 用 <code>_viewAlive</code> 标记（acquire 置 true / release 置 false），弹道飞行极快时命中先于预制件加载，回调看到标记放弃创建。</div>
+  </section>
+
+  <!-- ================= S5 事件驱动 ================= -->
+  <section id="s5">
+    <div class="sec-title"><span class="idx">5</span>事件驱动：ctx 发事件 → 场景订阅 → 统计/回收/UI 同步</div>
+    <div class="sec-desc">战斗上下文只"发事件 + 管状态"，统计与回收由订阅方（Scene_Game_Stage）负责。发布端与监听端统一用 <code>BattleEvents.xxx</code> 常量。</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 400" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <style>
+            .t1 { font: 600 13px sans-serif; fill: #1f2430; }
+            .t2 { font: 400 11.5px sans-serif; fill: #6b7280; }
+            .tf { font: 500 11px sans-serif; fill: #2563eb; font-family: ui-monospace, Consolas, monospace; }
+          </style>
+        </defs>
+
+        <!-- 左侧：事件源 -->
+        <rect x="40" y="60" width="280" height="280" rx="12" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.2"/>
+        <text class="t1" x="180" y="88" text-anchor="middle" fill="#1e40af">事件源（ctx.bus.publish）</text>
+
+        <g font-family="sans-serif">
+          <rect x="60" y="104" width="240" height="42" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1"/>
+          <text class="tf" x="70" y="122">DamagePipeline → OnDeath</text>
+          <text class="t2" x="70" y="138">{ entity, killer }</text>
+
+          <rect x="60" y="156" width="240" height="42" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1"/>
+          <text class="tf" x="70" y="174">ctx.Add/RemoveEntity</text>
+          <text class="t2" x="70" y="190">OnEntityAdded / Removed</text>
+
+          <rect x="60" y="208" width="240" height="42" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1"/>
+          <text class="tf" x="70" y="226">Projectile.onHit</text>
+          <text class="t2" x="70" y="242">OnProjectileHit / Miss</text>
+
+          <rect x="60" y="260" width="240" height="42" rx="8" fill="#fff" stroke="#60a5fa" stroke-width="1"/>
+          <text class="tf" x="70" y="278">DamagePipeline → OnTakeDamage</text>
+          <text class="t2" x="70" y="294">{ target, finalDamage }</text>
+        </g>
+
+        <!-- 中间：总线 -->
+        <line x1="320" y1="200" x2="420" y2="200" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow5)"/>
+        <rect x="420" y="160" width="120" height="80" rx="12" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.4"/>
+        <text class="t1" x="480" y="192" text-anchor="middle" fill="#5b21b6">ctx.bus</text>
+        <text class="t2" x="480" y="212" text-anchor="middle">EventBus</text>
+        <text class="t2" x="480" y="228" text-anchor="middle">(实例总线)</text>
+
+        <!-- 右侧：订阅方 -->
+        <line x1="540" y1="200" x2="630" y2="200" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow5)"/>
+        <rect x="630" y="40" width="330" height="320" rx="12" fill="#f0fdfa" stroke="#2dd4bf" stroke-width="1.2"/>
+        <text class="t1" x="795" y="68" text-anchor="middle" fill="#115e59">订阅方（Scene_Game_Stage）</text>
+
+        <g font-family="sans-serif">
+          <rect x="650" y="84" width="290" height="52" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1"/>
+          <text class="tf" x="660" y="103">OnDeath</text>
+          <text class="t2" x="660" y="120">非英雄 → recycleMonster（ctx.IsRecycled 防重）</text>
+          <text class="t2" x="660" y="134">killer=英雄 → killCount / 回血 / onEnemyKilled</text>
+
+          <rect x="650" y="146" width="290" height="52" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1"/>
+          <text class="tf" x="660" y="165">OnEntityAdded/Removed</text>
+          <text class="t2" x="660" y="182">team==2 且非英雄 → enemiesAlive 同步</text>
+          <text class="t2" x="660" y="196">统计下放，ctx 不数数</text>
+
+          <rect x="650" y="208" width="290" height="52" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1"/>
+          <text class="tf" x="660" y="227">OnProjectileHit/Miss</text>
+          <text class="t2" x="660" y="244">projectile.view 存在 → 回收视图节点</text>
+          <text class="t2" x="660" y="258">移到 projectileCacheParent</text>
+
+          <rect x="650" y="270" width="290" height="52" rx="8" fill="#fff" stroke="#2dd4bf" stroke-width="1"/>
+          <text class="tf" x="660" y="289">OnTakeDamage（英雄）</text>
+          <text class="t2" x="660" y="306">→ syncHeroToStore → UI 血条</text>
+          <text class="t2" x="660" y="320">响应式 store 自动刷新</text>
+        </g>
+      </svg>
+      <div class="diagram-cap">事件流：逻辑层发事件 → ctx.bus（实例总线）→ 场景层订阅 → 回收/统计/UI 同步</div>
+    </div>
+
+    <div class="callout blue"><strong>统一口径：</strong>发布端 <code>publish(BattleEvents.OnDeath)</code> 与监听端 <code>onBattleEvent(BattleEvents.OnDeath)</code> 都用常量，全局搜 <code>BattleEvents.OnDeath</code> 即可看到完整链路。全局事件（跨场景/UI）走静态 <code>EventBus.emit/on</code>，与战斗内实例总线互不干扰。</div>
+  </section>
+
+  <!-- ================= S6 核心类速查 ================= -->
+  <section id="s6">
+    <div class="sec-title"><span class="idx">6</span>核心类职责速查</div>
+    <div class="sec-desc">各模块一句话职责 + 关键入口，方便定位代码。</div>
+
+    <table>
+      <thead>
+        <tr><th>类 / 模块</th><th>层次</th><th>职责</th><th>关键入口</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>Scene_Game_Stage</code></td>
+          <td><span class="tag view">总控</span></td>
+          <td>战斗场景总控：生命周期、刷怪、英雄 AI、事件订阅、对象池编排</td>
+          <td><code>show / update / tick / selectHero / bindBattleEvents</code></td>
+        </tr>
+        <tr>
+          <td><code>BattleContext</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>单场战斗容器：实体表、弹道、调度器、事件总线、伤害管线</td>
+          <td><code>CreateEntityFromDef / AddEntity / RemoveEntity / Tick</code></td>
+        </tr>
+        <tr>
+          <td><code>Entity</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>战斗实体：属性 + Modifier + 状态 + 技能 + AI；位置由 AI 驱动</td>
+          <td><code>Attack / Cast / Tick / Reinit / ResetForPool</code></td>
+        </tr>
+        <tr>
+          <td><code>AbilitySystem</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>技能实例管理、冷却、施放分发；script_id 逃逸到代码类</td>
+          <td><code>AddAbility / CastAbility / Tick / Clear</code></td>
+        </tr>
+        <tr>
+          <td><code>ModifierSystem</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>Modifier 生命周期/叠加/事件回调；属性贡献汇总到 AttributeSystem</td>
+          <td><code>AddModifier / RemoveModifier / Tick / DispatchEvent</code></td>
+        </tr>
+        <tr>
+          <td><code>DamagePipeline</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>伤害 5 阶段结算（增伤/暴击/格挡/抗性/扣血死亡）；深度保险丝防递归</td>
+          <td><code>ApplyDamage</code></td>
+        </tr>
+        <tr>
+          <td><code>MonsterAI</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>怪物行为脚本（chase/wander/orbit/boss），通过 entity.position 驱动移动</td>
+          <td><code>update / findTarget / moveToward / tryAttack</code></td>
+        </tr>
+        <tr>
+          <td><code>MonsterPool</code></td>
+          <td><span class="tag pool">池</span></td>
+          <td>组合池：EntityPool + EntityViewPool 配对编排，场景层唯一入口</td>
+          <td><code>acquire / release / preload / releasePrefabs</code></td>
+        </tr>
+        <tr>
+          <td><code>EntityView</code></td>
+          <td><span class="tag view">表现</span></td>
+          <td>怪物/英雄节点组件：绑定实体、update 同步位置、unbind 解绑</td>
+          <td><code>bind / unbind / update</code></td>
+        </tr>
+        <tr>
+          <td><code>Projectile</code></td>
+          <td><span class="tag logic">逻辑</span></td>
+          <td>弹道逻辑：位置推进（tick）、两阶段结算（onHit 重新校验）</td>
+          <td><code>tick / onHit / snapToEnd / getProgress</code></td>
+        </tr>
+        <tr>
+          <td><code>ProjectileViewPool</code></td>
+          <td><span class="tag pool">池</span></td>
+          <td>弹道节点池：按预制件分桶、命中回收、异步竞态防护</td>
+          <td><code>acquire / release / preload / releasePrefabs</code></td>
+        </tr>
+        <tr>
+          <td><code>EventBus</code></td>
+          <td><span class="tag logic">基础</span></td>
+          <td>事件总线：静态全局门面 + 实例总线双形态；off 支持按 handler 精确移除</td>
+          <td><code>emit/on/off/clear（静态）</code> + <code>subscribe/publish（实例）</code></td>
+        </tr>
+        <tr>
+          <td><code>battleStore</code></td>
+          <td><span class="tag ui">UI</span></td>
+          <td>响应式战斗状态（hp/gold/enemiesAlive），UI 组件 watchData 订阅</td>
+          <td><code>hp / gold / enemiesAlive / reset</code></td>
+        </tr>
+        <tr>
+          <td><code>Hero</code></td>
+          <td><span class="tag view">表现</span></td>
+          <td>heroNode 上的组件，持有 entity 引用（跨局持久）</td>
+          <td><code>bind(entity)</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= S7 已知问题 ================= -->
+  <section id="s7">
+    <div class="sec-title"><span class="idx">7</span>已知问题与 TODO</div>
+    <div class="sec-desc">梳理代码时注意到的待办/隐患（不影响当前跑通，但值得跟进）。</div>
+
+    <div class="callout amber">
+      <strong>战斗结算未接通：</strong><code>checkEnd()</code> / <code>openShop()</code> 在 tick 里被注释，<code>finish()</code> 只有英雄死亡事件路径。胜利判定（存活 winTime）和阶段 Boss 的胜负逻辑待启用。
+    </div>
+    <div class="callout amber">
+      <strong>英雄死亡处理：</strong>OnDeath 订阅只处理非英雄回收；英雄死亡无分支（不做结算）。建议补 <code>if (e.entity === this.hero) this.finish(false)</code>。
+    </div>
+    <div class="callout teal">
+      <strong>selectHero 复用分支：</strong>Hero 组件跨局持久，复用走"RemoveEntity 旧实体 + 重建到新 ctx + 重新 bindBattleEvents"，等级/经验等持久数据迁移是 TODO。
+    </div>
+    <div class="callout red">
+      <strong>spawnBoss 空实现：</strong><code>spawnBoss(stage)</code> 目前只有 console.log，阶段 Boss 逻辑未实现。
+    </div>
+    <div class="callout blue">
+      <strong>刷怪写死：</strong><code>spawnWave</code> 里 <code>monsterId = 4</code>（哥布林）是调试值，<code>monsterPool</code> 配置未实际参与随机。
+    </div>
+  </section>
+
+  <div style="text-align:center; color:#9ca3af; font-size:12.5px; margin-top:24px; border-top:1px solid var(--border); padding-top:18px;">
+    生成时间 2026-08 · 基于当前代码梳理 · docs/guide/Scene_Game_Stage_架构.md
+  </div>
+</div>
+</body>
+</html>

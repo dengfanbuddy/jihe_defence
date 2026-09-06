@@ -1,0 +1,80 @@
+<mxfile host="65bd71144e">
+    <diagram id="KxHI_2rU7XSNAaAy6skB" name="Page-1">
+        <mxGraphModel dx="715" dy="1772" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-2" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-1" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-3">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="320" y="240" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" value="entity" vertex="1">
+                    <mxGeometry height="80" width="80" x="140" y="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="初始化：&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;align=left;" value="1.技能分为主动技能和被动技能&lt;br&gt;2.主动技能的效果是在释放时或子弹命中时生效&lt;br&gt;3.被动技能效果是被各种事件触发&lt;br&gt;&lt;br&gt;4.主动技能里的一些被动效果则需要使用被动技能来支持，因为被动技能是在初始化时进行事件监听的" vertex="1">
+                    <mxGeometry height="230" width="130" x="80" y="-100" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-6" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-5" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-7">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="390" y="440" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="释放技能" vertex="1">
+                    <mxGeometry height="60" width="120" x="120" y="410" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-8" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-7" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-10">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="480" y="446.75675675675666" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-11" connectable="0" parent="QEJau6A4lBlnSxkKam5N-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="无法释放" vertex="1">
+                    <mxGeometry relative="1" x="-0.0571" y="-1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-12" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-7" style="edgeStyle=none;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-13">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="390" y="530" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-7" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="释放前判断" vertex="1">
+                    <mxGeometry height="80" width="80" x="350" y="400" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="结束" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="409.99675675675667" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-14" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-13" style="edgeStyle=none;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-15">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="390" y="620" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="目标选择" vertex="1">
+                    <mxGeometry height="60" width="120" x="330" y="510" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-16" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-15" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="600" y="640"/>
+                        </Array>
+                        <mxPoint x="580" y="470" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-17" edge="1" parent="1" source="QEJau6A4lBlnSxkKam5N-15" style="edgeStyle=none;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="QEJau6A4lBlnSxkKam5N-18">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="390" y="750" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-15" parent="1" style="rhombus;whiteSpace=wrap;html=1;" value="存在目标" vertex="1">
+                    <mxGeometry height="80" width="80" x="350" y="610" as="geometry"/>
+                </mxCell>
+                <mxCell id="QEJau6A4lBlnSxkKam5N-18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="执行效果" vertex="1">
+                    <mxGeometry height="60" width="120" x="330" y="720" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

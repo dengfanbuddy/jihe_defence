@@ -1,0 +1,106 @@
+
+/* ==========================================================================
+   Boss / 怪物图鉴页追加样式
+   ========================================================================== */
+
+/* 区段标题（阶段 / 品质分组） */
+.sec-hdd {
+    display: flex; align-items: center; gap: 8px;
+    margin: 34px 0 14px; padding-top: 16px;
+    font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+    border-top: 1px solid var(--line); color: var(--ink);
+}
+.sec-hdd:first-of-type { margin-top: 0; }
+
+/* 区段副标题（小怪 / 精英 / 守关 Boss） */
+.sec-sub {
+    margin: 14px 0 10px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* 技能块（怪物卡内） */
+.sk-box { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.sk-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 7px 11px; background: var(--bg); font-size: 11px;
+}
+.sk-head b { color: var(--ink); letter-spacing: .06em; }
+.sk-head span { color: var(--accent); letter-spacing: .08em; }
+.sk-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 6px 11px; border-top: 1px solid var(--line); font-size: 12px;
+}
+.sk-row:first-child { border-top: none; }
+.sk-lv { flex: none; width: 52px; font-size: 10.5px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
+.sk-txt { flex: 1; color: var(--ink-soft); }
+.sk-txt b { color: var(--ink); font-weight: 600; }
+
+/* 英文名标签（卡片名旁） */
+.name-row .en { font-size: 11px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+
+/* 难度循环表 */
+.cycle-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 16px; }
+.cycle-table th, .cycle-table td { padding: 9px 12px; text-align: center; border-bottom: 1px solid var(--line); }
+.cycle-table th { font-size: 12px; letter-spacing: .06em; color: var(--ink-soft); }
+.cycle-table tbody tr { transition: background .12s; }
+.cycle-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* 总览卡 */
+.ov-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 3px;
+    padding: 16px 18px; box-shadow: var(--shadow); text-align: center;
+}
+.ov-card b { display: block; font-size: 30px; font-family: "Bebas Neue", "Oswald", serif; letter-spacing: .04em; }
+.ov-card span { font-size: 11px; color: var(--muted); letter-spacing: .1em; }
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+
+/* ==========================================================================
+   左侧浮动章节导航（sticky） — 长页面快速跳转
+   ========================================================================== */
+.side-nav {
+    position: fixed; left: 14px; top: 74px; z-index: 40;
+    display: flex; flex-direction: column; gap: 2px;
+    width: 132px; padding: 8px 6px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 3px; box-shadow: var(--shadow);
+}
+.side-nav-title {
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted); padding: 3px 8px 5px;
+}
+.side-nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 3px;
+    font-size: 12px; color: var(--ink-soft);
+    border-bottom: none; transition: background .14s, color .14s;
+}
+.side-nav a:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--ink); }
+.side-nav a i {
+    flex: none; width: 20px; font-style: normal;
+    font-size: 10px; color: var(--muted); font-family: ui-monospace, Consolas, monospace;
+    text-align: center; letter-spacing: 0;
+}
+.side-nav a span { white-space: nowrap; }
+.side-nav a.on { background: var(--accent); color: var(--on-accent); }
+.side-nav a.on i { color: var(--on-accent); }
+.side-nav-top { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
+.side-nav-top i { font-size: 12px; }
+
+/* 宽屏时给主内容让出左侧空间，避免遮挡 */
+@media (min-width: 1500px) {
+    .wrap { padding-left: 176px; }
+}
+
+/* 中等屏：右侧吸附（内容仍居中，不会被遮挡） */
+@media (min-width: 1180px) and (max-width: 1499px) {
+    .side-nav { left: auto; right: 14px; }
+}
+
+/* 窄屏：折叠成贴边小条（只显示序号） */
+@media (max-width: 1179px) {
+    .side-nav { width: 40px; padding: 6px 4px; left: 6px; top: 70px; }
+    .side-nav-title { display: none; }
+    .side-nav a { flex-direction: column; gap: 2px; padding: 6px 0; }
+    .side-nav a span { display: none; }
+    .side-nav a i { width: auto; font-size: 11px; }
+}

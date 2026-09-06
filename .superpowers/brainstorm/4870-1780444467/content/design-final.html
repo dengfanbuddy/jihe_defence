@@ -1,0 +1,57 @@
+<h2>最终设计方案（精简版）</h2>
+
+<div class="section">
+  <h3>架构</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:16px;margin:12px 0">
+    <pre style="color:#8f8;font-size:0.85em;overflow-x:auto">
+Top_ChangeScene Component
+├── start() → 监听 GlobalEventMgr.ins "SCENE_LOAD_PROGRESS" 事件
+├── onProgress(progress: number) → 更新动画 + 百分比
+│   ├── progress &lt; 1.0 → 循环形态变换 + 进度环 + 粒子
+│   └── progress = 1.0 → 完成转场动画
+└── update(dt) → 每帧更新动画状态</pre>
+  </div>
+</div>
+
+<div class="section">
+  <h3>动画细节</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:16px;margin:12px 0">
+    <h4>① 中心形态变换（循环）</h4>
+    <p style="color:#ccc;font-size:0.95em">
+      每 1.5s 切换一次形态：<br>
+      <span style="color:#67999A">三角形</span> → <span style="color:#67999A">方形</span> → <span style="color:#67999A">圆形</span> → <span style="color:#67999A">六边形</span> → 循环
+    </p>
+    <ul style="color:#bbb;font-size:0.9em;line-height:1.8;margin:8px 0">
+      <li>形态间用 Graphics.moveTo/lineTo/circle 插值过渡（0.5s）</li>
+      <li>整体持续缓慢旋转（每 4s 转 360°）</li>
+      <li>边缘发光效果：半透明 #67999A 的叠加描边</li>
+    </ul>
+
+    <h4 style="margin-top:12px">② 外圈进度环</h4>
+    <p style="color:#ccc;font-size:0.95em">
+      使用 Graphics.arc 绘制弧形进度<br>
+      角度范围：从 -90°（12点方向）顺时针到 -90° + progress × 360°
+    </p>
+
+    <h4 style="margin-top:12px">③ 百分比文字</h4>
+    <p style="color:#ccc;font-size:0.95em">
+      用 Label 组件（非 Graphics，文字更清晰）显示 "72%"<br>
+      辅色 #EFEEED，大号加粗
+    </p>
+
+    <h4 style="margin-top:12px">④ 粒子效果</h4>
+    <p style="color:#ccc;font-size:0.95em">
+      6~8 颗小圆点粒子沿圆形轨道绕中心旋转<br>
+      透明度 + 大小随位置变化（正面亮背面暗）
+    </p>
+
+    <h4 style="margin-top:12px">⑤ 完成动画</h4>
+    <ul style="color:#bbb;font-size:0.9em;line-height:1.8;margin:8px 0">
+      <li>progress = 1.0 时：图形膨胀 → 碎裂粒子 → 全屏白色闪光</li>
+      <li>碎粒飞散，透明度渐减到 0</li>
+      <li>闪光渐隐后，组件 self.destroy()</li>
+    </ul>
+  </div>
+</div>
+
+<p class="subtitle">这个版本可以吗？确认后我写设计文档和代码</p>

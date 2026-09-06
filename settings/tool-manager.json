@@ -1,0 +1,117 @@
+{
+  "configurations": [
+    {
+      "id": "19070a7e-52b4-459b-acba-1501b9f9759e",
+      "name": "默认配置",
+      "description": "自动创建的默认工具配置",
+      "tools": [
+        {
+          "category": "cocos",
+          "name": "scene",
+          "enabled": true,
+          "description": "Scene management — open/save/create scenes, get hierarchy, undo, detect mode, list_components, validate_scene.\nCommon: hierarchy, get_info, open, save, create, validate_scene, list_components.\nNote: validate_scene checks broken refs IN this tool (NOT cocos_validate). list_components lists all available component types.\nExample: {action:\"hierarchy\"} or {action:\"validate_scene\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "node",
+          "enabled": true,
+          "description": "⚡ BATCH: When modifying 3+ nodes (position/size/anchor), use \"batch_modify\" instead of calling \"modify\" repeatedly — it's faster and atomic.\nNode CRUD — create/find/modify/delete nodes, list all nodes, set transform, mount/remove scripts, reorder siblings.\nActions: find, info, list, tree, create, delete, modify, move, reorder, duplicate, copy, paste, cut, mount_script, remove_script, reset, detect_type, batch_modify.\nNote: \"list\" returns all nodes flat list, \"tree\" returns subtree of a node. Use \"info\" (NOT get_info), \"reset\" (NOT reset_transform). \"remove_script\" for scripts (NOT component.remove). \"reorder\" to change sibling order within same parent. \"batch_modify\" to modify multiple nodes in one call.\nExample: {action:\"list\"} or {action:\"tree\", node:\"Canvas\"} or {action:\"batch_modify\", nodes:[{node:\"Player\", position:{x:0,y:0,z:0}}]}"
+        },
+        {
+          "category": "cocos",
+          "name": "component",
+          "enabled": true,
+          "description": "⚡ BATCH: When binding 3+ click events, use \"batch_click_event\" instead of calling \"click_event\" repeatedly.\nComponent management — add/remove/configure components on nodes.\nActions: add, remove, list, info, set_property, available_types, click_event, batch_click_event.\nNote: use \"info\" to view component properties (NOT get_properties). To remove scripts, use cocos_node(action:\"remove_script\"). \"batch_click_event\" binds click events on multiple buttons in one call.\nExample: {action:\"info\", node:\"Canvas/Btn\", componentType:\"cc.Button\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "prefab",
+          "enabled": true,
+          "description": "Prefab management — list/info/delete/create/instantiate/edit prefabs, apply/revert changes.\nAll prefab operations (including delete) belong here, NOT cocos_asset.\nCommon: instantiate, create, delete, apply, edit_enter, edit_save, edit_exit.\nExample: {action:\"instantiate\", prefabPath:\"db://assets/prefabs/Enemy.prefab\", parent:\"Canvas\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "asset",
+          "enabled": true,
+          "description": "Asset operations — query/search/create/delete assets, path-UUID conversion.\nCommon: query_uuid, find_by_name, search, create, delete.\nExample: {action:\"query_uuid\", url:\"db://assets/textures/bg.png\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "editor",
+          "enabled": true,
+          "description": "Editor utilities — project info, console logs, preferences, build, preview, run/stop, reload.\nGroups: project_*, console_*, log_*, pref_*, build*, server_*, run, stop, reload.\n\"run\" launches preview (platform: browser/simulator/editor). \"stop\" stops editor preview. \"reload\" reloads editor window (Developer → 重新加载).\nExample: {action:\"run\", platform:\"editor\"} then {action:\"stop\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "view",
+          "enabled": true,
+          "description": "Viewport control — gizmo tools, 2D/3D mode, camera focus/align, reference images.\nCommon: gizmo_tool, camera_focus, camera_align_view (sync camera→view), camera_align_node (sync view→node).\nExample: {action:\"camera_focus\", nodes:[\"Player\"]} or {action:\"camera_align_node\", nodes:[\"Camera\"]}"
+        },
+        {
+          "category": "cocos",
+          "name": "composite",
+          "enabled": true,
+          "description": "One-call UI creation — create complete Button/Label/Image, mount script with bindings.\nActions: create_button, create_label, create_image, mount_and_bind, setup_widget, batch, batch_create_button, batch_create_label, batch_create_image.\nNote: mount_and_bind mounts script AND binds properties in one call (NOT node.mount_script which only mounts). create_button supports optional clickEvent to bind click handler in one call.\nBatch hint: 3+ buttons → batch_create_button, 3+ labels → batch_create_label, 3+ images → batch_create_image.\nExample: {action:\"mount_and_bind\", node:\"Hero\", scriptPath:\"db://assets/scripts/Game.ts\", bindings:{...}}"
+        },
+        {
+          "category": "cocos",
+          "name": "knowledge",
+          "enabled": true,
+          "description": "Cocos Creator reference — component properties, UI rules, layout patterns, animation recipes, best practices, tool guides.\nUse topic:\"tool_guide\" with query:\"tool.action\" before calling unfamiliar tools.\nExample: {topic:\"component_properties\", query:\"cc.Label\"}, {topic:\"animation_patterns\", query:\"scale_bounce\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "validate",
+          "enabled": true,
+          "description": "Advanced validation rules — layout overlap/offscreen, reference consistency, hierarchy depth.\nNote: Use this for deep inspection (NOT scene.validate_scene which only checks broken refs).\nActions: layout (overlap/offscreen), references (broken asset refs), hierarchy (depth/naming).\nExample: {action:\"layout\"} or {action:\"references\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "template",
+          "enabled": true,
+          "description": "UI templates — apply pre-built structures (dialog, scroll_list, nav_bar, settings_page).\nNote: Use this (NOT composite/builder) when user wants a standard UI pattern. Use list to show available templates.\nActions: list, apply.\nExample: {action:\"list\"} or {action:\"apply\", template:\"dialog\", parent:\"Canvas\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "capture",
+          "enabled": true,
+          "description": "Scene snapshot — get structured JSON of scene/node layout for AI understanding.\nActions: scene_snapshot (full scene), node_snapshot (focused subtree).\nNote: Use this (NOT hierarchy) when you need position/size/component data for layout analysis.\nExample: {action:\"scene_snapshot\"} or {action:\"node_snapshot\", node:\"Canvas/Panel\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "builder",
+          "enabled": true,
+          "description": "Build node tree from JSON — create complete hierarchies with components in one call.\nNote: Use this (NOT composite/node) when building complex multi-level UI structures. Query tool_guide for JSON format.\nPrefab shortcut: use \"type\":\"Button\" (or Label, Sprite, ScrollView, etc.) instead of components[] to create complete UI controls from engine prefab templates.\nExample: {action:\"build\", parent:\"Canvas\", tree:{name:\"Panel\", components:[\"cc.Sprite\"], children:[{name:\"MyBtn\", type:\"Button\"}]}}"
+        },
+        {
+          "category": "cocos",
+          "name": "animation",
+          "enabled": true,
+          "description": "Animation editing — clips, keyframes, tracks, events, presets, batch operations.\nRecommended: batch_file (no edit mode needed), fallback to batch. Use preset for common animations.\nExample: {action:\"preset\", clipUuid:\"...\", preset:\"sprite_fade_in\"} or {action:\"add_event\", clipUuid:\"...\", frame:10, eventData:{func:\"onHit\"}}"
+        },
+        {
+          "category": "cocos",
+          "name": "spine",
+          "enabled": true,
+          "description": "Spine (sp.Skeleton) — query animations/skins, set animation/skin, change properties, swap skeleton data, manage sockets.\nActions: info, list_animations, list_skins, set_animation, set_skin, set_property, set_data, add_socket, remove_socket.\nNote: \"node\" is the node path or UUID with sp.Skeleton component.\nExample: {action:\"list_animations\", node:\"spinNode\"} or {action:\"set_animation\", node:\"spinNode\", animation:\"idle\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "label",
+          "enabled": true,
+          "description": "Label & Text — manage cc.Label, cc.RichText, cc.EditBox. Query/set text, font, style, outline, shadow. Batch operations.\nActions: info, list, set_text, set_font, set_style, set_outline, set_shadow, batch_set_font, batch_set_style.\nSupports: cc.Label (full), cc.RichText (text/font/fontSize/color), cc.EditBox (text/placeholder).\nExample: {action:\"set_text\", node:\"Title\", text:\"Hello\"}\n{action:\"set_style\", node:\"Title\", fontSize:32, isBold:true, color:{r:255,g:0,b:0,a:255}}\n{action:\"batch_set_font\", font:\"db://assets/fonts/myfont.ttf\"}"
+        },
+        {
+          "category": "cocos",
+          "name": "devtools",
+          "enabled": true,
+          "description": "[DEV-ONLY] Component research & knowledge system.\nActions: message_record_*, message_log*, research_component, explore_component, auto_knowledge, save/get/list/delete/promote_knowledge.\nWorkflow: auto_knowledge(componentType, save:true) → promote_knowledge. Or manual: research → explore → save → promote."
+        }
+      ],
+      "createdAt": "2026-06-29T16:49:20.951Z",
+      "updatedAt": "2026-07-06T15:26:35.228Z"
+    }
+  ],
+  "currentConfigId": "19070a7e-52b4-459b-acba-1501b9f9759e",
+  "maxConfigSlots": 5
+}

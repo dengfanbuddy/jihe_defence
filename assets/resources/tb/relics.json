@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "荆棘护甲",
+    "rarity": "common",
+    "description": "反弹50%受到的物理伤害",
+    "modifiers": [
+      {
+        "modifier": 10,
+        "duration": null
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "吸血獠牙",
+    "rarity": "rare",
+    "description": "攻击时吸血20%",
+    "modifiers": [
+      {
+        "modifier": 11,
+        "duration": null
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "烈焰之剑",
+    "rarity": "rare",
+    "description": "攻击力+15，攻击50%概率点燃目标",
+    "modifiers": [
+      {
+        "modifier": 12,
+        "duration": null
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "巨人之心",
+    "rarity": "epic",
+    "description": "最大生命+300",
+    "modifiers": [
+      {
+        "modifier": 15,
+        "duration": null
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "掌中怜悯",
+    "rarity": "legendary",
+    "description": "每场战斗首次致命伤害前锁血",
+    "modifiers": [],
+    "script_id": "Relic_PocketMercy"
+  }
+]

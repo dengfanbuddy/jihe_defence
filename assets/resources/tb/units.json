@@ -1,0 +1,599 @@
+[
+  {
+    "id": 1,
+    "name": "骑士",
+    "team": 1,
+    "base_attributes": [
+      [
+        1,
+        500
+      ],
+      [
+        2,
+        100
+      ],
+      [
+        5,
+        320
+      ],
+      [
+        3,
+        42
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        5
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        100
+      ]
+    ],
+    "attack_interval": 1.7,
+    "gold": 0,
+    "abilities": [
+      4,
+      3
+    ],
+    "growthValues": [
+      [1, 25],
+      [3, 1.5],
+      [16, 0.05],
+      [6, 1.0],
+      [4, 0.01],
+      [14, 0.002],
+      [8, 0.003],
+      [9, 0.12]
+    ],
+    "collision_radius": 26,
+    "prefab": "prefabs/units/hero_knight"
+  },
+  {
+    "id": 2,
+    "name": "法师",
+    "team": 1,
+    "base_attributes": [
+      [
+        1,
+        350
+      ],
+      [
+        2,
+        260
+      ],
+      [
+        5,
+        300
+      ],
+      [
+        3,
+        25
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        1
+      ],
+      [
+        7,
+        30
+      ],
+      [
+        16,
+        500
+      ]
+    ],
+    "attack_interval": 1.7,
+    "attack_projectile": "frost_bolt",
+    "gold": 0,
+    "abilities": [
+      1,
+      2
+    ],
+    "collision_radius": 26,
+    "prefab": "prefabs/units/hero_mage",
+    "growthValues": [
+      [1, 12],
+      [2, 8],
+      [3, 3],
+      [16, 0.1],
+      [6, 0.5],
+      [4, 0.03],
+      [14, 0.005],
+      [8, 0.002],
+      [9, 0.05]
+    ],
+    "attack_projectile_prefab": "prefabs/projectiles/frost_bolt"
+  },
+  {
+    "id": 3,
+    "name": "赏金猎人",
+    "team": 1,
+    "base_attributes": [
+      [
+        1,
+        520
+      ],
+      [
+        2,
+        100
+      ],
+      [
+        5,
+        200
+      ],
+      [
+        3,
+        200
+      ],
+      [
+        4,
+        120
+      ],
+      [
+        6,
+        4
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        200
+      ],
+      [
+        9,
+        3
+      ]
+    ],
+    "attack_interval": 0.85,
+    "attack_projectile": "shuriken",
+    "gold": 0,
+    "abilities": [
+      8,
+      7
+    ],
+    "collision_radius": 26,
+    "prefab": "prefabs/units/hero_bounty",
+    "growthValues": [
+      [1, 10],
+      [3, 2.5],
+      [16, 0.05],
+      [6, 0.3],
+      [4, 0.02],
+      [14, 0.006],
+      [15, 0.01],
+      [8, 0.004],
+      [9, 0.04]
+    ],
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1"
+  },
+  {
+    "id": 4,
+    "name": "哥布林",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        100
+      ],
+      [
+        2,
+        30
+      ],
+      [
+        5,
+        100
+      ],
+      [
+        3,
+        0
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        44
+      ]
+    ],
+    "attack_interval": 2,
+    "gold": 50,
+    "goldReward": 2,
+    "expReward": 8,
+    "rewardType": "normal",
+    "abilities": [],
+    "ai": {
+      "type": "chase"
+    },
+    "collision_radius": 10,
+    "prefab": "prefabs/unit/monsters/one"
+  },
+  {
+    "id": 5,
+    "name": "巨魔",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        240
+      ],
+      [
+        2,
+        20
+      ],
+      [
+        5,
+        220
+      ],
+      [
+        3,
+        16
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        3
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        100
+      ]
+    ],
+    "attack_interval": 2,
+    "gold": 80,
+    "goldReward": 4,
+    "expReward": 15,
+    "rewardType": "normal",
+    "abilities": [],
+    "ai": {
+      "type": "chase",
+      "params": {
+        "speedMul": 0.9
+      }
+    },
+    "collision_radius": 24,
+    "prefab": "prefabs/units/monster_5"
+  },
+  {
+    "id": 6,
+    "name": "游荡者",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        80
+      ],
+      [
+        2,
+        20
+      ],
+      [
+        5,
+        200
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        7,
+        20
+      ],
+      [
+        16,
+        90
+      ]
+    ],
+    "attack_interval": 2,
+    "gold": 40,
+    "goldReward": 2,
+    "expReward": 6,
+    "rewardType": "normal",
+    "abilities": [],
+    "ai": {
+      "type": "wander",
+      "params": {
+        "wanderRadius": 150,
+        "aggroRange": 350,
+        "wanderSpeedMul": 0.5,
+        "chaseSpeedMul": 1.1
+      }
+    },
+    "collision_radius": 18,
+    "prefab": "prefabs/units/monster_6"
+  },
+  {
+    "id": 7,
+    "name": "环绕魔",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        90
+      ],
+      [
+        2,
+        40
+      ],
+      [
+        5,
+        260
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        7,
+        30
+      ],
+      [
+        16,
+        120
+      ]
+    ],
+    "attack_interval": 2,
+    "gold": 60,
+    "goldReward": 3,
+    "expReward": 10,
+    "rewardType": "normal",
+    "abilities": [],
+    "ai": {
+      "type": "orbit",
+      "params": {
+        "orbitRadius": 200,
+        "angularSpeed": 1.8,
+        "attackInterval": 2.5
+      }
+    },
+    "collision_radius": 18,
+    "prefab": "prefabs/units/monster_7"
+  },
+  {
+    "id": 8,
+    "name": "重击者",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        320
+      ],
+      [
+        2,
+        20
+      ],
+      [
+        5,
+        180
+      ],
+      [
+        3,
+        24
+      ],
+      [
+        4,
+        80
+      ],
+      [
+        6,
+        5
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        100
+      ]
+    ],
+    "attack_interval": 3,
+    "gold": 100,
+    "goldReward": 6,
+    "expReward": 25,
+    "rewardType": "elite",
+    "abilities": [],
+    "ai": {
+      "type": "attack_stop",
+      "params": {
+        "stopDuration": 2.5,
+        "windupTime": 0.5
+      }
+    },
+    "collision_radius": 26,
+    "prefab": "prefabs/units/monster_8"
+  },
+  {
+    "id": 9,
+    "name": "深渊领主",
+    "team": 2,
+    "base_attributes": [
+      [
+        1,
+        3000
+      ],
+      [
+        2,
+        300
+      ],
+      [
+        5,
+        200
+      ],
+      [
+        3,
+        60
+      ],
+      [
+        4,
+        80
+      ],
+      [
+        6,
+        12
+      ],
+      [
+        7,
+        35
+      ],
+      [
+        16,
+        180
+      ]
+    ],
+    "attack_interval": 2.5,
+    "gold": 500,
+    "goldReward": 40,
+    "expReward": 200,
+    "rewardType": "boss",
+    "abilities": [
+      1
+    ],
+    "ai": {
+      "type": "boss",
+      "params": {
+        "skillInterval": 6,
+        "skillId": "fireball",
+        "phases": [
+          {
+            "hpRatio": 1.0,
+            "behavior": "chase",
+            "params": {
+              "speedMul": 0.8
+            }
+          },
+          {
+            "hpRatio": 0.7,
+            "behavior": "orbit",
+            "params": {
+              "orbitRadius": 220,
+              "angularSpeed": 1.2
+            }
+          },
+          {
+            "hpRatio": 0.4,
+            "behavior": "chase",
+            "params": {
+              "speedMul": 1.6
+            }
+          },
+          {
+            "hpRatio": 0.2,
+            "behavior": "attack_stop",
+            "params": {
+              "stopDuration": 1.2,
+              "speedMul": 1.8
+            }
+          }
+        ]
+      }
+    },
+    "collision_radius": 40,
+    "prefab": "prefabs/units/monster_9"
+  },
+  {
+    "id": 10,
+    "name": "黄金魔像",
+    "team": 2,
+    "base_attributes": [
+      [1, 2200],
+      [2, 60],
+      [5, 120],
+      [3, 30],
+      [4, 40],
+      [6, 4],
+      [7, 20],
+      [16, 120]
+    ],
+    "attack_interval": 2.2,
+    "gold": 300,
+    "goldReward": 250,
+    "expReward": 5,
+    "rewardType": "gold_boss",
+    "abilities": [],
+    "ai": {
+      "type": "chase",
+      "params": { "speedMul": 0.7 }
+    },
+    "collision_radius": 38,
+    "prefab": "prefabs/units/monster_9"
+  },
+  {
+    "id": 11,
+    "name": "经验贤者",
+    "team": 2,
+    "base_attributes": [
+      [1, 1800],
+      [2, 240],
+      [5, 150],
+      [3, 40],
+      [4, 70],
+      [6, 8],
+      [7, 30],
+      [16, 140]
+    ],
+    "attack_interval": 2.4,
+    "gold": 100,
+    "goldReward": 1,
+    "expReward": 800,
+    "rewardType": "exp_boss",
+    "abilities": [],
+    "ai": {
+      "type": "boss",
+      "params": {
+        "skillInterval": 8,
+        "skillId": "sun_light",
+        "phases": [
+          { "hpRatio": 1.0, "behavior": "chase", "params": { "speedMul": 0.7 } }
+        ]
+      }
+    },
+    "collision_radius": 36,
+    "prefab": "prefabs/units/monster_9"
+  }
+]

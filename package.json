@@ -1,0 +1,10 @@
+{
+  "name": "jihe_defence",
+  "uuid": "1f2e2b9b-b7ab-49e8-869c-b502354ffd1b",
+  "creator": {
+    "version": "3.8.6"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

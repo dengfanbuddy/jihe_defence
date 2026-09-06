@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>属性配置生成器 · 集合防御</title>
+<style>
+  :root {
+    --bg-0: #0a0f1a;
+    --bg-1: #0e1524;
+    --panel: rgba(20, 29, 48, 0.72);
+    --panel-2: rgba(24, 34, 56, 0.55);
+    --stroke: rgba(148, 163, 184, 0.14);
+    --stroke-2: rgba(148, 163, 184, 0.08);
+    --text: #e7edf7;
+    --muted: #8ba1bf;
+    --muted-2: #64748b;
+    --accent: #38bdf8;
+    --accent-2: #6366f1;
+    --amber: #f5b04c;
+    --green: #34d399;
+    --red: #f87171;
+    --code: "Cascadia Code", "JetBrains Mono", Consolas, "SF Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", -apple-system, system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1100px 620px at 82% -8%, rgba(99, 102, 241, 0.18), transparent 60%),
+      radial-gradient(900px 600px at 4% 8%, rgba(56, 189, 248, 0.14), transparent 55%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-0));
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 22px 72px; }
+  code { font-family: var(--code); }
+
+  /* ---------- Hero ---------- */
+  .hero { text-align: center; margin-bottom: 26px; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; letter-spacing: 0.14em; font-weight: 600;
+    color: #cfe7ff; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid var(--stroke);
+    background: linear-gradient(135deg, rgba(56,189,248,0.14), rgba(99,102,241,0.14));
+    box-shadow: 0 6px 22px rgba(56,189,248,0.10);
+  }
+  .hero-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .hero h1 {
+    margin: 18px 0 8px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em;
+  }
+  .hero h1 span {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .sub { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .hero .sub code {
+    background: rgba(56,189,248,0.12); color: #a7e0ff;
+    padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(56,189,248,0.18);
+    font-size: 13px;
+  }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 45px -20px rgba(0,0,0,0.6);
+  }
+  .toolbar label { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .toolbar .parse { display: flex; flex: 1 1 420px; align-items: center; gap: 10px; min-width: 0; }
+  .toolbar input[type="text"] {
+    flex: 1; min-width: 0;
+    background: #0c1424; color: var(--text);
+    border: 1px solid var(--stroke);
+    border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; font-family: var(--code);
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .toolbar input[type="text"]:focus {
+    border-color: rgba(56,189,248,0.6);
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.14);
+  }
+  .toolbar input[type="text"]::placeholder { color: var(--muted-2); }
+
+  button {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    border-radius: 10px; cursor: pointer; border: none;
+    padding: 10px 16px; transition: transform .05s ease, box-shadow .15s ease, background .15s;
+    white-space: nowrap;
+  }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; box-shadow: 0 8px 20px -6px rgba(56,189,248,0.5);
+  }
+  button.primary:hover { box-shadow: 0 10px 26px -6px rgba(56,189,248,0.65); }
+  button.ghost {
+    background: rgba(148,163,184,0.10); color: var(--muted);
+    border: 1px solid var(--stroke);
+  }
+  button.ghost:hover { color: var(--text); background: rgba(148,163,184,0.16); }
+  button.danger:hover { color: var(--red); border-color: rgba(248,113,113,0.4); }
+
+  .meta { color: var(--muted-2); font-size: 12px; }
+
+  /* ---------- Layout ---------- */
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 22px; align-items: start; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+  }
+
+  .group { padding: 18px 18px 10px; margin-bottom: 20px; box-shadow: 0 18px 40px -24px rgba(0,0,0,0.55); }
+  .group-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding-bottom: 12px; margin-bottom: 6px;
+    border-bottom: 1px solid var(--stroke-2);
+  }
+  .group-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .group-head .range { font-size: 11px; color: var(--accent); letter-spacing: 0.06em; font-family: var(--code); }
+  .group-head .hint { margin-left: auto; font-size: 11px; color: var(--muted-2); }
+
+  /* ---------- Rows ---------- */
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--stroke-2);
+  }
+  .row:last-child { border-bottom: none; }
+  .row-id {
+    flex: 0 0 30px; height: 30px;
+    display: grid; place-items: center;
+    font-family: var(--code); font-size: 12px; font-weight: 700;
+    color: #9fcbf0;
+    background: rgba(56,189,248,0.10);
+    border: 1px solid rgba(56,189,248,0.16);
+    border-radius: 8px;
+  }
+  .row.scaled .row-id { color: var(--amber); background: rgba(245,176,76,0.10); border-color: rgba(245,176,76,0.18); }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+  .row-code { font-size: 10.5px; color: var(--muted-2); font-family: var(--code); font-weight: 500; }
+  .row-note { font-size: 11.5px; color: var(--muted-2); margin-top: 1px; }
+  .row-note .rt { color: #7ee0c0; font-family: var(--code); }
+  .row-note .scaled-tag {
+    color: var(--amber); background: rgba(245,176,76,0.10);
+    border: 1px solid rgba(245,176,76,0.18);
+    padding: 0 5px; border-radius: 5px; font-size: 10px; margin-right: 5px;
+  }
+
+  .row-val {
+    flex: 0 0 96px;
+    background: #0c1424; color: var(--text);
+    border: 1px solid var(--stroke);
+    border-radius: 9px; padding: 8px 10px;
+    font-size: 13.5px; font-family: var(--code); text-align: right;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .row-val::-webkit-outer-spin-button, .row-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .row-val:focus { border-color: rgba(56,189,248,0.6); box-shadow: 0 0 0 3px rgba(56,189,248,0.14); }
+  .row-val.filled { border-color: rgba(56,189,248,0.45); }
+  .row-val:placeholder-shown { color: var(--muted-2); }
+
+  /* ---------- Preview ---------- */
+  .preview .card { position: sticky; top: 16px; padding: 18px; }
+  .pv-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .pv-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .pv-head .eyebrow { font-size: 11px; color: var(--muted-2); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .pv-head button { padding: 8px 14px; }
+
+  .pv-text {
+    min-height: 96px; max-height: 260px; overflow: auto;
+    background: #0a111f;
+    border: 1px solid var(--stroke);
+    border-radius: 12px;
+    padding: 14px;
+    font-family: var(--code); font-size: 13px; line-height: 1.9;
+    word-break: break-all; white-space: pre-wrap;
+  }
+  .pv-text .empty { color: var(--muted-2); font-family: inherit; }
+  .tok-id { color: #7cc4ff; font-weight: 600; }
+  .tok-val { color: #ffe1a0; }
+  .tok-sep { color: var(--muted-2); margin: 0 3px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+  .stat { background: var(--panel-2); border: 1px solid var(--stroke-2); border-radius: 10px; padding: 9px 6px; text-align: center; }
+  .stat b { display: block; font-size: 19px; font-weight: 800; color: var(--text); font-family: var(--code); }
+  .stat span { font-size: 10.5px; color: var(--muted-2); }
+
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin: 2px 0 14px; cursor: pointer; user-select: none; }
+  .toggle input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+
+  .list-head { font-size: 11px; color: var(--muted-2); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .detail { list-style: none; margin: 0; padding: 0; }
+  .detail li {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 4px; border-bottom: 1px solid var(--stroke-2);
+    font-size: 12.5px;
+  }
+  .detail li:last-child { border-bottom: none; }
+  .detail .d-id { font-family: var(--code); color: #7cc4ff; width: 24px; }
+  .detail .d-name { color: var(--muted); }
+  .detail .d-val { margin-left: auto; font-family: var(--code); color: #ffe1a0; font-weight: 600; }
+  .detail .d-empty-note { color: var(--muted-2); }
+
+  .note {
+    margin-top: 14px; font-size: 11.5px; color: var(--muted-2); line-height: 1.6;
+    border-top: 1px dashed var(--stroke-2); padding-top: 12px;
+  }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(16px);
+    background: #101828; color: var(--text);
+    border: 1px solid rgba(52,211,153,0.4);
+    padding: 11px 18px; border-radius: 12px; font-size: 13px;
+    box-shadow: 0 18px 40px -12px rgba(0,0,0,0.7);
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.warn { border-color: rgba(248,113,113,0.4); }
+
+  footer { text-align: center; margin-top: 34px; color: var(--muted-2); font-size: 12px; }
+  footer code { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-badge"><span class="dot"></span> Jihe Defence · 配表工具</div>
+    <h1>属性配置<span>生成器</span></h1>
+    <p class="sub">配置属性值，实时预览写入 Excel 的属性串格式 <code>id:value|id:value</code></p>
+  </header>
+
+  <div class="toolbar">
+    <div class="parse">
+      <label for="parseInput">解析回填</label>
+      <input type="text" id="parseInput" placeholder="粘贴现有属性串，如 1:500|10:100|5:320|3:42|4:1|6:5|7:25|16:100" />
+      <button class="primary" id="parseBtn">解析</button>
+      <button class="ghost" id="exampleBtn">示例</button>
+      <button class="ghost danger" id="clearBtn">清空</button>
+    </div>
+    <span class="meta">共 <b id="totalAttrs">20</b> 个属性</span>
+  </div>
+
+  <main class="grid">
+    <section class="attrs" id="attrs"></section>
+
+    <aside class="preview">
+      <div class="card">
+        <div class="pv-head">
+          <h3><span class="eyebrow">Excel 最终格式</span>属性串预览</h3>
+          <button class="primary" id="copyBtn">复制</button>
+        </div>
+        <div class="pv-text" id="pvText"><span class="empty">← 尚未配置任何数值</span></div>
+        <div class="stats">
+          <div class="stat"><b id="statCount">0</b><span>已录入</span></div>
+          <div class="stat"><b id="statLen">0</b><span>字符数</span></div>
+          <div class="stat"><b id="statZero">0</b><span>0 值(忽略)</span></div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="includeZero" /> 在结果里包含值为 0 的属性</label>
+        <div class="list-head">解析明细</div>
+        <ol class="detail" id="detailList"></ol>
+        <div class="note">
+          留空的属性不会写入结果。标注 <span class="scaled-tag">×100</span> 的倍率/百分比属性按 100 倍存整数
+          （如魔抗 <code>25</code> = 运行时 <code>0.25</code> = 25%），其余为原始数值。
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    AttributeType 编号与 <code>assets/scripts/game/battle/core/Types.ts</code> 保持一致 ·
+    缩放规则参照 <code>AttributeScaling</code>（未缩放属性 ×1，倍率/百分比 ×100）
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // 倍率/百分比型属性：配置 int = 运行时值 × 100（对应 AttributeScaling.SCALE）
+  var SCALED = {
+    4: "×100", 7: "×100", 8: "×100",
+    11: "×100", 12: "×100", 13: "×100", 14: "×100", 15: "×100"
+  };
+
+  var ATTRS = [
+    { id: 1,  name: "最大生命",       code: "MaxHp",            note: "基础数值" },
+    { id: 2,  name: "最大魔法",       code: "MaxMana",          note: "基础数值" },
+    { id: 3,  name: "攻击力",         code: "Atk",              note: "局内 attack_damage" },
+    { id: 4,  name: "攻击速度",       code: "AtkSpeed",         note: "倍率" },
+    { id: 5,  name: "移动速度",       code: "MoveSpeed",        note: "基础数值" },
+    { id: 6,  name: "护甲",           code: "Def",              note: "局内 armor" },
+    { id: 7,  name: "魔法抗性",       code: "MagicResist",      note: "补数乘法" },
+    { id: 8,  name: "闪避",           code: "Evasion",          note: "补数乘法" },
+    { id: 9,  name: "生命恢复/秒",    code: "HpRegen",          note: "基础数值" },
+    { id: 10, name: "魔法恢复/秒",    code: "ManaRegen",        note: "基础数值" },
+    { id: 11, name: "伤害输出倍率",   code: "DamageOut",        note: "倍率" },
+    { id: 12, name: "物理受伤倍率",   code: "IncomingPhysical", note: "倍率" },
+    { id: 13, name: "魔法受伤倍率",   code: "IncomingMagical",  note: "倍率" },
+    { id: 14, name: "暴击率",         code: "CritRate",         note: "倍率" },
+    { id: 15, name: "暴击倍率",       code: "CritDmg",          note: "倍率" },
+    { id: 16, name: "攻击距离",       code: "AtkRange",         note: "基础数值" },
+    { id: 17, name: "闪电伤害",       code: "LightningDmg",     note: "元素" },
+    { id: 18, name: "毒伤害",         code: "PoisonDmg",        note: "元素" },
+    { id: 19, name: "燃烧伤害",       code: "BurnDmg",          note: "元素" },
+    { id: 20, name: "冻结时长",       code: "FreezeDuration",   note: "元素 / 秒" }
+  ];
+
+  var GROUPS = [
+    { title: "核心属性", range: "1 – 16", min: 1,  max: 16 },
+    { title: "元素 / 特殊属性", range: "17 – 20", min: 17, max: 20 }
+  ];
+
+  var attrsEl  = document.getElementById("attrs");
+  var pvText   = document.getElementById("pvText");
+  var statCount = document.getElementById("statCount");
+  var statLen   = document.getElementById("statLen");
+  var statZero  = document.getElementById("statZero");
+  var detailList = document.getElementById("detailList");
+  var includeZero = document.getElementById("includeZero");
+  var parseInput  = document.getElementById("parseInput");
+
+  document.getElementById("totalAttrs").textContent = ATTRS.length;
+
+  // -------- 构建表单 --------
+  function build() {
+    var ATTR_BY_ID = {};
+    ATTRS.forEach(function (a) { ATTR_BY_ID[a.id] = a; });
+
+    GROUPS.forEach(function (g) {
+      var sec = document.createElement("section");
+      sec.className = "card group";
+
+      var head = document.createElement("div");
+      head.className = "group-head";
+      var h = document.createElement("h2"); h.textContent = g.title;
+      var r = document.createElement("span"); r.className = "range"; r.textContent = g.range;
+      var hint = document.createElement("span"); hint.className = "hint";
+      hint.textContent = "标记 ×100 的为倍率/百分比";
+      head.appendChild(h); head.appendChild(r); head.appendChild(hint);
+      sec.appendChild(head);
+
+      ATTRS.forEach(function (a) {
+        if (a.id < g.min || a.id > g.max) return;
+
+        var row = document.createElement("div");
+        row.className = "row" + (SCALED[a.id] ? " scaled" : "");
+        row.dataset.id = a.id;
+
+        var idBox = document.createElement("div");
+        idBox.className = "row-id";
+        idBox.textContent = String(a.id).padStart(2, "0");
+
+        var main = document.createElement("div");
+        main.className = "row-main";
+
+        var nm = document.createElement("div");
+        nm.className = "row-name";
+        nm.textContent = a.name;
+        var code = document.createElement("span");
+        code.className = "row-code"; code.textContent = a.code;
+        nm.appendChild(code);
+
+        var note = document.createElement("div");
+        note.className = "row-note";
+        if (SCALED[a.id]) {
+          var tag = document.createElement("span");
+          tag.className = "scaled-tag"; tag.textContent = "×100";
+          tag.title = "配置值 = 运行时值 × 100（如魔抗 25 = 0.25 = 25%）";
+          note.appendChild(tag);
+        }
+        var noteText = document.createElement("span");
+        noteText.textContent = a.note + (SCALED[a.id] ? " · 配置=运行时×100" : "");
+        note.appendChild(noteText);
+        var rt = document.createElement("span");
+        rt.className = "rt"; rt.id = "rt-" + a.id;
+        note.appendChild(rt);
+
+        main.appendChild(nm); main.appendChild(note);
+
+        var input = document.createElement("input");
+        input.className = "row-val";
+        input.type = "number";
+        input.step = "any";
+        input.placeholder = "—";
+        input.dataset.id = a.id;
+        input.addEventListener("input", function () { onInput(a.id); });
+        input.addEventListener("change", function () { onInput(a.id); });
+
+        row.appendChild(idBox); row.appendChild(main); row.appendChild(input);
+        sec.appendChild(row);
+      });
+
+      attrsEl.appendChild(sec);
+    });
+  }
+
+  // -------- 读取 --------
+  function readValues() {
+    var map = {};
+    document.querySelectorAll(".row-val").forEach(function (inp) {
+      var id = Number(inp.dataset.id);
+      var raw = inp.value.trim();
+      if (raw !== "") {
+        var n = Number(raw);
+        if (!Number.isNaN(n)) map[id] = n;
+      }
+    });
+    return map;
+  }
+
+  function fmt(n) {
+    if (Number.isInteger(n)) return String(n);
+    return String(Math.round(n * 1e6) / 1e6);
+  }
+
+  function buildOutput() {
+    var map = readValues();
+    var incZero = includeZero.checked;
+    var parts = [], included = [], zeroCount = 0;
+    ATTRS.forEach(function (a) {
+      if (!(a.id in map)) return;
+      var v = map[a.id];
+      if (v === 0) { zeroCount++; if (!incZero) return; }
+      parts.push(a.id + ":" + fmt(v));
+      included.push({ id: a.id, name: a.name, value: v });
+    });
+    return { str: parts.join("|"), included: included, zeroCount: zeroCount };
+  }
+
+  // -------- 渲染 --------
+  function renderRuntimeHint(id, value) {
+    var rt = document.getElementById("rt-" + id);
+    if (!rt) return;
+    if (!SCALED[id] || value === undefined || Number.isNaN(value)) { rt.textContent = ""; return; }
+    var runtime = value / 100;
+    rt.textContent = " → 运行时 " + fmt(runtime) + "（" + fmt(value) + "%）";
+  }
+
+  function render() {
+    var out = buildOutput();
+    var inputs = document.querySelectorAll(".row-val");
+
+    // 高亮已填输入
+    inputs.forEach(function (inp) {
+      var id = Number(inp.dataset.id);
+      inp.classList.toggle("filled", inp.value.trim() !== "");
+      var v = Number(inp.value.trim());
+      renderRuntimeHint(id, inp.value.trim() === "" ? undefined : v);
+    });
+
+    // 预览串（带高亮）
+    if (out.included.length === 0) {
+      pvText.innerHTML = '<span class="empty">← 尚未配置任何数值</span>';
+    } else {
+      var html = out.included.map(function (it) {
+        return '<span class="tok-id">' + it.id + "</span>:<span class=\"tok-val\">" + fmt(it.value) + "</span>";
+      }).join('<span class="tok-sep">|</span>');
+      pvText.innerHTML = html;
+    }
+
+    statCount.textContent = out.included.length;
+    statLen.textContent = out.str.length;
+    statZero.textContent = out.zeroCount;
+
+    // 明细
+    if (out.included.length === 0) {
+      detailList.innerHTML = '<li><span class="d-empty-note">暂无属性</span></li>';
+    } else {
+      detailList.innerHTML = "";
+      out.included.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (it) {
+        var li = document.createElement("li");
+        var dId = document.createElement("span"); dId.className = "d-id"; dId.textContent = String(it.id).padStart(2, "0");
+        var dName = document.createElement("span"); dName.className = "d-name"; dName.textContent = it.name;
+        var dVal = document.createElement("span"); dVal.className = "d-val"; dVal.textContent = fmt(it.value);
+        li.appendChild(dId); li.appendChild(dName); li.appendChild(dVal);
+        detailList.appendChild(li);
+      });
+    }
+  }
+
+  function onInput() { render(); }
+
+  // -------- 解析回填 --------
+  function parse(str) {
+    var map = {}, bad = [];
+    String(str).split("|").forEach(function (part) {
+      part = part.trim();
+      if (part === "") return;
+      var seg = part.split(":");
+      if (seg.length !== 2) { bad.push(part); return; }
+      var id = Number(seg[0].trim());
+      var val = Number(seg[1].trim());
+      if (!Number.isInteger(id) || !Number.isFinite(val) || !ATTRS.some(function (a) { return a.id === id; })) {
+        bad.push(part); return;
+      }
+      map[id] = val;
+    });
+    document.querySelectorAll(".row-val").forEach(function (inp) {
+      var id = Number(inp.dataset.id);
+      inp.value = (id in map) ? String(map[id]) : "";
+    });
+    render();
+    return bad;
+  }
+
+  // -------- 复制 --------
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); resolve(); } catch (e) { reject(e); }
+      document.body.removeChild(ta);
+    });
+  }
+
+  var toastEl = document.getElementById("toast");
+  var toastTimer = null;
+  function toast(msg, warn) {
+    toastEl.textContent = msg;
+    toastEl.className = "toast show" + (warn ? " warn" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = "toast"; }, 2200);
+  }
+
+  // -------- 事件 --------
+  document.getElementById("parseBtn").addEventListener("click", function () {
+    var raw = parseInput.value.trim();
+    if (raw === "") { toast("请先粘贴属性串再解析", true); return; }
+    var bad = parse(raw);
+    if (bad.length > 0) toast("已解析，跳过 " + bad.length + " 项无法识别：" + bad.slice(0, 2).join(" "), true);
+    else toast("解析回填成功，共 " + Object.keys(readValues()).length + " 项");
+  });
+
+  document.getElementById("exampleBtn").addEventListener("click", function () {
+    parseInput.value = "1:500|10:100|5:320|3:42|4:1|6:5|7:25|16:100";
+    parse(parseInput.value);
+    toast("已填入示例");
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    document.querySelectorAll(".row-val").forEach(function (inp) { inp.value = ""; });
+    parseInput.value = "";
+    render();
+    toast("已清空");
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var out = buildOutput();
+    if (out.included.length === 0) { toast("没有可复制的属性", true); return; }
+    copyText(out.str).then(function () { toast("已复制 " + out.included.length + " 项属性"); })
+      .catch(function () { toast("复制失败，请手动选中预览文本", true); });
+  });
+
+  includeZero.addEventListener("change", render);
+
+  // 回车即解析
+  parseInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("parseBtn").click();
+  });
+
+  build();
+  render();
+})();
+</script>
+</body>
+</html>

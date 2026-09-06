@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glyph 图鉴 · 怪物 / 弹道 / 技能形象设计</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ================================================================= 顶栏 -->
+<div class="topbar">
+    <div class="brand">
+        <span class="brand-mark" id="brandMark"></span>
+        <span>
+            <span class="brand-txt display">Glyph 图鉴</span><br>
+            <span class="brand-sub">MONSTER / PROJECTILE / SKILL</span>
+        </span>
+    </div>
+
+    <label class="ctrl">主题
+        <select id="themeSel">
+            <option value="light">纸面 Paper</option>
+            <option value="dark">夜场 Night</option>
+        </select>
+    </label>
+
+    <label class="ctrl">PNG 尺寸
+        <select id="scaleSel">
+            <option value="256">256 px</option>
+            <option value="512" selected>512 px</option>
+            <option value="1024">1024 px</option>
+            <option value="2048">2048 px</option>
+        </select>
+    </label>
+
+    <label class="ctrl"><input type="checkbox" id="bgChk"> 导出含底色</label>
+
+    <a class="btn" href="ours.html">本作专属形象 →</a>
+    <button class="btn" id="dlAllSvg">批量 SVG</button>
+    <button class="btn primary" id="dlAllPng">批量 PNG</button>
+</div>
+
+<div class="wrap">
+
+    <!-- ============================================================= 首屏 -->
+    <div class="hero">
+        <h1 class="display">以 <em>Glyphica</em> 的语言<br>设计我们自己的怪物</h1>
+        <p>《Glyphica: Typing Survival》把敌人压缩成了一组极简的排版符号：一颗点、一个同心圆、一片弧。
+            战场是米白纸面（或近黑夜场）加暗角，全局只有一种强调色，所有状态都用最小图元挂在本体外围。</p>
+        <p>本页把这套语言提炼成可执行的规范，并据此原创了 <b>14 只怪物 · 8 种弹道 · 8 个技能图标</b>。
+            全部为纯几何 SVG（无外部字体与位图），可按主题实时换色，并直接导出 SVG / PNG 供美术与引擎使用。</p>
+        <div class="srcs" id="srcs"></div>
+    </div>
+
+    <!-- ============================================================= 规范 -->
+    <section id="sec-style">
+        <div class="sec-head"><span class="idx display">01</span><h2 class="display">风格规范</h2></div>
+        <p class="sec-desc">下列条目全部来自对官方实机画面的逐帧拆解，是后续所有原创形象必须遵守的硬约束。</p>
+
+        <div class="swatches" id="swatches"></div>
+        <div class="rule-grid" id="rules"></div>
+
+        <h3 class="display" style="margin:32px 0 4px;font-size:15px;letter-spacing:.14em;">形态词汇表 / SHAPE VOCABULARY</h3>
+        <p class="sec-desc" style="margin-bottom:14px;">八个基础图元承担全部语义，新怪物只允许由它们组合而成。</p>
+        <div class="vocab-row" id="vocab"></div>
+    </section>
+
+    <!-- ============================================================= 怪物 -->
+    <section id="sec-monsters">
+        <div class="sec-head"><span class="idx display">02</span><h2 class="display">怪物图鉴</h2></div>
+        <p class="sec-desc">14 只原创怪物。每张卡都包含剪影解读、战斗行为、玩家识别点，以及可直接粘贴进
+            <code>assets/resources/tb/enemies.json</code> 的配置（id 从 9 起，接续现有 8 条）。</p>
+        <div class="filters" id="mFilters"></div>
+        <div class="grid wide" id="mGrid"></div>
+    </section>
+
+    <!-- ============================================================= 弹道 -->
+    <section id="sec-projectiles">
+        <div class="sec-head"><span class="idx display">03</span><h2 class="display">弹道语言</h2></div>
+        <p class="sec-desc">Glyphica 不画"子弹实体"，只画它的采样轨迹。以下 8 种弹道覆盖平射、狙击、连锁、抛射、光束与命中反馈。</p>
+        <div class="grid" id="pGrid"></div>
+    </section>
+
+    <!-- ============================================================= 技能 -->
+    <section id="sec-icons">
+        <div class="sec-head"><span class="idx display">04</span><h2 class="display">技能图标</h2></div>
+        <p class="sec-desc">强调色圆形徽章 + 反白平面图形，对应升级卡片上的圆形图标。图形与怪物共用同一套几何语汇。</p>
+        <div class="grid icons" id="iGrid"></div>
+    </section>
+
+    <!-- ============================================================= 预览 -->
+    <section id="sec-arena">
+        <div class="sec-head"><span class="idx display">05</span><h2 class="display">战场预览</h2></div>
+        <p class="sec-desc">把新怪物放回真实构图里检验：词条在头顶、血量是身下一条短横线、弹道是一串点。切换主题可即时对照两套配色。</p>
+        <div class="arena" id="arena"></div>
+        <div class="dl-row">
+            <button class="btn tiny" data-dl="arena-svg">下载场景 SVG</button>
+            <button class="btn tiny" data-dl="arena-png">下载场景 PNG</button>
+        </div>
+    </section>
+
+    <!-- ============================================================= 配置 -->
+    <section id="sec-config">
+        <div class="sec-head"><span class="idx display">06</span><h2 class="display">配置导出</h2></div>
+        <p class="sec-desc">下方为全部 14 只新怪物的配置行，结构与现有 <code>enemies.json</code> 完全一致，复制后追加到数组末尾即可。</p>
+        <div class="export-box">
+            <button class="btn" id="copyCfg">复制全部配置</button>
+            <button class="btn" id="dlCfg">下载 enemies_new.json</button>
+            <textarea id="cfgOut" spellcheck="false" readonly></textarea>
+        </div>
+    </section>
+
+    <footer>
+        风格参考：<a href="https://playglyphica.com/" target="_blank" rel="noopener">Glyphica: Typing Survival</a>（aliasBLACK &amp; Squeaky Wheel）。
+        本页所有图形为原创再设计，仅复用其视觉语法，不含任何原游戏素材。<br>
+        批量下载时浏览器可能询问"是否允许下载多个文件"，选择允许即可。
+    </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="assets/art.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

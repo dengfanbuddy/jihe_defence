@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1, "code": "attack",
+    "name": "攻击型",
+    "growthPerLevel": { "atk": 3, "maxHp": 12, "atkRange": 0.1, "def": 0.5, "atkSpeed": 0.03, "critRate": 0.005, "dodge": 0.002, "hpRegen": 0.05 }
+  },
+  {
+    "id": 2, "code": "balanced",
+    "name": "均衡型",
+    "growthPerLevel": { "atk": 2, "maxHp": 18, "atkRange": 0.1, "def": 0.8, "atkSpeed": 0.02, "critRate": 0.003, "dodge": 0.003, "hpRegen": 0.08 }
+  },
+  {
+    "id": 3, "code": "survival",
+    "name": "生存型",
+    "growthPerLevel": { "atk": 1.5, "maxHp": 25, "atkRange": 0.05, "def": 1.0, "atkSpeed": 0.01, "critRate": 0.002, "dodge": 0.003, "hpRegen": 0.12 }
+  },
+  {
+    "id": 4, "code": "speed",
+    "name": "攻速型",
+    "growthPerLevel": { "atk": 2, "maxHp": 14, "atkRange": 0.08, "def": 0.4, "atkSpeed": 0.04, "critRate": 0.004, "dodge": 0.003, "hpRegen": 0.06 }
+  },
+  {
+    "id": 5, "code": "crit",
+    "name": "暴击型",
+    "growthPerLevel": { "atk": 2.5, "maxHp": 10, "atkRange": 0.05, "def": 0.3, "atkSpeed": 0.02, "critRate": 0.006, "dodge": 0.004, "hpRegen": 0.04 }
+  }
+]

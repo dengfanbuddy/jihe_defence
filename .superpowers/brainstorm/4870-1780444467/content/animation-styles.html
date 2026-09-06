@@ -1,0 +1,52 @@
+<h2>场景切换动画风格选择</h2>
+<p class="subtitle">使用 Cocos Creator Graphics API 实现，选一个你喜欢的风格</p>
+
+<div class="options">
+  <div class="option" data-choice="radial" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>环形扩散 <span style="color:#888;font-weight:normal;font-size:0.85em">(Radial Reveal)</span></h3>
+      <p>从屏幕中心向外扩散的圆形遮罩，逐渐揭示新场景。配合弧形进度环 + 中心百分比数字</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#2a2a3e;color:#ddd;padding:2px 10px;border-radius:12px;font-size:0.8em">🎯 推荐</span>
+        <span style="background:#1e3a2e;color:#8f8;padding:2px 10px;border-radius:12px;font-size:0.8em">简约</span>
+        <span style="background:#3a1e1e;color:#f88;padding:2px 10px;border-radius:12px;font-size:0.8em">流畅</span>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="curtain" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>幕布拉开 <span style="color:#888;font-weight:normal;font-size:0.85em">(Curtain Reveal)</span></h3>
+      <p>左右两侧的幕布/波浪线条向中间收拢（转出）或向外展开（转入），配合底部加载进度条</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#2a1e3a;color:#f8f;padding:2px 10px;border-radius:12px;font-size:0.8em">华丽</span>
+        <span style="background:#3a2e1e;color:#ff8;padding:2px 10px;border-radius:12px;font-size:0.8em">动感</span>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="spiral" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>螺旋之门 <span style="color:#888;font-weight:normal;font-size:0.85em">(Portal Spiral)</span></h3>
+      <p>从中心点开始螺旋绘制，逐渐扩大成传送门效果。带有能量粒子沿螺旋轨迹飞散</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#1e2e3a;color:#8cf;padding:2px 10px;border-radius:12px;font-size:0.8em">科幻</span>
+        <span style="background:#2e1e1e;color:#f88;padding:2px 10px;border-radius:12px;font-size:0.8em">炫酷</span>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="morph" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>形态融合 <span style="color:#888;font-weight:normal;font-size:0.8em">(Morphing Shapes)</span></h3>
+      <p>几何图形（三角形→方形→圆形→六边形）不断变换形态并旋转，加载进度为其充能。完成时图形爆炸消散</p>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="background:#2e1e2e;color:#f8f;padding:2px 10px;border-radius:12px;font-size:0.8em">创意</span>
+        <span style="background:#1e2e1e;color:#8f8;padding:2px 10px;border-radius:12px;font-size:0.8em">趣味</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">点击选择你最喜欢的风格，然后在终端告诉我</p>

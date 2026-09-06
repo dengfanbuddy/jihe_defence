@@ -1,0 +1,4 @@
+interface IManager{
+    init();
+    
+}

@@ -1,0 +1,48 @@
+{
+  "path": "auth/server-config.js",
+  "size": 25589,
+  "isObfuscated": true,
+  "decoderName": "_0x2bf8",
+  "cacheProp": "\\x4f\\x5a\\x6d\\x41\\x68\\x49",
+  "exports": {
+    "isAuthDisabled": {
+      "type": "function",
+      "returns": false
+    },
+    "getAuthConfig": {
+      "type": "function",
+      "returns": {
+        "serverUrl": "https://mcp.xman88.com",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0HRbBcnlJIgMwDUGXfrTBkGqxoYzxBV2SqgNRglrzpOfnqgFvJtbZKJ4thXhwL/jpgSccOf6JjuBDspaqoo0kbcDMhGnHQvkmU74jHb6ZuHyJAJ7he8s6oCyTjkmhqnvKHVomsjvTmvX4OUtbev7gPXzZ9GmeIJWa7QBj+HNhJxIHwTpeIi6sM6xBmAiHtpAsdAysPL3I2jhCFlQ9vsPT0TIE7PQMNkHMJ4wykP2a3lrFlRuF7pSjQA6MFzenX/Km7acW/+uMV2SDFgo5SUuXjaGegxTLRa32gAWzqGlbQoZPzHuau8r3wHK5VFPTlN8mYNo74hhnAQIBuG5AVkx7wIDAQAB\n-----END PUBLIC KEY-----\n",
+        "serviceName": "cocos-mcp",
+        "version": "1.7.1.21",
+        "authDisabled": false
+      }
+    }
+  },
+  "notes": [
+    "OK: decoder=_0x2bf8, cacheProp=\\x4f\\x5a\\x6d\\x41\\x68\\x49, strings=330"
+  ],
+  "printableStrings": [
+    "12833390jZVhta",
+    "5712687HMGVyH",
+    "1456668MTNtgo",
+    "221631JtxbpL",
+    "545654tYfIsH",
+    "4784GaEznb",
+    "2225wwsvlu",
+    "7539hdGiXL",
+    "504Jraapa",
+    "IN PUBLI",
+    "DF0Usa+g",
+    "I2jhCFlQ",
+    "22KhDZHj",
+    "getAuthC",
+    "8eevmfj",
+    "operty",
+    "|*3oO",
+    "kYiBc",
+    "v%5\">",
+    "onfig"
+  ]
+}

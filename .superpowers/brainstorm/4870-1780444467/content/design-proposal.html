@@ -1,0 +1,86 @@
+<h2>最终设计方案：形态融合 · 场景切换</h2>
+<p class="subtitle">使用 Cocos Creator Graphics 实现全屏过渡动画</p>
+
+<div class="section">
+  <h3>整体结构</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:16px;margin:12px 0">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9em">
+      <tr><td style="padding:6px 12px;color:#888">覆盖范围</td><td style="padding:6px 12px;color:#EFEEED">全屏 750×1334</td></tr>
+      <tr><td style="padding:6px 12px;color:#888">背景</td><td style="padding:6px 12px;color:#EFEEED">半透明深色遮罩 (rgba(0,0,0,0.7))</td></tr>
+      <tr><td style="padding:6px 12px;color:#888">主色</td><td style="padding:6px 12px;color:#67999A">#67999A</td></tr>
+      <tr><td style="padding:6px 12px;color:#888">辅色</td><td style="padding:6px 12px;color:#EFEEED">#EFEEED</td></tr>
+      <tr><td style="padding:6px 12px;color:#888">动画中心</td><td style="padding:6px 12px;color:#EFEEED">屏幕中央 (375, 667)</td></tr>
+      <tr><td style="padding:6px 12px;color:#888">外圈直径</td><td style="padding:6px 12px;color:#EFEEED">~400px</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <h3>阶段一：循环加载动画</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;margin:12px 0">
+    <div style="width:200px;height:200px;margin:0 auto;position:relative">
+      <!-- Outer ring -->
+      <svg viewBox="0 0 200 200" style="position:absolute;top:0;left:0;width:100%;height:100%">
+        <circle cx="100" cy="100" r="90" fill="none" stroke="#333" stroke-width="3"/>
+        <circle cx="100" cy="100" r="90" fill="none" stroke="#67999A" stroke-width="3" stroke-dasharray="565" stroke-dashoffset="170" stroke-linecap="round"/>
+      </svg>
+      <!-- Center morphing shape -->
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100px;height:100px">
+        <div style="width:100px;height:100px;background:rgba(103,153,154,0.15);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);border:2px solid #67999A;animation:pulse 2s infinite"></div>
+      </div>
+      <!-- Percentage -->
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#EFEEED;font-size:28px;font-weight:bold">72%</div>
+    </div>
+    <div style="margin-top:16px">
+      <h4>动画序列（按 morphSequence 顺序循环）</h4>
+      <p style="color:#ddd;font-size:0.95em;margin:8px 0">
+        <span style="display:inline-block;background:rgba(103,153,154,0.2);padding:4px 12px;border-radius:16px;margin:4px">▽ 三角形</span>
+        <span style="color:#888"> → </span>
+        <span style="display:inline-block;background:rgba(103,153,154,0.2);padding:4px 12px;border-radius:16px;margin:4px">▣ 方形</span>
+        <span style="color:#888"> → </span>
+        <span style="display:inline-block;background:rgba(103,153,154,0.2);padding:4px 12px;border-radius:16px;margin:4px">● 圆形</span>
+        <span style="color:#888"> → </span>
+        <span style="display:inline-block;background:rgba(103,153,154,0.2);padding:4px 12px;border-radius:16px;margin:4px">⬡ 六边形</span>
+        <span style="color:#888"> → 循环</span>
+      </p>
+      <ul style="color:#bbb;font-size:0.9em;line-height:1.8;margin-top:12px">
+        <li>每个形态停留约 1 秒，过渡动画 0.5 秒（形态间 morph 插值）</li>
+        <li>每完成一个形态变化，整体旋转 90°</li>
+        <li>外圈进度环持续根据 <code>progress</code> 值填充弧长</li>
+        <li>中心的百分比数字实时更新</li>
+        <li><strong>发光拖尾效果</strong>：图形边缘在变换时有 #67999A 的半透明拖尾</li>
+        <li><strong>粒子系统</strong>：6~8 颗小粒子沿圆形轨迹绕中心旋转飘散</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>阶段二：完成转场动画</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:20px;margin:12px 0">
+    <ul style="color:#bbb;font-size:0.9em;line-height:1.8">
+      <li><strong>触发条件：</strong>progress 达到 1.0（100%）</li>
+      <li><strong>步骤 1：</strong>中心图形快速膨胀到 1.5 倍，颜色变亮</li>
+      <li><strong>步骤 2：</strong>图形碎裂 → 12~16 个碎片粒子向外飞散</li>
+      <li><strong>步骤 3：</strong>全屏闪光 — 用白色矩形透明度从 1→0 快速淡出（约 0.3s）</li>
+      <li><strong>步骤 4：</strong>动画结束，隐藏组件，新场景已就绪</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>与 SceneMgr 集成方式</h3>
+  <div style="background:#1a1a2e;border:1px solid #333;border-radius:12px;padding:16px;margin:12px 0">
+    <pre style="color:#8f8;font-size:0.85em;overflow-x:auto">
+Top_ChangeScene 对外方法：
+  ● show(progress: number)  — 切换入场/更新进度
+  ● hide()                   — 完成动画并隐藏
+
+SceneMgr 回调注册：
+  beforEnter    → Top_ChangeScene.show(0)
+  updateProgress → Top_ChangeScene.show(progress)
+  afterEnter    → Top_ChangeScene.hide()</pre>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">这个设计方案你觉得怎么样？有需要调整的地方吗？</p>

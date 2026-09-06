@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="肉鸽塔防-系统分类导图">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+  <mxCell id="2" value="肉鸽塔防游戏系统" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#2c3e50;strokeColor=#1a252f;fontColor=#ffffff;fontSize=14;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="60" y="1421" width="200" height="56" as="geometry" />
+  </mxCell>
+  <mxCell id="3" value="核心玩法
+Core Mechanics" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="237" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="4" value="核心玩法
+Core Gameplay" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="83" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="5" value="自动+手动点击攻击炮塔" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="52" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="6" value="4阶段×6分钟生存挑战" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="88" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="7" value="Roguelite构建Build组合" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="124" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="8" value="阶段系统
+Stage System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="221" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="9" value="6分钟/大阶段 × 4阶段" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="190" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="10" value="阶段Boss跨阶段存活堆积" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="226" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="11" value="敌人刷新参数逐阶段递增" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="262" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="12" value="游戏模式
+Game Modes" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="377" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="13" value="阶段模式: 标准4阶段体验" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="328" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="14" value="无尽模式: 无限阶段刷资源" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="364" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="15" value="连战Boss: 纯Boss Rush" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="400" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="16" value="每日挑战: 固定种子公平竞技" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="436" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="17" value="战斗系统
+Combat System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="778" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="18" value="攻击系统
+Attack System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="573" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="19" value="默认自动攻击 (炮塔索敌)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="542" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="20" value="手动点击集火指定目标" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="578" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="21" value="9种优先级策略可多选组合" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="614" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="22" value="战斗与属性
+Combat &amp; Stats" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="711" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="23" value="7种属性: 火/冰/雷/毒/爆/暗影/物理" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="680" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="24" value="DPS = 伤害×攻速×(1+增伤%)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="716" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="25" value="防御=减伤(防御公式)+护盾+血量" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="752" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="26" value="敌人系统
+Enemy System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="849" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="27" value="10种敌人类型 (圆/三角/菱形等)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="818" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="28" value="8种精英词缀随机组合" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="854" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="29" value="敌人属性随阶段基础增长" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="890" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="30" value="精英与阶段Boss
+Elites &amp; Bosses" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="987" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="31" value="精英不定时刷新 (间隔15-45s)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="956" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="32" value="5个阶段Boss各有独特机制" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="992" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="33" value="Boss跨阶段堆积 (越拖越多)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1028" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="34" value="角色装备
+Heroes &amp; Gear" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="1337" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="35" value="英雄系统
+Hero System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="1183" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="36" value="4英雄: 仲裁官/弹幕大师/守护者/元素使" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1134" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="37" value="每英雄: 专属武器+英雄特性" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1170" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="38" value="专武Lv5/10/15/20节点进化" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1206" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="39" value="副武器与英雄特性联动加成" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1242" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="40" value="武器系统
+Weapon System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="1357" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="41" value="4栏位: Slot1锁定, 2/3/4可锁" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1308" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="42" value="12种副武器 (仅局内掉落获取)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1344" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="43" value="5品质: 普通→稀有→史诗→传说→独特" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1380" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="44" value="同名武器自动升星☆1→☆3" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1416" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="45" value="临时背包与道具
+Inventory &amp; Items" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="1513" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="46" value="默认8格背包 (可扩容)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1482" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="47" value="9种道具: 药剂/护盾/狂暴等" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1518" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="48" value="可暂停时操作替换/使用" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1554" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="49" value="经济成长
+Economy &amp; Growth" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="1863" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="50" value="局内资源系统
+In-Game Resources" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="1709" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="51" value="经验: 升级+基础属性+专武进化" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1660" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="52" value="金币: 肉鸽抽卡 (技能/属性3选1)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1696" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="53" value="击杀数: 击杀商店购买阶段Buff" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1732" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="54" value="三种资源跨阶段保留" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1768" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="55" value="局内商店
+In-Game Shop" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="1865" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="56" value="金币抽卡: 被动/主动/属性/生存/经济" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1834" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="57" value="击杀商店: 8种Buff商品" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1870" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="58" value="每阶段结束自动刷新商品" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1906" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="59" value="召唤Boss机制
+Summon Bosses" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2021" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="60" value="守卫Boss: 刷新-1s (无冷却)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="1972" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="61" value="金币Boss: 掉落大量金币" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2008" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="62" value="击杀数Boss: 掉落大量击杀数" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2044" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="63" value="有限存活时间, 超时消失无掉落" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2080" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="64" value="局外养成
+Meta Progression" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="2335" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="65" value="难度系统
+Difficulty System" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2217" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="66" value="100级=10段位×10级 (黑铁→神话)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2186" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="67" value="指数缩放: HP×1.10^(N-1)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2222" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="68" value="段位进阶解锁特殊奖励" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2258" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="69" value="局外养成系统
+Out-of-Game Growth" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2355" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="70" value="全局天赋树 (通用金币升级)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2324" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="71" value="属性宝石 (对局结算随机掉落,无限叠加)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2360" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="72" value="称号系统 (成就/里程碑解锁独特效果)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2396" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="73" value="成就系统
+Achievements" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2475" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="74" value="成就点激活永久加成 (可重置)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2462" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="75" value="4类成就: 战斗/构建/挑战/收集" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2498" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="76" value="系统功能
+System Features" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=13;overflow=hidden;fontStyle=1;" vertex="1" parent="1">
+    <mxGeometry x="340" y="2702" width="170" height="46" as="geometry" />
+  </mxCell>
+  <mxCell id="77" value="广告变现
+Monetization" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2635" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="78" value="激励视频: 复活/翻倍/刷新等 (日上限)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2604" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="79" value="插屏广告: 阶段切换/结算时弹出" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2640" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="80" value="去广告一次性购买 (激励变一键领取)" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2676" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="81" value="美术风格
+Art Style" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=12;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="650" y="2773" width="160" height="42" as="geometry" />
+  </mxCell>
+  <mxCell id="82" value="暗色背景+冷色系+几何形状敌人" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2742" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="83" value="英雄配色: 金白/蓝紫/绿青/多彩" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2778" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="84" value="品质发光: 蓝微光→紫光晕→金流光→红脉冲" style="whiteSpace=wrap;html=1;rounded=1;fillColor=#f0e5f5;strokeColor=#a070b0;fontColor=#000000;fontSize=11;overflow=hidden;" vertex="1" parent="1">
+    <mxGeometry x="1020" y="2814" width="140" height="32" as="geometry" />
+  </mxCell>
+  <mxCell id="1000" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="3">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1001" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="17">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1002" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="34">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1003" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="49">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1004" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="64">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1005" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="2" target="76">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1006" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="3" target="4">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1007" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="3" target="8">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1008" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="3" target="12">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1009" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="17" target="18">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1010" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="17" target="22">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1011" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="17" target="26">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1012" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="17" target="30">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1013" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="34" target="35">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1014" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="34" target="40">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1015" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="34" target="45">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1016" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="49" target="50">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1017" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="49" target="55">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1018" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="49" target="59">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1019" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="64" target="65">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1020" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="64" target="69">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1021" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="64" target="73">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1022" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="76" target="77">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+  <mxCell id="1023" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#999999;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="76" target="81">
+    <mxGeometry relative="1" as="geometry" />
+  </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

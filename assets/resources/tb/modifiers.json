@@ -1,0 +1,282 @@
+[
+  {
+    "id": 1,
+    "name": "燃烧",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 3,
+    "stack_mode": "stack",
+    "properties": [
+      [
+        13,
+        0
+      ]
+    ],
+    "tick": {
+      "interval": 1,
+      "damage": 10,
+      "damage_type": "magical"
+    }
+  },
+  {
+    "id": 2,
+    "name": "减速30%",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2.5,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        5,
+        -90
+      ]
+    ]
+  },
+  {
+    "id": 3,
+    "name": "减速50%",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2.5,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        5,
+        -150
+      ]
+    ]
+  },
+  {
+    "id": 4,
+    "name": "减速40%",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2.5,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        5,
+        -120
+      ]
+    ]
+  },
+  {
+    "id": 5,
+    "name": "魔抗+20%",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 8,
+    "stack_mode": "renew",
+    "properties": [
+      [
+        7,
+        20
+      ]
+    ]
+  },
+  {
+    "id": 6,
+    "name": "无敌",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 2,
+    "duration": 5,
+    "stack_mode": "none",
+    "states": {
+      "invulnerable": true
+    }
+  },
+  {
+    "id": 7,
+    "name": "眩晕",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 2,
+    "duration": 1.5,
+    "stack_mode": "none",
+    "states": {
+      "stunned": true
+    }
+  },
+  {
+    "id": 8,
+    "name": "祝福",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        3,
+        20
+      ],
+      [
+        1,
+        100
+      ]
+    ]
+  },
+  {
+    "id": 9,
+    "name": "狂暴",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 8,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        4,
+        50
+      ],
+      [
+        11,
+        30
+      ]
+    ]
+  },
+  {
+    "id": 10,
+    "name": "荆棘",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_take_damage",
+        "actions": [
+          {
+            "type": "reflect",
+            "ratio": 0.5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "吸血",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 5,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "lifesteal",
+            "ratio": 0.2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "火焰武器",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        3,
+        15
+      ]
+    ],
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "apply_modifier",
+            "modifier": 1,
+            "duration": 3,
+            "chance": 0.5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "偷钱(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "steal_gold",
+            "value": 20
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "name": "飞镖模组",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        16,
+        100
+      ]
+    ]
+  },
+  {
+    "id": 15,
+    "name": "巨人之心",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        1,
+        300
+      ]
+    ]
+  },
+  {
+    "id": 16,
+    "name": "毒镖",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 15,
+    "stack_mode": "refresh",
+    "properties": [
+      [
+        5,
+        -90
+      ]
+    ],
+    "tick": {
+      "interval": 3,
+      "damage": 20,
+      "damage_type": "magical"
+    }
+  }
+]

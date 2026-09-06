@@ -1,0 +1,96 @@
+{
+  "path": "compat/api-adapter.js",
+  "size": 34835,
+  "isObfuscated": true,
+  "decoderName": "_0x2ddd",
+  "cacheProp": "\\x6b\\x69\\x54\\x78\\x56\\x4e",
+  "exports": {
+    "animationOperation": {
+      "type": "function",
+      "returns": {}
+    },
+    "saveClipCache": {
+      "type": "function",
+      "returns": {}
+    },
+    "queryComponentsList": {
+      "type": "function",
+      "returns": {}
+    },
+    "queryAssets": {
+      "type": "function",
+      "returns": {}
+    },
+    "trySetEditClip": {
+      "type": "function",
+      "returns": {}
+    },
+    "tryChangeAnimationRoot": {
+      "type": "function",
+      "returns": {}
+    },
+    "getCreatorAppBundlePaths": {
+      "type": "function",
+      "returns": [
+        "/Applications/Cocos/Creator/3.8.6/CocosCreator.app/Contents/Resources/resources/3d/engine/bin/.declarations/cc.d.ts",
+        "/Applications/Cocos/Creator/3.8.5/CocosCreator.app/Contents/Resources/resources/3d/engine/bin/.declarations/cc.d.ts",
+        "/Applications/Cocos/Creator/3.8.4/CocosCreator.app/Contents/Resources/resources/3d/engine/bin/.declarations/cc.d.ts"
+      ]
+    },
+    "buildVersionedApiDocUrl": {
+      "type": "function",
+      "returns": "https://docs.cocos.com/creator/3.8/api/en/class/undefined"
+    },
+    "hasOctreeInfo": {
+      "type": "function",
+      "returns": true
+    },
+    "recordAnimation": {
+      "type": "function",
+      "returns": {}
+    },
+    "saveAnimClip": {
+      "type": "function",
+      "returns": {}
+    }
+  },
+  "notes": [
+    "OK: decoder=_0x2ddd, cacheProp=\\x6b\\x69\\x54\\x78\\x56\\x4e, strings=34"
+  ],
+  "printableStrings": [
+    "1662444ArHqJQ",
+    "2114972AWYYZh",
+    "2876845cyXvFQ",
+    "3869117QgVVha",
+    "4416456MnceQB",
+    "148410HqHnAh",
+    "94712fGdRRu",
+    "189QpTXsd",
+    "14lQwyMI",
+    "definePr",
+    "animatio",
+    "saveClip",
+    "queryCom",
+    "ponentsL",
+    "queryAss",
+    "trySetEd",
+    "tryChang",
+    "getCreat",
+    "orAppBun",
+    "dlePaths",
+    "buildVer",
+    "hasOctre",
+    "recordAn",
+    "saveAnim",
+    "n-detect",
+    "6xvcmbi",
+    "8ohiOaN",
+    "iDocUrl",
+    "imation",
+    "operty",
+    "itClip",
+    "onRoot",
+    "Cache",
+    "ets"
+  ]
+}

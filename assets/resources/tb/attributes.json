@@ -1,0 +1,130 @@
+[
+  {
+    "id": 1,
+    "name": "最大生命",
+    "stack_mode": "add",
+    "base": 100,
+    "min": 1,
+    "max": 99999
+  },
+  {
+    "id": 2,
+    "name": "最大魔法",
+    "stack_mode": "add",
+    "base": 50,
+    "min": 0,
+    "max": 9999
+  },
+  {
+    "id": 3,
+    "name": "攻击力",
+    "stack_mode": "add",
+    "base": 10,
+    "min": 0,
+    "max": 9999
+  },
+  {
+    "id": 4,
+    "name": "攻击速度",
+    "stack_mode": "multiply",
+    "base": 100,
+    "min": 10,
+    "max": 1000
+  },
+  {
+    "id": 5,
+    "name": "移动速度",
+    "stack_mode": "add",
+    "base": 300,
+    "min": 50,
+    "max": 1000
+  },
+  {
+    "id": 6,
+    "name": "护甲",
+    "stack_mode": "add",
+    "base": 0,
+    "min": -20,
+    "max": 100
+  },
+  {
+    "id": 7,
+    "name": "魔法抗性",
+    "stack_mode": "complement",
+    "base": 25,
+    "min": 0,
+    "max": 95
+  },
+  {
+    "id": 8,
+    "name": "闪避",
+    "stack_mode": "complement",
+    "base": 0,
+    "min": 0,
+    "max": 95
+  },
+  {
+    "id": 9,
+    "name": "生命恢复/秒",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 999
+  },
+  {
+    "id": 10,
+    "name": "魔法恢复/秒",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 999
+  },
+  {
+    "id": 11,
+    "name": "伤害输出倍率",
+    "stack_mode": "multiply",
+    "base": 100,
+    "min": 0,
+    "max": 1000
+  },
+  {
+    "id": 12,
+    "name": "物理受伤倍率",
+    "stack_mode": "multiply",
+    "base": 100,
+    "min": 0,
+    "max": 1000
+  },
+  {
+    "id": 13,
+    "name": "魔法受伤倍率",
+    "stack_mode": "multiply",
+    "base": 100,
+    "min": 0,
+    "max": 1000
+  },
+  {
+    "id": 14,
+    "name": "暴击率",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 100
+  },
+  {
+    "id": 15,
+    "name": "暴击倍率",
+    "stack_mode": "best",
+    "base": 100,
+    "min": 100,
+    "max": 1000
+  },
+  {
+    "id": 16,
+    "name": "攻击距离",
+    "stack_mode": "add",
+    "base": 100,
+    "min": 50,
+    "max": 2000
+  }
+]

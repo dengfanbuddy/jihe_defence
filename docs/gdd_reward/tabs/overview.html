@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>总览 · 奖励数值设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article>
+  <div class="tab-intro">总览：击杀经济的设计定位、设计原则、与现有配置的关系。</div>
+
+  <h2>设计定位</h2>
+  <div class="grid c3">
+    <div class="card"><h4>金币</h4><p>局内经济：刷新 / 买装备 / 升级。局终清零，用于一局之内的战力爬坡。</p></div>
+    <div class="card"><h4>局内经验</h4><p>局内英雄升级 → 加属性（heroes.json growthValues）。局终清零。</p></div>
+    <div class="card"><h4>局外经验</h4><p>对局结束按配置一次性发放（玩家 + 英雄等级），<strong>与局内击杀经验无关</strong>。</p></div>
+  </div>
+
+  <div class="callout info"><strong>一句话痛点：</strong>金币和经验是两种职能完全不同的资源，不能套同一个成长公式。且经验还分<strong>局内</strong>（击杀产出→局内升级加属性）与<strong>局外</strong>（结算配置一次性发）两套——局内经验绝不能累加进局外。</div>
+
+  <h2>核心循环</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 760 250" width="760" height="250" role="img" aria-label="击杀经济循环">
+      <defs>
+        <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+      <rect x="10" y="20" width="150" height="60" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="85" y="48" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">击杀敌人</text>
+      <text x="85" y="68" text-anchor="middle" fill="#8b98a5" font-size="11">units.json 配置</text>
+
+      <rect x="220" y="20" width="150" height="60" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="295" y="48" text-anchor="middle" fill="#bcd8f0" font-size="14" font-weight="600">奖励结算</text>
+      <text x="295" y="68" text-anchor="middle" fill="#8b98a5" font-size="11">×阶段 ×时间</text>
+
+      <rect x="430" y="20" width="150" height="60" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="505" y="48" text-anchor="middle" fill="#bcd8f0" font-size="14" font-weight="600">金币 → 局内</text>
+      <text x="505" y="68" text-anchor="middle" fill="#8b98a5" font-size="11">刷新/买装备/升级</text>
+
+      <rect x="430" y="140" width="150" height="60" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="505" y="168" text-anchor="middle" fill="#bcd8f0" font-size="14" font-weight="600">局内经验升级</text>
+      <text x="505" y="188" text-anchor="middle" fill="#8b98a5" font-size="11">加属性(局终清零)</text>
+
+      <rect x="640" y="80" width="110" height="60" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="695" y="108" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="600">战力提升</text>
+      <text x="695" y="128" text-anchor="middle" fill="#8b98a5" font-size="11">打更强敌人</text>
+
+      <rect x="640" y="170" width="110" height="60" rx="12" fill="#1d2632" stroke="#1d4a72"/>
+      <text x="695" y="198" text-anchor="middle" fill="#bcd8f0" font-size="14" font-weight="600">局外结算</text>
+      <text x="695" y="218" text-anchor="middle" fill="#8b98a5" font-size="11">配置一次性发经验</text>
+
+      <path d="M160 50 H215" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M370 50 H425" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M580 50 V170" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M505 200 L695 215" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M580 50 L695 110" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M695 80 L580 50" fill="none" stroke="#2ed573" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+    </svg>
+    <div class="cap">击杀 → 结算（阶段×时间缩放） → 金币(局内) / 局内经验(升级加属性) → 战力提升 → 挑战更强敌人。对局结束才走一条独立支线：局外按配置一次性发经验（与局内无关）。</div>
+  </div>
+
+  <h2>设计原则</h2>
+  <table>
+    <thead><tr><th scope="col">原则</th><th scope="col">含义</th><th scope="col">用以解决的分歧</th></tr></thead>
+    <tbody>
+      <tr><td>时间只做弱通胀</td><td>奖励随时间缓慢爬升，有上限；不做纯线性膨胀。</td><td>避免拖后期=挂机白嫖奖励，奖励随难度跳变显得割裂。</td></tr>
+      <tr><td>金币跟难度 / 局内经验跟强度</td><td>金币奖励对应用户消费能力；局内经验奖励对应用户成长曲线。</td><td>两资源同涨同落会导致某一资源迅速溢出。</td></tr>
+      <tr><td>局内外经验解耦</td><td>局内经验只在局内升级加属性（局终清零）；局外经验只在对局结束按配置发。</td><td>防止局内击杀经验污染局外账号等级。</td></tr>
+      <tr><td>经济 Boss = 拆分而非双份</td><td>金币 Boss 只给金币，经验 Boss 只给经验，不做又给金币又给经验。</td><td>一刀下去双资源爆掉，直接废掉整局经济。</td></tr>
+      <tr><td>配置驱动</td><td>所有基数在 units.json，缩放系数在 battle_constants.json，策划可调。</td><td>改奖励不用动代码。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>与现有配置的关系</h2>
+  <table>
+    <thead><tr><th scope="col">配置</th><th scope="col">职责</th><th scope="col">本次改动</th></tr></thead>
+    <tbody>
+      <tr><td><code>units.json</code></td><td>运行时怪物（id 1-11），<code>goldReward</code>/<code>expReward</code>/<code>rewardType</code></td><td>新增奖励字段；怪物补数值；新增黄金魔像/经验贤者两个经济 Boss</td></tr>
+      <tr><td><code>battle_constants.json</code></td><td>缩放系数 + 局内等级公式 + 结算基数</td><td>新增局内/局外两套经验常量</td></tr>
+      <tr><td><code>Scene_Game_Stage.onDeath</code></td><td>击杀结算：金币发局内、局内经验升级加属性</td><td>接入 grantKillReward + addBattleExp</td></tr>
+      <tr><td><code>Scene_Game_Stage.finish</code></td><td>对局结束：按配置一次性发局外经验</td><td>接入 settleMetaRewards</td></tr>
+      <tr><td><code>useBattleStore</code></td><td>局内等级/经验投影（HUD 响应式）</td><td>新增 level / exp / expToNext</td></tr>
+    </tbody>
+  </table>
+
+  <h2>交付状态</h2>
+  <div class="grid c2">
+    <div class="card"><h4>已落地</h4><p>局内经验升级加属性；局外配置结算；HUD 等级/经验接入；两套经验已解耦。</p></div>
+    <div class="card"><h4>待调优</h4><p>阶段难度系数 0.15 为 <span class="q n">待定</span> 样例值；局外英雄经验取第一个已解锁英雄兜底发放。</p></div>
+  </div>
+</article>
+</body>
+</html>

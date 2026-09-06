@@ -1,0 +1,13 @@
+{
+  "path": "panels/default/index.js",
+  "size": 173241,
+  "isObfuscated": true,
+  "decoderName": "_0x4f90",
+  "cacheProp": "\\x52\\x79\\x52\\x75\\x77\\x6f",
+  "exports": {},
+  "error": "Editor is not defined",
+  "notes": [
+    "Error loading module: Editor is not defined"
+  ],
+  "printableStrings": []
+}

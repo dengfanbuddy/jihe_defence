@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "tables": {
+    "test": {
+      "columns": [
+        {
+          "key": "id",
+          "type": "int",
+          "desc": "唯一键"
+        }
+      ]
+    }
+  }
+}

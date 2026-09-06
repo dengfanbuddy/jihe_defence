@@ -1,0 +1,87 @@
+<div id="app">
+  <div class="mcp-panel">
+    <!-- 头部：标题 + 状态 -->
+    <div class="mcp-header">
+      <h2 class="mcp-title">🔌 MCP 服务器</h2>
+      <span class="mcp-badge" :class="{ running: running, stopped: !running }">
+        {{ running ? '● 运行中' : '○ 已停止' }}
+      </span>
+    </div>
+
+    <!-- 控制栏：端口 + 按钮 -->
+    <div class="mcp-controls">
+      <div class="control-row">
+        <label class="control-label">端口:</label>
+        <input
+          class="control-input port-input"
+          type="number"
+          :value="port"
+          :disabled="running"
+          @change="e => updatePort(parseInt(e.target.value) || 9786)"
+          min="1024"
+          max="65535"
+        />
+        <button v-if="!running" class="btn btn-start" @click="startServer()">
+          ▶ 启动
+        </button>
+        <button v-else class="btn btn-stop" @click="stopServer()">
+          ■ 停止
+        </button>
+      </div>
+      <p class="control-hint" v-if="running">
+        SSE: <span class="url-text">http://127.0.0.1:{{ port }}/sse</span>
+        <button class="btn-copy" @click="copyUrl('http://127.0.0.1:' + port + '/sse')" title="复制">📋</button>
+        &nbsp;|&nbsp;
+        JSON-RPC: <span class="url-text">http://127.0.0.1:{{ port }}/mcp</span>
+        <button class="btn-copy" @click="copyUrl('http://127.0.0.1:' + port + '/mcp')" title="复制">📋</button>
+      </p>
+    </div>
+
+    <!-- 模块列表 -->
+    <div class="mcp-modules">
+      <h3 class="section-title">功能模块 ({{ modules.length }})</h3>
+      <div v-if="modules.length === 0" class="empty-state">暂无已注册模块</div>
+      <div v-for="mod in modules" :key="mod.name" class="module-card" :class="{ disabled: !mod.enabled }">
+        <div class="module-header" @click="toggleExpand(mod.name)">
+          <span class="module-arrow">{{ mod.expanded ? '▼' : '▶' }}</span>
+          <span class="module-name">{{ mod.name }}</span>
+          <span class="module-desc">{{ mod.description }}</span>
+          <span class="module-tool-count">{{ mod.tools.length }} 工具</span>
+          <label class="toggle-switch" @click.stop="">
+            <input
+              type="checkbox"
+              :checked="mod.enabled"
+              @change="e => toggleModule(mod.name, e.target.checked)"
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <!-- 展开的工具列表 -->
+        <div v-if="mod.expanded" class="module-tools">
+          <div v-for="tool in mod.tools" :key="tool.name" class="tool-item" :class="{ disabled: !mod.enabled || !tool.enabled }">
+            <span class="tool-name">{{ tool.name }}</span>
+            <span class="tool-desc">{{ tool.description }}</span>
+            <label class="toggle-switch small">
+              <input
+                type="checkbox"
+                :checked="tool.enabled"
+                :disabled="!mod.enabled"
+                @change="e => toggleTool(mod.name, tool.name, e.target.checked)"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日志区 -->
+    <div class="mcp-logs">
+      <h3 class="section-title">日志</h3>
+      <div class="log-container">
+        <div v-for="(log, idx) in logs" :key="idx" class="log-line">{{ log }}</div>
+        <div v-if="logs.length === 0" class="empty-state">暂无日志</div>
+      </div>
+    </div>
+  </div>
+</div>

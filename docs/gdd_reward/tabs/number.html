@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数值 · 奖励数值设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article>
+  <div class="tab-intro">数值：奖励公式、每类敌人基数、缩放常量、局内/局外两套经验体系。</div>
+
+  <h2>奖励公式</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 720 110" width="720" height="110" role="img" aria-label="奖励公式">
+      <text x="10" y="34" fill="#e6edf3" font-size="13" font-family="ui-monospace,Consolas,monospace">reward = baseReward（units.json） × phaseMul（阶段难度） × timeMul（时间通胀）</text>
+      <text x="10" y="62" fill="#8b98a5" font-size="13" font-family="ui-monospace,Consolas,monospace">phaseMul = 1 + max(0, stage - 1) × 0.15</text>
+      <text x="10" y="88" fill="#8b98a5" font-size="13" font-family="ui-monospace,Consolas,monospace">timeMul  = 1 + min(elapsed × rewardTimeBasePerSec, rewardTimeCap)</text>
+    </svg>
+    <div class="cap">跨阶段靠难度系数跳变；阶段内靠时间通胀缓涨。二者相乘。金币 Boss / 经验 Boss 在基础值上再乘专属倍率。</div>
+  </div>
+
+  <div class="callout info"><strong>金币 Boss 特例：</strong><code>gold *= rewardBossGoldBonus</code>；<code>经验 Boss 特例：exp *= rewardBossExpBonus</code>。只放大对应资源，另一项保持低值。</div>
+
+  <h2>怪物奖励基数（units.json）</h2>
+  <p>运行时以 <code>units.json</code> 为准（<code>ctx.getUnitDef(id)</code>）。</p>
+  <table>
+    <thead><tr><th scope="col">ID</th><th scope="col">名称</th><th scope="col">rewardType</th><th scope="col">金币</th><th scope="col">经验</th><th scope="col">定位</th></tr></thead>
+    <tbody>
+      <tr><td>4</td><td>哥布林</td><td><span class="q n">normal</span></td><td>2</td><td>8</td><td>基础兵，保持</td></tr>
+      <tr><td>5</td><td>巨魔</td><td><span class="q n">normal</span></td><td>4</td><td>15</td><td>皮厚，经验对齐 maxHp</td></tr>
+      <tr><td>6</td><td>游荡者</td><td><span class="q n">normal</span></td><td>2</td><td>6</td><td>脆皮多，经验略低</td></tr>
+      <tr><td>7</td><td>环绕魔</td><td><span class="q n">normal</span></td><td>3</td><td>10</td><td>中等</td></tr>
+      <tr><td>8</td><td>重击者</td><td><span class="q r">elite</span></td><td>6</td><td>25</td><td>精英，经验拉高</td></tr>
+      <tr><td>9</td><td>深渊领主</td><td><span class="q e">boss</span></td><td>40</td><td>200</td><td>常规 Boss</td></tr>
+      <tr><td>10</td><td>黄金魔像</td><td><span class="q l">gold_boss</span></td><td>250</td><td>5</td><td>经济引擎，只给金币</td></tr>
+      <tr><td>11</td><td>经验贤者</td><td><span class="q u">exp_boss</span></td><td>1</td><td>800</td><td>成长加速，只给经验</td></tr>
+    </tbody>
+  </table>
+
+  <h2>奖励缩放常量（battle_constants.json）</h2>
+  <table>
+    <thead><tr><th scope="col">字段</th><th scope="col">值</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>enemyDropGoldDefault</code></td><td>1</td><td>单位未配置 goldReward 时的兜底</td></tr>
+      <tr><td><code>enemyDropExpDefault</code></td><td>10</td><td>单位未配置 expReward 时的兜底</td></tr>
+      <tr><td><code>rewardTimeBasePerSec</code></td><td>0.00067</td><td>每秒时间通胀系数（约每 30 秒 +2%）</td></tr>
+      <tr><td><code>rewardTimeCap</code></td><td>0.4</td><td>时间通胀上限（+40%）</td></tr>
+      <tr><td><code>rewardBossGoldBonus</code></td><td>10</td><td>金币 Boss 相对常规 Boss 的一次性金币倍率</td></tr>
+      <tr><td><code>rewardBossExpBonus</code></td><td>10</td><td>经验 Boss 相对常规 Boss 的一次性经验倍率</td></tr>
+    </tbody>
+  </table>
+
+  <h2>经验升级曲线（既有）</h2>
+  <div class="callout info"><strong>两套经验（关键）：</strong>局内经验 → 局内英雄升级加属性（局终清零）；局外经验 → 对局结束按配置一次性发放，与局内击杀经验<strong>完全无关</strong>。击杀奖励只产局内经验；局外经验只由结算配置决定。</div>
+
+  <h2>局内经验 / 等级（击杀产出）</h2>
+  <p>击杀敌人的 <code>expReward</code> 修正后作为<strong>局内经验</strong>，填满当前等级后升级，并按 <code>heroes.json</code> 的 <code>growthValues</code> 给英雄加属性。</p>
+  <table>
+    <thead><tr><th scope="col">字段</th><th scope="col">公式 / 值</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td>局内经验公式</td><td><code>expToNext = battleExpFormulaBase × ratio^(level-1)</code></td><td><code>60 / 1.18</code></td></tr>
+      <tr><td>等级上限</td><td><code>battleLevelMax</code></td><td><code>30</code> 级封顶</td></tr>
+      <tr><td>升级加属性</td><td><code>attrs.addBase(attrId, growthValues)</code></td><td>按 heroes.json 每级成长加属性</td></tr>
+      <tr><td>当前血补满</td><td><code>hero.hp = getMaxHp()</code></td><td>升级后满血</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>注意：</strong>growthValues 用 float 语义（critRate 0.005 = 0.5%），而 <code>addBase</code> 把入参当配置 int 处理。代码里已先转成配置 int（×scale）再 add，避免数值错 100 倍。</div>
+
+  <h2>局外经验 / 等级（结算产出）</h2>
+  <p>对局结束 <code>finish()</code> 时按配置一次性发，与击杀数/局内等级无关。失败按 30% 参与度补偿。</p>
+  <table>
+    <thead><tr><th scope="col">字段</th><th scope="col">公式 / 值</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td>玩家经验</td><td><code>clearRewardPlayerExpBase × ratio</code></td><td>胜利 ×1.0 / 失败 ×0.3，<code>50</code> 基础</td></tr>
+      <tr><td>英雄经验</td><td><code>clearRewardHeroExpBase × ratio</code></td><td>发到 HeroData 对应英雄，<code>80</code> 基础</td></tr>
+      <tr><td>升级公式</td><td><code>heroExpFormulaBase × ratio^(level-1)</code></td><td><code>100 / 1.12</code>（英雄）；玩家用 <code>100 / 1.15</code></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>备注：</strong>局外英雄经验目前取第一个已解锁英雄兜底发放（HeroData 只存 id/level/exp，不存名字，无法按英雄名精确匹配）。若需按出战英雄发，需在 <code>selectHero</code> 时记录稳定 heroId。</div>
+</article>
+</body>
+</html>
