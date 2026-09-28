@@ -1,5 +1,6 @@
 import { BattleEvents, DamageType, StateType } from './types';
 import type { AbilityCfg, ConfigAction } from '../excel_table/Tb_AbilityConfig';
+import { abilityEffectsAtLevel, abilityMaxLevel } from '../excel_table/Tb_AbilityConfig';
 import type { BattleContext } from './BattleContext';
 
 /**
@@ -10,11 +11,20 @@ import type { BattleContext } from './BattleContext';
  *   2. 代码驱动：子类覆写 OnCast / 注册 script_id，实现复杂逻辑（逃逸口）
  *
  * 施放流程：检查（冷却/蓝量/状态）→ 扣蓝 → 前摇 → 执行效果 → 发布事件 → 进冷却
+ *
+ * ── 等级（2026-09 起「一行多级」）──
+ *   `level` 是**这个技能实例**的等级（1~`max_level`，见 `abilityMaxLevel`）。
+ *   每级的效果由配置的 `effects` / `effects_lv2` / `effects_lv3` 决定（留空 = 沿用上一级），
+ *   所以肉鸽技能抽到重复时只要 `levelUp()` 就行，**不需要换 id**。
+ *   ⚠ 单位技能那条老的「换 id 升阶链」（`upgrades_to`：鹰眼 12→13→14→15）走的是
+ *   `AbilitySystem.UpgradeAbility`，与本类的原地升级并存、互不干扰。
  */
 export class Ability {
     readonly def: AbilityCfg;
     caster: any;
     cooldownRemaining = 0;
+    /** 技能等级（1 起；肉鸽技能抽到重复时 +1，封顶 `max_level`） */
+    private skillLevel = 1;
 
     constructor(def: AbilityCfg, caster: any) {
         this.def = def;
@@ -30,15 +40,68 @@ export class Ability {
         return !this.isPassive() && !this.isAttack();
     }
 
+    /* ===================================================================
+     * 等级（一行多级）
+     * =================================================================== */
+
+    /** 当前等级（1 起） */
+    getLevel(): number { return this.skillLevel; }
+    /** 配置的最高等级（1~3） */
+    getMaxLevel(): number { return abilityMaxLevel(this.def); }
+    /** 是否已满级（满级后不再进商店池） */
+    isMaxLevel(): boolean { return this.skillLevel >= this.getMaxLevel(); }
+
+    /**
+     * 设置等级（钳到 1~max_level）。
+     *
+     * **被动技能换了等级要重挂**：等级变化会换一整套效果（effects → effects_lv2），
+     * 旧效果不会自己消失，所以先按 origin 摘掉本技能之前挂上的 Modifier，再重新 ApplyPassive。
+     * 主动技能不用重挂（效果在每次 Cast 时现算）。
+     */
+    setLevel(level: number): void {
+        const lv = Math.max(1, Math.min(this.getMaxLevel(), Math.floor(level) || 1));
+        if (lv === this.skillLevel) return;
+        this.skillLevel = lv;
+        if (this.isPassive()) {
+            this.removeOwnModifiers();
+            this.ApplyPassive();
+        }
+    }
+
+    /** 升 1 级；已是满级返回 false（调用方据此提示"已满级"） */
+    levelUp(): boolean {
+        if (this.isMaxLevel()) return false;
+        this.setLevel(this.skillLevel + 1);
+        return true;
+    }
+
     /**
      * 来源组标识：本技能（条目级）产生的效果统一打该 origin（如 'ability:6'）。
      * 同 (id, origin) 按 stack_mode 合并；与遗物/商店 buff 等其它来源同 id 时各持独立实例。
+     *
+     * ⚠ 带上等级：换级时靠它把「上一级挂的那批 Modifier」认出来摘掉（见 setLevel）。
      */
     get originKey(): string { return `ability:${this.def.id}`; }
 
     /** 冷却中？ */
     isOnCooldown(): boolean { return this.cooldownRemaining > 0; }
     getCooldownRemaining(): number { return this.cooldownRemaining; }
+
+    /** 冷却进度 0~1（1 = 刚进冷却、0 = 冷却结束）；UI 画圆形填充用它 */
+    getCooldownRatio(): number {
+        const total = this.def.cooldown;
+        if (!total || total <= 0) return 0;
+        return Math.max(0, Math.min(1, this.cooldownRemaining / total));
+    }
+
+    /** 摘掉本技能之前挂上的全部 Modifier（换级重挂用；origin 与本技能一致的那些） */
+    private removeOwnModifiers(): void {
+        const system = this.caster?.modifiers;
+        if (!system?.getAll) return;
+        for (const m of [...system.getAll()]) {
+            if (m.origin === this.originKey) system.RemoveModifier(m);
+        }
+    }
 
     /** 是否满足施放条件 */
     canCast(): boolean {
@@ -90,20 +153,26 @@ export class Ability {
     /**
      * 被动技能：挂载永久效果（由 AbilitySystem 在添加时自动调用）
      * 借鉴 Dota 2：被动技能无需施放，天生生效
+     *
+     * ⚠ 用 `resolveEffects()` 而不是 `def.effects`：被动也吃「一行多级」
+     *   （2/3 级换了一整套 effects，换级时由 `setLevel` 摘旧挂新）。
      */
     ApplyPassive(): void {
         if (!this.isPassive()) return;
-        for (const action of this.def.effects) {
+        for (const action of this.resolveEffects(this.caster, undefined)) {
             this.ctx.effects.execute(action, { actor: this.caster, target: this.caster, origin: this.originKey });
         }
     }
 
-    /** 解析每级成长数值（level_damage 支持） */
+    /**
+     * 解析**当前等级**的效果列表（`effects` / `effects_lv2` / `effects_lv3`，留空沿用上一级）。
+     * 另外兼容老的 `level_damage`：配了它就把伤害类动作的 value 换成当前等级的那一档。
+     */
     protected resolveEffects(_target?: any, _point?: any): ConfigAction[] {
-        const effects = this.def.effects.map((e) => ({ ...e }));
+        const effects = abilityEffectsAtLevel(this.def, this.skillLevel).map((e) => ({ ...e }));
         // 若配置了等级伤害，将 damage.value 替换为当前等级数值
         if (this.def.level_damage && this.def.level_damage.length > 0) {
-            const lv = this.def.level ?? 1;
+            const lv = this.skillLevel;
             const dmg = this.def.level_damage[Math.min(lv - 1, this.def.level_damage.length - 1)];
             for (const e of effects) {
                 if (e.type === 'damage') e.value = dmg;

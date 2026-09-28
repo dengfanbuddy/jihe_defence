@@ -9,7 +9,7 @@
  * 输出到 assets/resources/tb/：
  *   relics.json      293 件道具 → 遗物的**局内版**（id 1001~1293）+ 原手工遗物（id 1~5）保留
  *   modifiers.json   **只加一条**「属性修改」共享模板（id 1000）+ 手工 Modifier（id 1~26）保留
- *   shop_skills.json  30 条（id / code / name / name_en / rarity / stage / weight / max_level / tags / lv1~lv3 / synergy）
+ *   abilities.json   30 个肉鸽额外技能的**商店行**（scope='shop'，id 101~130；单位技能行原样保留）
  *   kill_buffs.json   20 条
  *   shop_draw.json     4 条
  *
@@ -281,15 +281,32 @@ function buildItemRelics(w: Record<string, any>): any[] {
     return relics;
 }
 
+/** 肉鸽额外技能在 abilities 表里的 id 段（设计稿 id 1~30 → 101~130，避开单位技能 id 1~22） */
+const SHOP_SKILL_ID_BASE = 100;
+
+/**
+ * 设计稿的 30 个肉鸽额外技能 → abilities 行。
+ *
+ * ⚠ 设计稿只给了「文案」：分裂弹 / 召唤炮台 / 时间回廊 这类机制现有 ConfigAction 词汇表表达不了，
+ *   所以这里只落 `behavior: 'passive'` + `effects: []`，**不带战斗效果** ——
+ *   要生效得给条目补 `effects`（纯属性/DoT 类）或 `script_id`（复杂机制），与遗物被动的处境相同。
+ *   好消息是这个文件重跑时会**按 id 覆盖**商店技能行，所以将来手工补的效果会被设计稿重跑冲掉，
+ *   补效果请改这里或改用 `merge-shop-skills-into-abilities.mjs` 之外的维护方式。
+ */
 function buildShopSkills(w: Record<string, any>): any[] {
     return w.RSKILL_DATA.map((sk: any) => {
         const rarity = RARITY[sk.rarity as keyof typeof RARITY];
         if (!rarity) warnings.push(`skill ${sk.id} 品质未识别：${sk.rarity}`);
         const rec: Record<string, any> = {
-            id: sk.id,
-            code: sk.code,
+            id: Number(sk.id) + SHOP_SKILL_ID_BASE,
             name: sk.name,
+            code: sk.code,
             name_en: sk.en,
+            scope: 'shop',
+            behavior: 'passive',
+            cooldown: 0,
+            mana_cost: 0,
+            effects: [],
             rarity,
             stage: RARITY_STAGE[rarity as keyof typeof RARITY_STAGE] ?? 1,
             weight: sk.weight,
@@ -368,6 +385,46 @@ function writeJson(name: string, data: unknown): void {
     console.log(`  ✔ ${(`assets/resources/tb/${name}.json`).padEnd(46)} ${String(rows).padStart(4)} 条`);
 }
 
+/** abilities 表字段顺序（与 src/core/schema.ts 保持一致，写盘时按列序排） */
+const ABILITY_KEYS = [
+    'id', 'name', 'code', 'name_en', 'scope', 'icon',
+    'behavior', 'cooldown', 'mana_cost', 'cast_range', 'cast_point',
+    'damage_type', 'damage', 'targeting', 'effects', 'script_id',
+    'level', 'level_damage', 'upgrades_to', 'projectile_prefab',
+    'rarity', 'stage', 'weight', 'max_level', 'tags',
+    'lv1', 'lv2', 'lv3', 'effects_lv2', 'effects_lv3', 'synergy',
+];
+
+/** 按 schema 列序整理 abilities 字段，并丢掉空值/空数组 */
+function orderAbility(row: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const key of ABILITY_KEYS) {
+        const v = row[key];
+        if (v === undefined || v === null || v === '') continue;
+        if (Array.isArray(v) && !v.length) continue;
+        out[key] = v;
+    }
+    return out;
+}
+
+/**
+ * 把设计稿的**肉鸽额外技能**合并进 `abilities.json`（原 `shop_skills` 表已并入本表）。
+ *
+ * 保留规则（脚本可幂等重跑）：
+ *   · `scope` 不是 `shop` 的条目（单位技能 / 手工条目）→ **整条保留**，设计稿不碰；
+ *   · `scope="shop"` 且 id 命中设计稿段（`SHOP_SKILL_ID_BASE + 设计稿id`）→ 换成设计稿的新值。
+ */
+function mergeShopSkillsIntoAbilities(generated: any[]): void {
+    const file = path.join(OUT_DIR, 'abilities.json');
+    const existing: any[] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
+    const kept = existing.filter(r => r.scope !== 'shop');
+    const keptIds = new Set(kept.map(r => r.id));
+    const merged = generated.filter(g => !keptIds.has(g.id));
+    const all = [...kept, ...merged].map(orderAbility).sort((a, b) => a.id - b.id);
+    fs.writeFileSync(file, `${JSON.stringify(all, null, 2)}\n`, 'utf8');
+    console.log(`  abilities.json  保留非商店条目 ${kept.length} 条，写入肉鸽技能 ${merged.length} 条（共 ${all.length} 条）`);
+}
+
 /** relics 表字段顺序（与 src/core/schema.ts 保持一致，写盘时按列序排） */
 const RELIC_KEYS = [
     'id', 'name', 'code', 'icon', 'rarity', 'scope', 'category',
@@ -443,7 +500,8 @@ function main(): void {
     mergeInto('relics', relics);
     mergeInto('modifiers', [ATTR_TEMPLATE_MOD]);
 
-    writeJson('shop_skills', buildShopSkills(w));
+    // 30 个肉鸽额外技能 → 并入 abilities 表（scope='shop'，id 101~130）
+    mergeShopSkillsIntoAbilities(buildShopSkills(w));
     writeJson('kill_buffs', buildKillBuffs(w));
     writeJson('shop_draw', buildShopDraw(w));
 
@@ -455,7 +513,7 @@ function main(): void {
         console.log(`\n⚠ ${warnings.length} 条提示：`);
         for (const s of warnings) console.log('  · ' + s);
     }
-    console.log('\n完成。接着执行：cd tools/excel_export && npm run import -- --force --table relics,modifiers,shop_skills,kill_buffs,shop_draw');
+    console.log('\n完成。接着执行：cd tools/excel_export && npm run import -- --force --table relics,modifiers,abilities,kill_buffs,shop_draw');
 }
 
 main();

@@ -46,6 +46,8 @@ const DEFAULTS: Record<string, number> = {
     separationStrength: 0.6,
     phaseDefaultRemainingTime: 360,
     skillSlotCount: 4,
+    /** 1 米 = 多少像素（距离换算的唯一口径，见 getPxPerMeter） */
+    pxPerMeter: 50,
 };
 
 export class BattleConstUtil {
@@ -137,6 +139,21 @@ export class BattleConstUtil {
     /** 初始金币 */
     static getInitialGold(): number {
         return BattleConstUtil.getNumber('initialGold', 100);
+    }
+    /**
+     * **1 米 = 多少像素**（默认 50）。
+     *
+     * 为什么需要它：项目里距离类配置一律是**像素**（火枪射程 350、刷怪半径 650~800、
+     * 技能 `cast_range`/`radius` 500~600），而设计稿与技能文案说的是**米**
+     * （"击退 1m"、"爆炸半径 1.5m"、"范围 +1m"）。缺了这条口径，每个写位移/范围的
+     * 地方都会各自拍一个数字（曾经就没有，击退这类机制无从落地）。
+     *
+     * 用法：**配表里写米，代码里乘它换成像素**，例如
+     * `target.ApplyKnockback(attacker, kv.knockback * BattleConstUtil.getPxPerMeter())`。
+     * 想整体调手感（击退/牵引/范围的观感）只改 battle_constants.json 的 `pxPerMeter` 一处。
+     */
+    static getPxPerMeter(): number {
+        return BattleConstUtil.getNumber('pxPerMeter', 50);
     }
     /** 击杀奖励默认金币基数（单位未配置 goldReward 时兜底） */
     static getEnemyDropGoldDefault(): number {

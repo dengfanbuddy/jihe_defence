@@ -1,17 +1,17 @@
 import { _decorator, Button, Node, resources, Sprite, SpriteFrame } from 'cc';
-import { type Ref } from 'db://assets/scripts/platform/reactivity';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { TbRoot } from 'db://assets/scripts/platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../../../../../excel_table/Tb_UnitConfig';
 import { AbilityCfgContainer } from '../../../../../excel_table/Tb_AbilityConfig';
-import { StageScopeEvents, StageScopeKeys } from '../UiScopeKeys';
+import { StageScopeEvents, StageScopeKeys } from '../StageScope';
+import type { HeroSelectVM } from '../../../../../battle/HeroSelect';
 const { ccclass, property } = _decorator;
 
 /**
  * 英雄选择列表项（内嵌 UI 小组件 → 继承 UIWidget）
  *
  * 通信方式（不需要也知道面板在哪、更不需要引用兄弟）：
- *   - 读选中态：`inject(StageScopeKeys.HeroSelectSelectedId)`，面板注入的 ref，变了自动刷
+ *   - 读选中态：inject `HeroSelect` 门面，读 `selectedId`（item 之间的互斥高亮），变了自动刷
  *   - 通知面板：`scope.emit(StageScopeEvents.HeroPicked, heroId)`，由面板决定关面板 / 进战斗
  */
 @ccclass('HeroItem')
@@ -36,17 +36,16 @@ export class HeroItem extends UIWidget {
     heroId: number = 0;
     selectType: number = 0;//0普通       1广告
 
-    /** 面板注入的「当前选中英雄 id」（本 item 不关心是谁提供的，任意深度都能拿到） */
-    private selectedId: Ref<number> = null;
+    /** 注入的「选英雄功能门面」（本 item 不关心是谁提供的，任意深度都能拿到） */
+    private heroSelect: HeroSelectVM = null;
 
     protected onInit(): void {
-        this.selectedId = this.inject<Ref<number>>(StageScopeKeys.HeroSelectSelectedId, null);
-        this.selectBtn?.on(Button.EventType.CLICK, this.selectHero, this);
-        if (this.selectedId) {
-            this.scope.watch(() => this.selectedId.value, () => this.applySelected());
-        } else {
-            ezgame.warn("HeroItem 没有注入到 HeroSelectSelectedId（不在 HeroSelectPanel 子树下？），选中态不会互斥")
+        this.heroSelect = this.inject<HeroSelectVM>(StageScopeKeys.HeroSelect, null);
+        if (!this.heroSelect) {
+            ezgame.warn('HeroItem 没有注入到 HeroSelect 门面（不在 Scene_Game_Stage 子树下？），选中态不会互斥');
         }
+        this.selectBtn?.on(Button.EventType.CLICK, this.selectHero, this);
+        this.scope.watch(() => this.heroSelect?.selectedId.value, () => this.applySelected());
     }
 
     protected onShow(): void {
@@ -60,12 +59,12 @@ export class HeroItem extends UIWidget {
         this.offNodeEvent(this.selectBtn, Button.EventType.CLICK, this.selectHero, this);
     }
 
-    /** 选中态：被选中的 item 隐藏自己的选择区（互斥由面板注入的 selectedId 统一决定） */
+    /** 选中态：被选中的 item 隐藏自己的选择区（互斥由门面的 selectedId 统一决定） */
     private applySelected(): void {
         if (!this.contentNode) {
             return;
         }
-        const pickedId = this.selectedId ? this.selectedId.value : 0;
+        const pickedId = this.heroSelect ? this.heroSelect.selectedId.value : 0;
         this.contentNode.active = !(this.heroId > 0 && pickedId === this.heroId);
     }
 
@@ -75,8 +74,8 @@ export class HeroItem extends UIWidget {
         }
         console.log("选择英雄:", this.heroId);
         // 写共享状态（别的 item 会自动取消选中）+ 向上通知（面板决策）
-        if (this.selectedId) {
-            this.selectedId.value = this.heroId;
+        if (this.heroSelect) {
+            this.heroSelect.selectedId.value = this.heroId;
         }
         this.applySelected();
         this.scope.emit(StageScopeEvents.HeroPicked, this.heroId);

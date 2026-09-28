@@ -135,10 +135,10 @@ UI 相关类清单（`assets/scripts`）：
 
 | store | 内容 | 谁在用 |
 |---|---|---|
-| `useBattleStore` | **战斗真源的响应式投影**：hp/maxHp、phase/phaseRemainTime、gold、kills、level/exp、isPaused、enemiesAlive…（以及商店 WIP 的 relicsItemList/showRelicsPanel/refreshGold） | `Scene_Game_Stage` 写，`View_Game_Stage` / `HeroSelectPanel` 读 |
-| `StageScopeKeys`（scope provide） | **页面级 UI 状态**：`HeroSelectList`（候选英雄 ref）、`HeroSelectPanelVisible`（面板开关 ref）、`ExitBattle`（退出动作）；面板内部另有 `HeroSelectSelectedId` | 由 `Scene_Game_Stage`（或面板自己）provide，子树 `inject` |
+| `useBattleStore` | **战斗真源的响应式投影**：hp/maxHp、phase/phaseRemainTime、gold、kills、level/exp、isPaused、enemiesAlive… | `Scene_Game_Stage` 写，`View_Game_Stage` / `ShopBuffItem` 读 |
+| `StageScopeKeys`（scope provide） | **功能门面**：`HeroSelect` / `RelicShop` / `BuffShop` / `SkillSlots`（各功能类的**只读面** `XxxVM`，见 §7.2）、`ExitBattle`（退出动作） | 由 `Scene_Game_Stage` provide，子树 `inject` |
 
-> **store 还是 scope？** 判据是「谁会读」而不是「谁在写」：只有本界面内部（HUD + 内嵌面板/item）读写的**页面级状态**放 scope provide；会被**其它层视图**（popup 结算/商店、顶栏）读的**战斗真源投影**留 store —— 跨层节点 `inject` 不到（§7.1 第 2 条）。
+> **store 还是 scope？** 判据是「这个概念属于谁」而不是「现在谁在读」：只有本界面内部（HUD + 内嵌面板/item）读写的**功能页面状态**放 scope provide（值是功能门面）；会被**其它层视图**（popup 结算/商店、顶栏）读的**战斗真源投影**留 store —— 跨层节点 `inject` 不到（§7.1 第 2 条）。
 | `useUIStore` | toasts、isLoading、activeModals、notification、currentScene | 预留（**当前 UI 未接入**） |
 
 **启动链路**：`Loading.scene`（加载 `scripts` bundle + 配表）→ `director.loadScene('Main')` → `Main.onLoad` → `await TbRoot.ins.loadTbs()` → `UIManager.ins.showUI(Scene_Menu)`。
@@ -265,7 +265,7 @@ sequenceDiagram
 
 1. **子组件的 `onInit()` 早于父视图的 `show()`**（因为激活发生在 `setParent` 那一刻）。
    → 所以 `provide` **不要写在 `show()` 里**：子组件那时早已跑完 `onInit`，拿不到值（要么**惰性 inject**，要么把 provide 提到 `__preload` / `onLoad`）。
-   **本项目现在的做法**：`Scene_Game_Stage` 把页面级状态（`StageScopeKeys.HeroSelectList` / `HeroSelectPanelVisible`）与退出动作统一在 **`onLoad`** 里 provide —— 父组件的 `onLoad` 一定早于子组件 `onLoad`（§4.1 结论 2），于是 `View_Game_Stage`、`HeroSelectPanel` 都能在 `onInit` 里直接 `inject`。
+   **本项目现在的做法**：`Scene_Game_Stage` 把**四套功能的门面**（`StageScopeKeys.HeroSelect` / `RelicShop` / `BuffShop` / `SkillSlots`）与退出动作统一在 **`onLoad`** 里 provide —— 父组件的 `onLoad` 一定早于子组件 `onLoad`（§4.1 结论 2），于是 `View_Game_Stage`、`HeroSelectPanel` 都能在 `onInit` 里直接 `inject`。
    如果想让子组件在 `onInit` 里就能拿到，请把 `provide` 提到视图的 `__preload` 或 `onLoad`。
 2. `init()` / `show()` 是**框架方法**，和 Cocos 的 `onLoad` / `start` 没有继承关系；子类不要写 `init()` 之外的初始化入口。`Scene_Game_Stage` 把 `onLoad` 用来缓存 `uiViewNode` 的组件引用，把 `show()` 用来重置本局状态 + 订阅事件。
 
@@ -429,7 +429,7 @@ flowchart TB
 |---|---|---|
 | 跨界面 / 跨场景共享状态（战斗真源投影） | 全局 store | `useBattleStore().gold`、`battleStore.phase` |
 | 局外持久数据（localStorage） | `DataCenter` 的 reactive 数据模块 | `DataCenter.ins.playerInfo.data.level` |
-| **页面级状态**：宿主 → 整棵子树（面板开关、候选列表） | `this.provide(key, ref(...))` + 深层 `this.inject(key, fallback?)` | `Scene_Game_Stage` 注入 `HeroSelectList` / `HeroSelectPanelVisible` |
+| **功能页面状态**：宿主 → 整棵子树（面板开关、候选列表） | `this.provide(key, 功能门面)` + 深层 `this.inject(key, fallback?)` | `Scene_Game_Stage` 注入 `HeroSelect` / `RelicShop` / `BuffShop` / `SkillSlots` 四个门面 |
 | 宿主 → 子树任意深度共享状态（**面板私有**） | 同上 | 面板把「当前选中英雄 id」注入 item 子树 |
 | 子树 → 宿主通知/命令 | `this.scope.on(type, fn)` / `this.scope.emit(type, ...)` | item 通知面板「英雄被点了」 |
 | 兄弟之间 | **不直接通信**：状态提升到共同宿主（provide / store），各自 watch | 4 个 item 的互斥选中 |
@@ -444,20 +444,35 @@ flowchart TB
 - **`emit` 会沿 `node.parent` 向上冒泡**（与 `inject` 同向）：先派发到自己的总线，再逐级派发到**每个祖先 UIComponent 的作用域**——
   所以「第 5 层的 item 通知第 2 层的面板」和「第 1 层通知第 2 层」写法完全一样，中间层不需要转发。
   **只向上**：不传给后代、也不传给兄弟（兄弟互斥仍走共同祖先 `provide` 的共享状态）。
-- key 常量集中放 `game/ui/scenes/scene_game_stage/cmps/UiScopeKeys.ts`，命名 `'域:用途'`：
+- key 常量与**键→类型**集中放 `game/ui/scenes/scene_game_stage/cmps/StageScope.ts`，命名 `'域:用途'`。
+  ⚠ **一个功能一个键 —— provide「功能门面（对象）」，不 provide「字段（裸 ref）」**：只给面板原料的话，
+  面板拿不到规则就只能自己重算一份（本项目实测同一条「刷新按钮能不能点」被抄了 4 遍，见 AGENTS.md Notes「UI 页面数据分散」）。
 
 ```ts
 export const StageScopeKeys = {
-    ExitBattle: 'stage:exitBattle',                    // Scene_Game_Stage 提供，战斗 UI 任意深度可用
-    HeroSelectList: 'heroSelect:list',                 // Scene_Game_Stage 提供：本局候选英雄 id（ref<number[]>）
-    HeroSelectPanelVisible: 'heroSelect:panelVisible', // Scene_Game_Stage 提供：面板开关（ref<boolean>）
-    HeroSelectSelectedId: 'heroSelect:selectedId',     // HeroSelectPanel 提供给 item 子树
+    ExitBattle: 'stage:exitBattle',      // Scene_Game_Stage 提供，战斗 UI 任意深度可用
+    HeroSelect: 'heroSelect:vm',         // 选英雄功能门面（HeroSelectVM）
+    RelicShop: 'relicShop:vm',           // 遗物/肉鸽商店门面（RelicShopVM）
+    BuffShop: 'buffShop:vm',             // 击杀商店门面（BuffShopVM）
+    SkillSlots: 'skillSlots:vm',         // 技能槽门面（SkillSlotsVM）
 } as const;
+
+/** 键 → 值类型（这一页的数据契约） */
+export interface StageScopeMap {
+    [StageScopeKeys.ExitBattle]: () => void;
+    [StageScopeKeys.HeroSelect]: HeroSelectVM;
+    // …
+}
 
 export const StageScopeEvents = {
     HeroPicked: 'heroSelect:picked',
 } as const;
 ```
+
+> **功能门面怎么写**：功能类自己 `export interface XxxVM { readonly panelVisible: Ref<boolean>; refreshGate(): RefreshGate }` ——
+> 只声明「读什么」+「能问什么规则」，**动作（open/refresh/pick/buy/grant）不上门面**（UI 一律 `emit` 向上），
+> 所以面板写 `vm.pick(...)` 会**编译报错**。宿主 `provide(StageScopeKeys.Xxx, 实例)`，面板
+> `this.inject<XxxVM>(StageScopeKeys.Xxx, null)` 即可 —— 类型即约束，运行时还是同一个实例、零开销。
 
 > **页面级状态就该这么走**：开关/列表的「真源」只在宿主这一份 ref 里 —— 开局由场景写 true，
 > HUD 的按钮写 true，面板的关闭按钮写 false，节点显隐由 HUD 统一监听并写；谁都不去 `getComponent` 别人的节点。
@@ -499,10 +514,11 @@ this.scope.watch(() => this.info.level, () => this.refreshLevel());
 // 多字段同时依赖 → 传数组（升级会一次改掉 exp 与 expToNext）
 this.scope.watch([() => this.info.exp, () => this.info.expToNext], () => this.refreshExp());
 
-// ③ 界面内部的共享状态：宿主 provide 一个 ref，子孙 watch 它的 .value
-//  宿主：this.selectedId = this.provide(StageScopeKeys.HeroSelectSelectedId, ref(0));
-//  子孙：this.selectedId = this.inject<Ref<number>>(StageScopeKeys.HeroSelectSelectedId, null);
-//        this.scope.watch(() => this.selectedId.value, () => this.applySelected());
+// ③ 界面内部共享状态：宿主 provide 一个**功能门面**，子孙 inject 后读它的 ref / 问它规则
+//  宿主：this.scope.provide(StageScopeKeys.HeroSelect, this.heroSelect);   // 值是功能类实例，按 HeroSelectVM 声明类型
+//  子孙：this.heroSelect = this.inject<HeroSelectVM>(StageScopeKeys.HeroSelect, null);
+//        this.scope.watch(() => this.heroSelect.selectedId.value, () => this.applySelected());
+//        // 规则也问门面要（别在 UI 里重算）：enabled = this.heroSelect.refreshGate().enabled
 ```
 
 ### 8.3 `watch` 语义速查（本项目 `platform/reactivity/watch.ts` 实现）
@@ -638,25 +654,30 @@ export class Cmp_KillCounter extends UIWidget {
 
 ```ts
 // 宿主（场景 Scene_Game_Stage，BaseView）：在 onLoad 里 provide —— 父组件 onLoad 早于子组件 onLoad，
-// 所以子树在 onInit 里就注入得到。状态本身放 ref（普通值读不到后续变化）
+// 所以子树在 onInit 里就注入得到。
+// ⚠ 一个功能一个键：provide 的是**功能门面（对象）**，不是逐条裸 ref ——
+//   只给原料的话，面板拿不到规则就只能自己重算一份判据（本项目踩过，见 AGENTS.md Notes「UI 页面数据分散」）
 onLoad(): void {
     this.scope.provide(StageScopeKeys.ExitBattle, () => this.exit());
-    this.scope.provide(StageScopeKeys.HeroSelectList, this.heroSelectList);            // ref<number[]>
-    this.scope.provide(StageScopeKeys.HeroSelectPanelVisible, this.heroSelectPanelVisible); // ref<boolean>
+    this.scope.provide(StageScopeKeys.HeroSelect, this.heroSelect);   // HeroSelectVM（实例本身）
+    this.scope.provide(StageScopeKeys.RelicShop, this.relicShop);     // RelicShopVM
+    this.scope.provide(StageScopeKeys.BuffShop, this.buffShop);       // BuffShopVM
+    this.scope.provide(StageScopeKeys.SkillSlots, this.skillSlots);   // SkillSlotsVM
 }
 
-// 宿主（面板 HeroSelectPanel，UIWidget）：提供给它下面的 item 子树
+// 子孙（HUD / 面板 / item）：注入 + watch（任意深度写法完全一样）
 protected onInit(): void {
-    this.selectedId = this.provide(StageScopeKeys.HeroSelectSelectedId, ref(0));
-}
-
-// 子孙（HUD / item）：注入 + watch（任意深度写法完全一样）
-protected onInit(): void {
-    this.selectedId = this.inject<Ref<number>>(StageScopeKeys.HeroSelectSelectedId, null);
-    if (this.selectedId) {
-        this.scope.watch(() => this.selectedId.value, () => this.applySelected());
+    this.heroSelect = this.inject<HeroSelectVM>(StageScopeKeys.HeroSelect, null);
+    if (this.heroSelect) {
+        // 读状态：门面里的 ref
+        this.scope.watch(() => this.heroSelect.candidates.value, () => this.refreshItems());
+        // 用规则：问门面（判据只有一处，UI 不重算）
+        this.scope.watch(
+            () => refreshButtonKey(this.heroSelect.refreshGate(), this.heroSelect.refreshCost.value),
+            () => this.refreshRefreshButton(),
+        );
     } else {
-        ezgame.warn('没注入到 selectedId（不在面板子树下？）');
+        ezgame.warn('没注入到 HeroSelect 门面（不在 Scene_Game_Stage 子树下？）');
     }
 }
 ```
@@ -873,7 +894,8 @@ class MyContent extends UIWidget implements ITabContent {
 | I | `showArgs` 只是参数仓库 | `showUI(View, cb, a, b)` 的 `a,b` 存在 `view.showArgs`，**不会**作为形参传给 `init/show`；要用就自己读 `this.showArgs` |
 | J | 切场景的转场动画当前是空转 | `UIManager.changeSceneView` 从未被赋值 → `showSceneTransition()` 什么都不做（`Top_ChangeScene` 也就不会被打开）。要启用就把工厂函数赋给 `UIManager.ins.changeSceneView` |
 | K | `views` 层下有个没有脚本的 `View_Hero_Detail` 占位节点 | 不会被 UIManager 使用，属于美术占位；别误以为它是已实现的视图 |
-| L | **页面级 UI 状态塞进全局 store** | 单例状态会跨对局实例串味，且「谁负责重置」变得不明确。判据：只有本界面内部（HUD + 内嵌面板/item）读写的 → 宿主 `provide`（键见 `UiScopeKeys`）；会被其它层视图读的战斗数据 → store。项目现状：`HeroSelectList` / `HeroSelectPanelVisible` 已搬到 `Scene_Game_Stage` 的 scope；`relicsItemList` / `showRelicsPanel` / `refreshGold` 仍是商店 WIP 的 store 字段（要搬得先把 `ShopRelicsPanel` 改成 UIWidget） |
+| L | **功能页面状态塞进全局 store** | 单例状态会跨对局实例串味，且「谁负责重置」变得不明确。判据：只有本界面内部（HUD + 内嵌面板/item）读写的 → 宿主 `provide`（键见 `StageScope.ts`）；会被其它层视图读的战斗数据 → store。项目现状：四套功能的页面状态已全部搬到 `Scene_Game_Stage` 的 scope（provide 的是功能门面 `HeroSelectVM` / `RelicShopVM` / `BuffShopVM` / `SkillSlotsVM`）；旧的商店 WIP 字段（`relicsItemList` / `showRelicsPanel` / `refreshGold`）也已删除 |
+| M | **provide 一堆裸 ref，而不是功能门面** | 面板只拿到「原料」拿不到「规则」，只能把判据在 UI 里重算一遍 → 同一条判据三份、口径漂移（实测「刷新按钮能不能点」被抄了 4 遍、`ShopBuffItem` 把 `max_stack` 缺省值算成了另一个数）。做法：功能类导出只读接口 `XxxVM`（ref + 派生查询方法），宿主 `provide(键, 实例)`，UI 只读 + `emit` 上报；**动作不上门面**，写 `vm.pick(...)` 直接编译不过 |
 
 ### 10.3 手工调试用的日志开关
 
@@ -893,7 +915,7 @@ class MyContent extends UIWidget implements ITabContent {
 - [ ] 需要共享给子孙的状态用 `provide`（放 `__preload/onLoad/onInit`），或消费方惰性 `inject`。
 - [ ] 按钮/节点事件有配对的 `off`（写在 `onDispose()`；若写在 `show()` 则必须在 `close()` 里 off）。
 - [ ] 跨界面数据走 store / DataCenter，没有横向 `getComponent`。
-- [ ] **页面级状态**（面板开关、面板列表、界面私有选中态）走宿主 `provide` + `ref`，没有塞进全局 store；provide 放在 `onLoad`/`onInit`（早于消费方 `onInit`）。
+- [ ] **功能页面状态**（面板开关、面板列表、界面私有选中态）走宿主 `provide`（**提供一个功能门面，不是一堆裸 ref**），没有塞进全局 store；provide 放在 `onLoad`/`onInit`（早于消费方 `onInit`）；UI 里的「置灰/可点」判据一律问门面要，不在 UI 里重算。
 - [ ] BaseView 若重写了 `onDestroy()`，第一行/最后一行有 `super.onDestroy()`。
 - [ ] 视图不自己 `destroy()`、不自己改 `active`（除了内部子节点显隐）。
 - [ ] 在编辑器里跑一次：打开 → 关闭 → 再打开（验证缓存复用路径）→ 等 60s 再打开（验证重建路径）。
@@ -915,6 +937,7 @@ class MyContent extends UIWidget implements ITabContent {
 | Main.scene 里预置了三个视图实例、层节点清单、`Scene_Menu` 预置实例 `_active=true`、`Scene_Game_Stage` 预置实例 `_active=false` | 用 Node 脚本解析 `assets/scenes/Main.scene`：UIManager 组件的 `layerScenes…layerTop` 指向 `scenes/views/popup/dialog/tip/top`（均 active），层节点子级的 `cc.PrefabInfo.asset.__uuid__` 分别解析到 `Scene_Menu.prefab` / `Scene_Game_Stage.prefab` / `Top_ChangeScene.prefab`，`PropertyOverride` 中根节点的 `_active` 覆盖值分别为 true / false / false |
 | 三个预制件根节点名与类名一致 | 解析 `*.prefab` 的第 2 个序列化对象的 `_name` |
 | `Scene_Game_Stage.uiViewNode` 是 `View_Game_Stage.prefab` 的嵌套实例；`hero_select_panel`→`items/item`×4 的层级深度 | 解析 `Scene_Game_Stage.prefab` / `View_Game_Stage.prefab` 的节点树与 `PrefabInfo.asset.__uuid__` |
+| 四套功能只 provide **一个门面**（19 键 → 5 键）、刷新判据只有 `evaluateRefreshGate` 一处 | 读 `Scene_Game_Stage.onLoad`、`cmps/StageScope.ts`、`battle/RefreshGate.ts`、三个面板的 `onInit`；`npx tsc --noEmit` 无新增错误 |
 | `@bind`/`@bindValue` 0 处使用；`closeUI`/`closeAllUI` 无调用方；`changeSceneView` 未赋值 | 全仓 `grep`：`@bind|@bindValue|rebindAll`、`showUI\(|closeUI\(|closeAllByLayer|closeAllUI`、`changeSceneView` |
 | `Scene_Game_Stage.onDestroy` 已补 `super`（页面级状态的 provide 需要随 scope 撤销）；`Top_ChangeScene.onDestroy` 仍未调用 `super`；`Top_ChangeScene` 自己 `active=false` + `destroy()` | 逐行阅读两个文件 |
 

@@ -14,6 +14,7 @@
     "migrate:affix": "node scripts/migrate-affix-gating.mjs",
     "fix:crit": "node scripts/fix-crit-baseline.mjs",
     "audit:attr": "node ../attr-audit/audit.mjs",
+    "audit:slot": "node ../skill-slot-audit/audit.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

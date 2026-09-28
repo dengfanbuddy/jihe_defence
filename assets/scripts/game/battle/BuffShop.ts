@@ -5,6 +5,7 @@ import { ShopConfig } from '../data/configs/ShopConfig';
 import type { KillBuffCfg, KillBuffStat } from '../excel_table/Tb_KillBuffConfig';
 import { MODIFY_ATTR_TEMPLATE_ID } from './types';
 import { AttributeType } from './core/Types';
+import { evaluateRefreshGate, type RefreshGate } from './RefreshGate';
 import type { Entity } from './Entity';
 
 /**
@@ -82,6 +83,40 @@ const STAT_ATTR: Record<KillBuffStat, number> = {
     special: -1,
 };
 
+/**
+ * BuffShop 向局内 UI 暴露的**只读面**（宿主 `provide` 的是实例本身，用这个接口约束面板/item 能碰什么）。
+ *
+ * 关键的一条：**价格与可买性也走门面**（`stackOf / maxStackOf / nextPriceOf / canBuy`）。
+ * `ShopBuffItem` 原来自己重算 `Math.max(1, cfg.max_stack ?? 1)` 与价格公式 ——
+ * 与这里口径不同（缺省值是 `killBuffMaxStackDefault` = 10 而非 1），一旦表里有行不写 `max_stack`，
+ * UI 会在第 1 层就显示"已满"而 `buy()` 其实允许买到 10 层。现在口径只有一处。
+ *
+ * ⚠ **动作不在只读面上**（`open/close/refresh/buy/reset/syncCost` 都不声明）：
+ *   UI 只 `scope.emit` 向上，由宿主转交。
+ */
+export interface BuffShopVM {
+    /** 面板是否显示 */
+    readonly panelVisible: Ref<boolean>;
+    /** 4 个摊位的 Buff id（0 = 空摊） */
+    readonly slots: Ref<number[]>;
+    /** 每个 Buff 的已购层数（item 据此显示层数/上限与下一层价格） */
+    readonly stacks: Ref<Record<number, number>>;
+    /** 刷新一次摊位的金币费用 */
+    readonly refreshCost: Ref<number>;
+    /** 剩余「广告免费刷新」次数 */
+    readonly adFreeLeft: Ref<number>;
+    /** 刷新按钮的判据（唯一真源；面板只画，不再自己重算） */
+    refreshGate(): RefreshGate;
+    /** 该 Buff 当前已购层数 */
+    stackOf(buffId: number): number;
+    /** 该 Buff 的层数上限（表里的 `max_stack`，缺省走 `shop_constants.killBuffMaxStackDefault`） */
+    maxStackOf(cfg: KillBuffCfg | undefined): number;
+    /** 该 Buff **下一层**的价格（已满级返回 0） */
+    nextPriceOf(buffId: number): number;
+    /** 现在能不能买（未满级 且 金币够） */
+    canBuy(buffId: number): boolean;
+}
+
 export class BuffShop {
 
     /* ===== 页面级状态（宿主 provide 给 UI 子树） ===== */
@@ -133,36 +168,44 @@ export class BuffShop {
      * 摊位刷新
      * =================================================================== */
 
-    /** 现在能不能刷新（金币够 或 还有广告免费次数）——面板置灰判据与这里同一套 */
+    /**
+     * 刷新按钮的判据（**唯一真源**）：金币够 → 直接扣钱；不够但还有广告免费次数 → 看广告；都没有 → 置灰。
+     * 面板拿它画按钮，`refresh()` 拿它做准入。
+     */
+    refreshGate(): RefreshGate {
+        return evaluateRefreshGate(this.deps.getGold(), this.refreshCost.value, this.adFreeLeft.value);
+    }
+
+    /** 现在能不能刷新（= 判据的 `enabled`；给日志/宿主查询用） */
     canRefresh(): boolean {
-        return this.deps.getGold() >= this.refreshCost.value || this.adFreeLeft.value > 0;
+        return this.refreshGate().enabled;
     }
 
     /**
-     * 刷新 4 个摊位 —— 与面板置灰判据同一套规则：
+     * 刷新 4 个摊位 —— 准入用的就是 `refreshGate()` 那一份判据：
      *   ① 金币 ≥ 费用 → 扣费重抽；② 金币不够但还有广告免费次数 → 看广告重抽；③ 都不行 → 拒绝并打日志
      */
     refresh(): void {
         const cost = this.refreshCost.value;
-        if (this.deps.getGold() >= cost) {
+        const gate = this.refreshGate();
+        if (gate.canPay) {
             if (!this.deps.spendGold(cost)) {
                 console.warn(`[Buff商店] 金币不足，刷新失败（${this.deps.getGold()}/${cost}）`);
                 return;
             }
-        } else if (this.adFreeLeft.value > 0) {
-            this.deps.playAd('buff_shop_refresh').then((ok) => {
-                if (!ok) return;
-                this.adFreeUsed++;
-                this.syncCost();
-                this.rollStalls();
-            });
+            this.rollStalls();
             return;
-        } else {
+        }
+        if (!gate.viaAd) {
             console.warn(`[Buff商店] 金币不足（${this.deps.getGold()}/${cost}）且没有广告免费次数，刷新被拒`);
             return;
         }
-
-        this.rollStalls();
+        this.deps.playAd('buff_shop_refresh').then((ok) => {
+            if (!ok) return;
+            this.adFreeUsed++;
+            this.syncCost();
+            this.rollStalls();
+        });
     }
 
     /** 从未满级的 Buff 池里等权抽 4 个摊位（不重复） */

@@ -4,8 +4,9 @@
  * 管理**局内（这一局）的运行状态与它的响应式投影**，供场景逻辑与 UI 共享。
  *
  * ── 放什么（判据是「这个概念属于谁」，不是「现在谁在读」）──
- *   ① **UI 摆放**（面板开关、面板要渲染的列表、界面私有选中态）→ 不属于这里，归 `UIScope`：
- *      宿主 `provide`，子孙 `inject`（键见 `game/ui/scenes/scene_game_stage/cmps/UiScopeKeys.ts`）。
+ *   ① **UI 摆放 / 功能页面状态**（面板开关、面板要渲染的候选、界面私有选中态）→ 不属于这里，归 `UIScope`：
+ *      宿主 `provide` **功能门面**（`HeroSelectVM` / `RelicShopVM` / `BuffShopVM` / `SkillSlotsVM`），
+ *      子孙 `inject`（键见 `game/ui/scenes/scene_game_stage/cmps/StageScope.ts`）。
  *      判据：删掉那个控件，这个值就没有意义了。
  *   ② **局内运行状态**（`level` / `exp` / `expToNext` / `enemiesAlive` / `isPaused`）→ 留在这里：
  *      它们不是「给 UI 看的」，而是场景自己的升级 / 刷怪 / 抽卡 / 暂停逻辑的运算对象
@@ -42,8 +43,12 @@ export const useBattleStore = defineStore('battle', () => {
    */
   const heroId = ref(0)
   /**
-   * 英雄当前拥有的技能 id 列表（units.json 的 `abilities` + 肉鸽额外学会的；含被动，不含普攻）。
-   * 投影值，真源在 `Entity.abilities.getAll()`；HUD 技能栏按它渲染。
+   * 英雄当前拥有的技能 id 列表（units.json 的 `abilities` + 肉鸽商店抽到的；含被动，不含普攻）。
+   * 投影值，真源在 `Entity.abilities.getAll()`；场景在 `syncHeroToStore` 里写。
+   *
+   * ⚠ **HUD 技能栏不再读它**：技能栏的 4 个格子由 `SkillSlots`（槽位 / 锁定 / 等级）驱动，
+   *   经 `StageScopeKeys.SkillSlots` 把**功能门面 `SkillSlotsVM`** provide 给格子组件 —— 本字段只是
+   *   "这个英雄会哪些技能"的平铺列表（顺序 = 实体里的挂载顺序，不含槽位/锁定语义），别拿它当技能栏数据源。
    */
   const heroSkills = ref<number[]>([])
 
@@ -67,13 +72,13 @@ export const useBattleStore = defineStore('battle', () => {
   /**
    * **局内遗物背包**：本局已获得遗物 id 列表（投影值，真源在 `RelicSystem.getAll()`）。
    * 场景在 `syncHeroToStore` 里写（获得遗物 / 换英雄 / 重开一局都会同步）。
-   * ⚠ 面板要渲染的「本次 4 个候选」不是它 —— 那是**页面级状态**，走 `UIScope`
-   *   （`StageScopeKeys.RelicSlots`，由 `Scene_Game_Stage` provide），别混用。
+   * ⚠ 面板要渲染的「本次 4 个候选」不是它 —— 那是**功能页面状态**，走 `UIScope`
+   *   （`StageScopeKeys.RelicShop` 的 `RelicShopVM.slots`，由 `Scene_Game_Stage` provide），别混用。
    */
   const relicBag = ref<number[]>([])
 
   // ⚠ 「刷新候选英雄的费用」**不在这里**：它属于选英雄功能，由 `HeroSelect.refreshCost` 持有
-  //   （页面级状态 → 宿主 provide，键见 UiScopeKeys.HeroSelectRefreshCost）。
+  //   （功能页面状态 → 宿主 provide 角色门面，键见 StageScope.HeroSelect）。
   //   旧的 `refreshGold`（写死 100 的全局常量）已删除 —— 用一个全局 store 字段存界面自己的价格，
   //   会让"这笔钱是谁扣的"查不到；价格与扣费现在都在 HeroSelect 一处。
 

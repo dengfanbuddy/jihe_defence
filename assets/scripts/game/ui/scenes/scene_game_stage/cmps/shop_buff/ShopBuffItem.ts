@@ -1,9 +1,9 @@
 import { _decorator, Button, Color, Label, Node, Sprite } from 'cc';
-import { type Ref } from 'db://assets/scripts/platform/reactivity';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { useBattleStore } from '../../../../../stores';
 import { ShopConfig } from '../../../../../data/configs/ShopConfig';
-import { StageScopeEvents, StageScopeKeys } from '../UiScopeKeys';
+import { StageScopeEvents, StageScopeKeys } from '../StageScope';
+import type { BuffShopVM } from '../../../../../battle/BuffShop';
 
 const { ccclass, property } = _decorator;
 
@@ -14,11 +14,16 @@ const DISABLED_GREY = new Color(124, 124, 124, 255);
  * 击杀商店（Buff 商店）里的**一个摊位**（内嵌 UI 小组件 → 继承 `UIWidget`，**不加 @uiview**）
  *
  * 职责只有三件（业务全在 `BuffShop`（game/battle/BuffShop.ts），本组件不知道金币怎么扣、更不知道别的摊位）：
- *   ① 渲染：按 Buff id 查 kill_buffs.json 出名字 / 效果 / **当前层数与下一层价格**
+ *   ① 渲染：按 Buff id 查 kill_buffs.json 出名字 / 效果文案，**层数、上限、下一层价格、能不能买一律问门面**
  *   ② 通知：点击 → `scope.emit(BuffShopBought, buffId)`，能不能买、买完层数怎么涨由宿主决定
- *   ③ 表现：已满级 / 金币不够 → 置灰（item 自己按注入的层数与 store 的金币算，**只做展示判据**）
+ *   ③ 表现：已满级 / 金币不够 → 置灰
  *
- * 通信：读 `BuffShopStacks`（注入的层数）+ `useBattleStore().gold`；只向上 `emit`。
+ * ⚠ 这里**曾经自己重算**层数上限与价格（`Math.max(1, cfg.max_stack ?? 1)`），而 `BuffShop.maxStackOf`
+ *   的缺省是 `shop_constants.killBuffMaxStackDefault`（10）—— 表里一旦有行不写 `max_stack`，
+ *   UI 会在第 1 层就显示"已满"，而 `buy()` 其实允许买到 10 层。现在口径只有 `BuffShop` 一处。
+ *
+ * 通信：读门面 `BuffShop`（层数 / 价格 / 可买性）+ `useBattleStore().gold`（**只用于触发重算**，
+ *   金币够不够由 `canBuy()` 回答）；只向上 `emit`。
  *   → 层数一变（买成功）本 item 会自动重算价格与层数，不需要面板逐个通知。
  */
 @ccclass('ShopBuffItem')
@@ -45,20 +50,20 @@ export class ShopBuffItem extends UIWidget {
 
     battleStore = useBattleStore();
 
-    /** 宿主注入的「每个 Buff 的已购层数」（`BuffShop.stacks`） */
-    private stacks: Ref<Record<number, number>> = null;
+    /** 宿主注入的**功能门面**（=`BuffShop` 实例）：层数 / 上限 / 下一层价格 / 能不能买都问它 */
+    private shop: BuffShopVM = null;
     /** 预制件里的原始颜色（首次使用时缓存，用于从灰化状态恢复） */
     private baseColors = new Map<string, Color>();
 
     protected onInit(): void {
-        this.stacks = this.inject<Ref<Record<number, number>>>(StageScopeKeys.BuffShopStacks, null);
-        if (!this.stacks) {
-            ezgame.warn('ShopBuffItem 没注入到 BuffShopStacks（不在 Scene_Game_Stage 子树下？），层数与价格不会刷新');
+        this.shop = this.inject<BuffShopVM>(StageScopeKeys.BuffShop, null);
+        if (!this.shop) {
+            ezgame.warn('ShopBuffItem 没注入到 BuffShop 门面（不在 Scene_Game_Stage 子树下？），层数与价格不会刷新');
         }
         this.buyBtn?.node.on(Button.EventType.CLICK, this.onClickItem, this);
         // 层数（买成功）或金币（够不够买下一层）一变 → 重算价格 / 层数 / 置灰
         this.scope.watch(
-            [() => this.stacks?.value, () => this.battleStore.gold],
+            [() => this.shop?.stacks.value, () => this.battleStore.gold],
             () => this.refresh(),
         );
     }
@@ -87,7 +92,7 @@ export class ShopBuffItem extends UIWidget {
      * 内部
      * =================================================================== */
 
-    /** 重算这个摊位的全部表现（层数 / 价格 / 是否可买） */
+    /** 重算这个摊位的全部表现（层数 / 价格 / 是否可买）—— 口径全部来自门面 `BuffShop` */
     private refresh(): void {
         const cfg = this.buffId > 0 ? ShopConfig.getKillBuff(this.buffId) : undefined;
         if (!cfg) {
@@ -97,10 +102,12 @@ export class ShopBuffItem extends UIWidget {
             return;
         }
 
-        const stack = this.stacks?.value?.[this.buffId] ?? 0;
-        const maxStack = Math.max(1, cfg.max_stack ?? 1);
-        const maxed = stack >= maxStack;
-        const price = maxed ? 0 : ShopConfig.getKillBuffPrice(cfg, stack + 1);
+        // 层数 / 上限 / 下一层价格 / 能不能买：**问功能类**（唯一口径；这里不再自己重算一遍）
+        //   maxStackOf 的缺省是配置项 killBuffMaxStackDefault，与 buy() 的封顶判断同源
+        const stack = this.shop ? this.shop.stackOf(this.buffId) : 0;
+        const maxStack = this.shop ? this.shop.maxStackOf(cfg) : 0;
+        const price = this.shop ? this.shop.nextPriceOf(this.buffId) : 0;
+        const maxed = maxStack > 0 && stack >= maxStack;
 
         if (this.nameLabel) this.nameLabel.string = cfg.name ?? '';
         if (this.descLabel) {
@@ -110,7 +117,7 @@ export class ShopBuffItem extends UIWidget {
         }
 
         this.applyContentVisible(true);
-        this.applyBuyable(!maxed && this.battleStore.gold >= price);
+        this.applyBuyable(!!this.shop && this.shop.canBuy(this.buffId));
     }
 
     /** 内容显隐：空摊 → 收起（按钮留在原地但不可点） */

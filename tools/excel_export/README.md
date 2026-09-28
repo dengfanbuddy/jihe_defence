@@ -30,16 +30,27 @@ npm run check:affix          # 品质×词条门禁体检（违规退出码 1；
 npm run migrate:affix        # 按门禁规则迁移 units/relics（幂等；--dry-run 只出报告）
 npm run fix:crit             # 暴击口径修复（属性15 base=150 + 文案承诺的暴击词条回填 + 叠加方式归一；幂等）
 npm run audit:attr           # 属性生效体检：真跑一遍属性链路，看「加了属性有没有变」（见 tools/attr-audit）
+npm run audit:slot           # 技能槽规则体检：真跑 SkillSlots/Ability + 真配表，验锁定/落槽/升级口径（见 tools/skill-slot-audit）
 npm run list                 # 列出所有表 / 字段 / 类型 / 说明
 npm run typecheck            # tsc --noEmit
 ```
 
-当前共 10 张表：
+当前共 9 张表：
 
 | 分组 | 表 |
 |---|---|
 | 战斗核心（6） | `units` `attributes` `abilities` `modifiers` `relics` `battle_constants` |
-| 肉鸽商店（4） | `shop_constants` `shop_draw` `shop_skills` `kill_buffs` |
+| 肉鸽商店（3） | `shop_constants` `shop_draw` `kill_buffs` |
+
+> **技能表也是一张（2026-09）**：原 `shop_skills` 表（30 条肉鸽额外技能）已**并入 `abilities`**，靠 `scope` 区分归属 ——
+> `unit` 单位自带（`units.json` 的 `abilities` 引用它，id 1~22）/ `shop` 肉鸽商店抽取池（id **101~130**）/ `both` 两侧都出
+> （**必填列**）。「一行多级」：`max_level`(1~3) + `lv1`/`lv2`/`lv3` 文案 + `effects`（1 级）与 `effects_lv2`/`effects_lv3`
+> （**整体覆盖**，留空沿用上一级）；单位技能仍走 `upgrades_to` 的换 id 升阶链，两套机制并存。
+> `abilities` 现共 **52 行**（22 单位 + 30 商店）。`assets/resources/tb/shop_skills.json` / `excel/shop_skills.xlsx` /
+> `Tb_ShopSkillConfig.ts`（含 `ShopSkillCfgContainer`）已删除，**勿再恢复**。
+> ⚠ 合并进来的那 30 条是**设计稿原文**（`behavior: 'passive'` + `effects: []` + 无 `script_id`）：能抽到、能进技能槽、能升级、
+> 能看描述，但**还没有实际战斗效果**（分裂弹 / 召唤炮台 / 时间回廊这类机制要补 `effects` 或 `script_id`）；
+> `npm run check` 会对「商店技能既无 effects 也无 script_id」给出提示。
 
 > **relics 表是「一件遗物一行」（2026-07）**：局内版与局外版是同一件遗物，共用 `id` / `name` / `code` / `icon` / `rarity` / `category`，
 > 只有**效果与描述分两侧**（`modifiers_inner` / `description_inner` 与 `modifiers_outer` / `description_outer`），
@@ -63,9 +74,10 @@ npm run typecheck            # tsc --noEmit
 与两侧都有的遗物的**局外版**都原样保留：
 
 ```bash
-node tools/excel_export/scripts/gen-shop-from-hero-design.ts   # 设计稿 → relics/modifiers/shop_skills/kill_buffs/shop_draw
+node tools/excel_export/scripts/gen-shop-from-hero-design.ts   # 设计稿 → relics/modifiers(共享模板)/abilities(scope=shop)/kill_buffs/shop_draw
 node tools/excel_export/scripts/migrate-modifier-effects.ts    # 一次性：旧 properties/states/tick 三列 → effects（幂等）
-cd tools/excel_export && npm run import -- --force --table relics,modifiers,shop_skills,kill_buffs,shop_draw
+node tools/excel_export/scripts/merge-shop-skills-into-abilities.mjs   # 一次性：shop_skills 的 30 条换 id 段（1~30 → 101~130）并入 abilities（幂等）
+cd tools/excel_export && npm run import -- --force --table relics,modifiers,abilities,kill_buffs,shop_draw
 npm run export                                                 # 之后 Excel 就是唯一编辑源
 npm run migrate:affix                                          # ⚠ 设计稿给的是百分比原值，重跑 gen-shop 后必须再跑一次门禁迁移
 ```
@@ -158,7 +170,9 @@ npm run migrate:affix                                          # ⚠ 设计稿�
   > `multiply` 用小数且**逐条相乘**（→ ×1.3452）。道具/遗物的百分比加成一律用 `percent`。
   > 结算顺序：`percent` 先只乘**基础值**，`add` 固定值加在其后。
 - `modifiers.cd` 是**该效果自己的冷却**（秒）：带 cd 的被动各是一条独立 Modifier，同一实体上**各算各的冷却**。
-- `shop_skills.stage` 显式落列，便于单独调整某技能的出场阶段；遗物（道具）的阶段由 `rarity` 推导（白 1 / 蓝 2 / 黄 3 / 红 4）。
+- `abilities.scope` 是**必填列**：`unit` 单位自带（`units.json` 的 `abilities` 引用）/ `shop` 肉鸽商店抽取池 / `both` 两侧都出。
+  商店技能必填 `rarity`（白/蓝/黄/红）+ `stage`；**阶段门槛显式落列**便于单独调整某个技能的出场阶段，
+  单位技能这两列留空。遗物（道具）的阶段仍由 `rarity` 推导（白 1 / 蓝 2 / 黄 3 / 红 4）。
 - `kill_buffs.attr_id` 是 AttributeType 编号（`atk`=3 / `hp`=1 / `range`=16 / `def`=6 / `aspd`=4 / `crit`=14 / `dodge`=8 / `regen`=9）。
 
 ---
@@ -202,11 +216,12 @@ node src/cli.ts json2excel [--table units] [--force]
 node scripts/check-shop-draw.mjs
 ```
 
-用真实 `tb/shop_*.json` + `tb/relics.json` 跑批量模拟抽取（每个「阶段 × 英雄等级」2000 次），输出品质分布、
-遗物(道具):技能 比例、越阶命中率、最少选项数，并检查选项重复、池子耗尽与费用曲线。退出码 1 = 有异常。
+用真实 `tb/shop_*.json` + `tb/relics.json` + `tb/abilities.json`（`scope` 含 `shop` 的行）跑批量模拟抽取
+（每个「阶段 × 英雄等级」2000 次），输出品质分布、遗物(道具):技能 比例、越阶命中率、最少选项数，
+并检查选项重复、池子耗尽与费用曲线。退出码 1 = 有异常。
 
-> 该脚本复刻了 `battle/ShopSystem.ts` 的抽取判定（Node 里跑不起 `cc` 依赖）；
-> 改 ShopSystem 抽取逻辑时需同步脚本内的判定，否则体检结果会失真。
+> 该脚本复刻了 `battle/RelicDraw.ts` 的抽取判定（Node 里跑不起 `cc` 依赖）；
+> 改 RelicDraw 抽取逻辑时需同步脚本内的判定，否则体检结果会失真。
 
 ### `npm run list`
 
@@ -247,10 +262,11 @@ tools/excel_export/
 ├── excel/                  # 表格（编辑源，建议入库）
 │   ├── units.xlsx  attributes.xlsx  abilities.xlsx  modifiers.xlsx
 │   ├── relics.xlsx  battle_constants.xlsx
-│   └── shop_constants.xlsx  shop_draw.xlsx  shop_skills.xlsx  kill_buffs.xlsx
+│   └── shop_constants.xlsx  shop_draw.xlsx  kill_buffs.xlsx
 ├── scripts/
-│   ├── gen-shop-from-hero-design.ts   # 设计稿 docs/hero-design → relics（含 kv.attrs）+ 共享属性模板 + shop_*.json（幂等）
+│   ├── gen-shop-from-hero-design.ts   # 设计稿 docs/hero-design → relics（含 kv.attrs）+ 共享属性模板 + abilities(scope=shop)（幂等）
 │   ├── migrate-modifier-effects.ts    # 一次性：modifiers 旧 properties/states/tick 三列 → effects（幂等）
+│   ├── merge-shop-skills-into-abilities.mjs  # 一次性：shop_skills 并入 abilities（换 id 段 + 补 scope/max_level；幂等）
 │   ├── check-shop-draw.mjs            # 抽取体检（npm run check:shop）
 │   ├── lib/affix-rules.mjs            # 「品质 × 词条」门禁规则单一真源（含遗物两侧的取用帮助函数）
 │   ├── check-affix-gating.mjs         # 门禁体检（npm run check:affix，逐侧检查）

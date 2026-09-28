@@ -427,6 +427,47 @@ export class Entity {
     AddBaseAttribute(id: number, value: number): void {
         this.attrs.addBase(id, value);
     }
+
+    // ============ 位移（击退 / 牵引） ============
+
+    /**
+     * 把本单位沿「来源 → 自己」的方向推开一段距离（**击退**）。
+     *
+     * 口径（写在这里一次，别的系统不要再各算一份方向）：
+     *   · **方向** = 从 `source.position` 指向 `position` 的单位向量（即"远离来源"），
+     *     所以调用方只需传"谁推的"，不必自己算角度；两点重合（距离 < 1e-3，没有可用方向）时不位移。
+     *   · **锚点不位移**：`immovable` 的实体（英雄/防守点）直接返回 0 —— 与实体分离
+     *     （BattleContext.separateEntities）同一口径："只推别人，不被别人推动"。
+     *   · **瞬时位移**：只改 `position`，不产生速度、不带状态（不眩晕/不定身）。怪物 AI 下一帧
+     *     照常朝目标走回来，所以击退的战术价值 = "把它推回去的那段赶路时间"（按现配的怪移速算：
+     *     50px ÷ 100~180px/s ≈ 0.3~0.5 秒的推进延迟）。想连控制一起给，另加 `apply_state`（眩晕/定身）。
+     *   · **表现层不用通知**：`EntityView.update` 每帧按脏检查同步 `entity.position`，跳变会直接
+     *     在下一帧渲染出来（逻辑驱动移动的既有约定）。
+     *   · 不做落点合法性检查（不挡边界/不防重叠）：战斗场地没有实体墙，推出去的距离由调用方给，
+     *     重叠由每帧的 `separateEntities` 收尾。
+     *
+     * @param source 推力来源（一般是攻击者），取其 `position` 作起点
+     * @param distance 位移距离（**像素**；配表里的"米"由调用方 × `BattleConstUtil.getPxPerMeter()`）
+     * @returns 实际位移距离（未位移返回 0）
+     *
+     * @example
+     * ```ts
+     * // 火枪「爆头冲击」：15% 概率击退 1m
+     * target.ApplyKnockback(attacker, 1 * BattleConstUtil.getPxPerMeter());
+     * ```
+     */
+    ApplyKnockback(source: { position?: { x: number; y: number } } | null | undefined, distance: number): number {
+        if (!(distance > 0) || this.IsDead() || this.immovable) return 0;
+        const from = source?.position;
+        if (!from) return 0;
+        const dx = this.position.x - from.x;
+        const dy = this.position.y - from.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-3) return 0;
+        this.position.x += (dx / len) * distance;
+        this.position.y += (dy / len) * distance;
+        return distance;
+    }
 }
 
 /** Modifier 常量（实体内部引用；对应 modifiers.json 中的 id） */

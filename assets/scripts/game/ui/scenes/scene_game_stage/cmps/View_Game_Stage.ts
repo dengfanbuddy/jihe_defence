@@ -1,14 +1,18 @@
 import { _decorator, Button, Label, Node, ProgressBar, resources, Sprite, SpriteFrame } from 'cc';
-import { type Ref } from '../../../../../platform/reactivity';
 import { useBattleStore } from '../../../../stores';
 import { EventBus } from '../../../../battle';
 import { EventNames } from '../../../../battle/core/EventBus';
 import { UIWidget } from '../../../../../platform/ui/UIWidget';
-import { StageScopeKeys } from './UiScopeKeys';
+import { StageScopeEvents, StageScopeKeys } from './StageScope';
+import { SkillSlot } from './skill_slot/SkillSlot';
+import { SkillDetailPanel, ensureSkillDetailPanel, SKILL_DETAILS_NODE } from './skill_slot/SkillDetailPanel';
+import { showFloatText } from './skill_slot/FloatText';
 import { TbRoot } from 'db://assets/scripts/platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../../../../excel_table/Tb_UnitConfig';
-import { AbilityCfgContainer } from '../../../../excel_table/Tb_AbilityConfig';
 import { FINAL_BOSS_STAGE } from '../../../../common/EntityVisualConfig';
+import type { SkillSlotsVM } from '../../../../battle/SkillSlots';
+import type { HeroSelectVM } from '../../../../battle/HeroSelect';
+import type { BuffShopVM } from '../../../../battle/BuffShop';
 
 const { ccclass, property } = _decorator;
 
@@ -20,9 +24,9 @@ const { ccclass, property } = _decorator;
  *   - 每次显示（= 开新一局）按当前状态无条件刷一遍 → `onShow()`（缓存复用时不会再跑 `onInit`）
  *   - 节点事件在 `onDispose()` 里成对 `off`；watcher 交给 `this.scope` 托管（不再手写 watchHandles 数组）
  *   - **战斗真源的投影**（hp / gold / kills / level / phase…）读全局 store（场景写、UI 读）
- *   - **页面级状态**（选英雄面板开关 / Buff 商店面板开关）读宿主 provide 的 ref（`inject`）——
- *     它们就是 `HeroSelect.panelVisible` / `BuffShop.panelVisible`；退出战斗也走宿主注入的动作 ——
- *     判据见 `UiScopeKeys.ts` 顶部注释
+ *   - **功能页面状态**（选英雄 / Buff 商店 / 技能槽）读宿主 provide 的**功能门面**（`inject`）——
+ *     门面就是 `HeroSelect` / `BuffShop` / `SkillSlots` 的只读面（`panelVisible` 等）；
+ *     退出战斗走宿主注入的动作 —— 判据与键见 `StageScope.ts` 顶部注释
  *
  * ⚠ 节点在谁名下，显隐就由谁写：选英雄 / Buff 商店面板的节点在本 HUD 名下 → 显隐由本 HUD 写
  *   （遗物面板的节点在 `Scene_Game_Stage` 名下 → 由场景写，所以那两个 @property 不在这里）。
@@ -59,6 +63,10 @@ export class View_Game_Stage extends UIWidget {
     /* ===== 角色信息节点 ===== */
     @property(Sprite)
     head_icon: Sprite = null;
+    /**
+     * 技能栏父节点（预制件里的 `skills`，4 个槽位节点是它的子节点）。
+     * 名字沿用旧字段名 `weapons_node`（历史叫"武器栏"），语义已是**技能栏**。
+     */
     @property(Node)
     weapons_node: Node = null;
     @property(Label)
@@ -111,27 +119,35 @@ export class View_Game_Stage extends UIWidget {
 
     /** 已加载的英雄头像路径（同一个路径不重复 load） */
     private headIconPath = '';
-    /** 技能栏每个槽位当前已加载的图标路径（'' = 该槽位没有图标） */
-    private weaponIconPaths: string[] = [];
-    /** 上一次刷过英雄信息的指纹（heroId + 技能列表），用于避免重复加载同一套图标 */
-    private heroInfoKey = '';
+    /** 技能栏的 4 个槽位组件（onInit 时按 `skills` 的子节点逐个挂上） */
+    private skillSlots: SkillSlot[] = [];
+    /**
+     * 长按技能槽弹出的详情面板。
+     * 节点是**预制件里作者摆好的** `skill_details`（位置即最终位置），组件在本 HUD 的 `onInit` 里挂上去。
+     */
+    private detailPanel: SkillDetailPanel = null;
+    /** 上一次刷过英雄信息的英雄 id（0 = 还没刷过），用于避免重复加载同一张头像、挡住受伤/回血触发的空跑 */
+    private heroInfoHeroId = 0;
 
     /** 宿主注入的「退出战斗」动作（场景在 onLoad 里 provide，所以 onInit 里注入得到） */
     private exitBattle: () => void = null;
-    /** 宿主注入的**页面级**状态：选英雄面板显隐（=`HeroSelect.panelVisible`；HUD 按钮只写它） */
-    private heroSelectPanelVisible: Ref<boolean> = null;
-    /** 宿主注入的**页面级**状态：Buff 商店面板显隐（=`BuffShop.panelVisible`；HUD 按钮只写它） */
-    private buffShopPanelVisible: Ref<boolean> = null;
+    /** 宿主注入的**选英雄功能门面**：HUD 只读它的 `panelVisible` 写面板节点 active、按钮只翻这个开关 */
+    private heroSelect: HeroSelectVM = null;
+    /** 宿主注入的**Buff 商店功能门面**：同上（面板节点在本 HUD 下 → active 由本 HUD 写） */
+    private buffShop: BuffShopVM = null;
+    /** 宿主注入的**技能槽功能门面**：格子组件自己 inject 了一份；HUD 读它只为弹详情面板 */
+    private skillSlotStates: SkillSlotsVM = null;
 
     /* ===================================================================
      * UIWidget 生命周期（Cocos 原生回调由基类接管，不要重写）
      * =================================================================== */
 
     protected onInit(): void {
-        // 宿主注入：退出动作 + 页面级状态（放 onInit 拿得到，是因为场景在 onLoad 里 provide）
+        // 宿主注入：退出动作 + 三个功能门面（放 onInit 拿得到，是因为场景在 onLoad 里 provide）
         this.exitBattle = this.inject<() => void>(StageScopeKeys.ExitBattle, null);
-        this.heroSelectPanelVisible = this.inject<Ref<boolean>>(StageScopeKeys.HeroSelectPanelVisible, null);
-        this.buffShopPanelVisible = this.inject<Ref<boolean>>(StageScopeKeys.BuffShopPanelVisible, null);
+        this.heroSelect = this.inject<HeroSelectVM>(StageScopeKeys.HeroSelect, null);
+        this.buffShop = this.inject<BuffShopVM>(StageScopeKeys.BuffShop, null);
+        this.skillSlotStates = this.inject<SkillSlotsVM>(StageScopeKeys.SkillSlots, null);
 
         // 暂停 / 继续按钮的两种图标（异步加载，点到按钮时才用得到）
         resources.load("textures/common/pause/spriteFrame", SpriteFrame, (err, data) => {
@@ -151,16 +167,29 @@ export class View_Game_Stage extends UIWidget {
         this.exitBtn?.on(Button.EventType.CLICK, this.exit, this);
         this.endBtnNode?.on(Button.EventType.CLICK, this.exit, this);
 
+        // 技能栏：给预制件里摆好的 4 个槽位节点逐个挂上 SkillSlot（运行时挂，不用改预制件）
+        this.setupSkillSlots();
+
+        // 长按技能槽 → 弹详情面板；松手 → 收起（面板节点在 HUD 名下 → 由 HUD 写它的显隐）
+        // ⚠ 这两行必须排在「挂面板组件」**之前**：面板初始化万一抛异常，也不会把事件订阅一起吞掉
+        this.scope.on(StageScopeEvents.SkillDetailRequested, this.onSkillDetailRequested, this);
+        this.scope.on(StageScopeEvents.SkillDetailDismissed, this.hideSkillDetail, this);
+
+        // 详情面板：节点由预制件提供（`skill_details`），这里只把组件挂上去并**立刻收起** ——
+        // 预制件里该节点是 active 的（作者要看到它才好摆位），不收起来开局就顶着一块示例文案
+        this.ensureDetailPanel();
+        this.hideSkillDetail();
+
         // watcher 全部交给 scope：隐藏时随 scope 暂停，销毁时自动回收（不再手写 watchHandles 数组）
-        if (this.heroSelectPanelVisible) {
-            this.scope.watch(() => this.heroSelectPanelVisible.value, () => this.refreshHeroSelectPanel());
+        if (this.heroSelect) {
+            this.scope.watch(() => this.heroSelect.panelVisible.value, () => this.refreshHeroSelectPanel());
         } else {
-            ezgame.warn("View_Game_Stage 没注入到 HeroSelectPanelVisible（不在 Scene_Game_Stage 子树下？），选英雄面板不会自动显隐");
+            ezgame.warn("View_Game_Stage 没注入到 HeroSelect 门面（不在 Scene_Game_Stage 子树下？），选英雄面板不会自动显隐");
         }
-        if (this.buffShopPanelVisible) {
-            this.scope.watch(() => this.buffShopPanelVisible.value, () => this.refreshBuffShopPanel());
+        if (this.buffShop) {
+            this.scope.watch(() => this.buffShop.panelVisible.value, () => this.refreshBuffShopPanel());
         } else {
-            ezgame.warn("View_Game_Stage 没注入到 BuffShopPanelVisible（不在 Scene_Game_Stage 子树下？），Buff 商店面板不会自动显隐");
+            ezgame.warn("View_Game_Stage 没注入到 BuffShop 门面（不在 Scene_Game_Stage 子树下？），Buff 商店面板不会自动显隐");
         }
         // HP / 最大生命 任意变化都刷新血条与数字（合并原来重复的两个 watch）
         this.scope.watch(
@@ -194,6 +223,10 @@ export class View_Game_Stage extends UIWidget {
      */
     protected onShow(): void {
         if (this.endNode) this.endNode.active = false; // 收起上一局的结算面板
+        // 详情面板是"按住才看"的临时浮层：上一局/上一次没收干净就在这里兜一次
+        this.hideSkillDetail();
+        // 头像指纹复位，让本局重新按当前英雄刷一次（heroId 在换局时会先归 0，指纹不复位会漏刷）
+        this.heroInfoHeroId = 0;
         this.refreshAll();
     }
 
@@ -226,32 +259,37 @@ export class View_Game_Stage extends UIWidget {
 
     private refreshHeroSelectPanel(): void {
         if (!this.heroSelectPanel) return;
-        this.heroSelectPanel.active = !!(this.heroSelectPanelVisible && this.heroSelectPanelVisible.value);
+        const visible = !!(this.heroSelect && this.heroSelect.panelVisible.value);
+        this.heroSelectPanel.active = visible;
+        // 详情面板常驻且渲染层级在面板之上 → 别的面板一开就把它收掉，别压住人家
+        if (visible) this.hideSkillDetail();
     }
 
-    /** Buff 商店面板显隐：状态是 `BuffShop.panelVisible`（宿主 provide），节点在本 HUD 下 → 由本 HUD 写 */
+    /** Buff 商店面板显隐：状态是 `BuffShop.panelVisible`（宿主 provide 的门面），节点在本 HUD 下 → 由本 HUD 写 */
     private refreshBuffShopPanel(): void {
         if (!this.shopBuffPanel) return;
-        this.shopBuffPanel.active = !!(this.buffShopPanelVisible && this.buffShopPanelVisible.value);
+        const visible = !!(this.buffShop && this.buffShop.panelVisible.value);
+        this.shopBuffPanel.active = visible;
+        if (visible) this.hideSkillDetail();
     }
 
     /**
-     * 英雄信息（头像 + 技能栏）—— 全部是「本局出战英雄」的投影（`battleStore.heroId / heroSkills`）：
+     * 英雄信息（头像 + 技能栏）—— 「本局出战英雄」的投影（`battleStore.heroId`）：
      *   头像   ← units.json 的 `head_icon`
-     *   技能栏 ← 英雄实体 `abilities.getAll()` 的 id（含被动，不含普攻），图标取 abilities.json 的 `icon`
+     *   技能栏 ← **不再由这里渲染**：4 个格子各自的 `SkillSlot` 组件自己 inject `SkillSlots`
+     *            （技能 id / 等级 / 锁定）与 `cooldowns`（冷却进度）后响应式刷新，
+     *            本 HUD 只负责"把组件挂上去"（见 `setupSkillSlots`）
      *
      * 选英雄（scene.selectHero → syncHeroToStore）/ 学会肉鸽技能 / 技能进化都会走到这里。
-     * 图标是异步加载的，所以用**指纹**（heroId + 技能列表）挡住重复 load：
+     * 图标是异步加载的，所以用**指纹**（heroId）挡住重复 load：
      * watcher 在受伤 / 回血时也可能被触发，不能每次都重新加载。
      */
     private refreshHeroInfo(): void {
         const heroId = this.battleStore.heroId;
         if (!heroId) return; // 还没选英雄：保持预制件原样
 
-        const skills = this.battleStore.heroSkills ?? [];
-        const key = `${heroId}|${skills.join(',')}`;
-        if (key === this.heroInfoKey) return;
-        this.heroInfoKey = key;
+        if (heroId === this.heroInfoHeroId) return;
+        this.heroInfoHeroId = heroId;
 
         const cfg = TbRoot.ins.getTbContainer(UnitCfgContainer).getCfgById(heroId);
         if (!cfg) {
@@ -259,7 +297,7 @@ export class View_Game_Stage extends UIWidget {
             return;
         }
 
-        // ① 头像
+        // 头像
         if (cfg.head_icon && cfg.head_icon !== this.headIconPath) {
             this.headIconPath = cfg.head_icon;
             const path = cfg.head_icon;
@@ -267,41 +305,91 @@ export class View_Game_Stage extends UIWidget {
                 if (this.head_icon) this.head_icon.spriteFrame = sf;
             }, `英雄头像加载失败：${path}`);
         }
+    }
 
-        // ② 技能栏
-        this.refreshWeapons(skills);
+    /* ===================================================================
+     * 技能栏（4 个 SkillSlot 格子）
+     * =================================================================== */
+
+    /**
+     * 给预制件 `skills` 下的 4 个槽位节点挂上 `SkillSlot`。
+     *
+     * ⚠ **运行时挂组件，不改预制件**：槽位节点的结构（根 = 底框 Sprite，子节点 `icon` / `cd_mask` /
+     *   `lock`）已经在预制件里摆好了，`SkillSlot` 自己按节点名去找它们，所以这里只要
+     *   "挂组件 + 下发下标" 两件事。想改成编辑器摆位，就把 `SkillSlot` 的 3 个子节点拖进它的
+     *   `@property`，然后删掉这里的 `addComponent` 即可（其余逻辑不用动）。
+     *
+     * 槽位数量与 `SkillSlots.SKILL_SLOT_COUNT` 必须一致（多出来的节点不会挂组件 = 恒为空框）。
+     */
+    private setupSkillSlots(): void {
+        this.skillSlots = [];
+        if (!this.weapons_node) {
+            ezgame.warn('[HUD] 没拖 weapons_node（技能栏父节点），技能栏不会显示技能');
+            return;
+        }
+        this.weapons_node.children.forEach((node, index) => {
+            const slot = node.getComponent(SkillSlot) ?? node.addComponent(SkillSlot);
+            // ⚠ `addComponent` 可能**当场就跑完 onInit**（那时 slotIndex 还是 -1，组件会按兄弟顺序自推），
+            //   所以这里显式下发下标后要再刷一次，首帧的表现才跟下标一致
+            const changed = slot.slotIndex !== index;
+            slot.slotIndex = index;
+            if (changed) slot.refresh();
+            this.skillSlots.push(slot);
+        });
+        if (!this.skillSlots.length) {
+            ezgame.warn('[HUD] 技能栏父节点下没有子节点，技能栏是空的');
+        }
     }
 
     /**
-     * 技能栏：把英雄的可施放技能依次填进 `weapons` 下的槽位。
-     * 槽位不够的（`weapons` 只有 4 个）多余技能忽略；没有技能的槽位收起。
-     * 配了 `icon` 才换图 —— 没配就保留预制件里的占位图（图标资源在 abilities.json 的 icon 列）。
+     * 长按某个技能槽 → 弹详情面板。
+     * 面板位置是**预制件里摆好的**（`skill_details` 就在技能栏上方居中），不按长按的槽挪位置。
+     *
+     * 每一步的早退都留了日志：长按没反应时，控制台能直接指出断在哪一段
+     * （没日志 = 事件没到 HUD；日志说"槽里没技能" = 槽是空的；说"找不到节点" = 预制件结构）。
      */
-    private refreshWeapons(skillIds: number[]): void {
-        if (!this.weapons_node) return;
-        const slots = this.weapons_node.children;
-        const abilityTb = TbRoot.ins.getTbContainer(AbilityCfgContainer);
-
-        for (let i = 0; i < slots.length; i++) {
-            const slot = slots[i];
-            const skillId = skillIds[i];
-            if (skillId === undefined) {
-                slot.active = false; // 空位收起（技能栏只显示真实拥有的技能）
-                continue;
-            }
-            slot.active = true;
-
-            const icon = abilityTb.getCfgById(skillId)?.icon ?? '';
-            if (icon === this.weaponIconPaths[i]) continue;
-            this.weaponIconPaths[i] = icon;
-            if (!icon) continue; // 未配图标：保留占位图
-
-            const sprite = slot.getChildByName('icon')?.getComponent(Sprite);
-            if (!sprite) continue;
-            this.loadSpriteFrame(icon, (sf) => {
-                if (sprite.isValid) sprite.spriteFrame = sf;
-            }, `技能图标加载失败：${icon}`);
+    private onSkillDetailRequested(index: number): void {
+        if (!this.skillSlotStates) {
+            ezgame.warn(`[HUD] 收到槽 ${index} 的长按，但没注入到 SkillSlots 门面，取不到技能 id`);
+            return;
         }
+        const state = this.skillSlotStates.slotAt(index);
+        if (!state || state.skillId <= 0) {
+            ezgame.warn(`[HUD] 收到槽 ${index} 的长按，但该槽没有技能（skillId=${state?.skillId ?? 'null'}），不弹详情`);
+            return;
+        }
+
+        const panel = this.ensureDetailPanel();
+        if (!panel) return; // 找不到面板节点时 ensureSkillDetailPanel 里已经报过具体原因
+        panel.show(state.skillId, state.level);
+    }
+
+    /**
+     * 收起详情面板。
+     * 松手**不**收起（面板要能读完）→ 收起的入口是：短按任意技能槽（走 `SkillDetailDismissed` 事件）、
+     * 在面板上点一下（面板自己处理）、别的面板打开（本 HUD 与场景各调一次）、本 HUD 隐藏（`onShow`）。
+     */
+    hideSkillDetail(): void {
+        this.detailPanel?.hide();
+    }
+
+    /** 详情面板（组件运行时挂到预制件的 `skill_details` 节点上，只挂一次） */
+    private ensureDetailPanel(): SkillDetailPanel {
+        if (this.detailPanel?.isValid) return this.detailPanel;
+        // 找不到节点时 `ensureSkillDetailPanel` 会打一条带实际子节点名的 warn（便于对照预制件）
+        this.detailPanel = ensureSkillDetailPanel(this.node);
+        if (!this.detailPanel) {
+            ezgame.warn(`[HUD] 没有可用的详情面板（预制件里应有一个名为 ${SKILL_DETAILS_NODE} 的节点）`);
+        }
+        return this.detailPanel;
+    }
+
+    /**
+     * 飘字提示（贴在技能栏上方）。
+     * 需求：「技能槽都锁定时选中技能 → 飘字提示」；场景通过本方法把提示丢给 UI（节点在 HUD 名下 → HUD 写）。
+     */
+    showFloatText(message: string): void {
+        showFloatText(this.node, message, this.weapons_node, 90);
     }
 
     /**
@@ -415,15 +503,15 @@ export class View_Game_Stage extends UIWidget {
         if (spriteFrame) sprite.spriteFrame = spriteFrame;
     }
 
-    /** 打开选英雄面板：只翻页面级状态（面板节点显隐由 refreshHeroSelectPanel 统一写） */
+    /** 打开选英雄面板：只翻门面上的开关（面板节点显隐由 refreshHeroSelectPanel 统一写） */
     openSelectHeroPanel() {
-        if (!this.heroSelectPanelVisible) return;
-        this.heroSelectPanelVisible.value = true;
+        if (!this.heroSelect) return;
+        this.heroSelect.panelVisible.value = true;
     }
 
-    /** 打开 Buff 商店面板：只翻页面级状态（面板节点显隐由 refreshBuffShopPanel 统一写） */
+    /** 打开 Buff 商店面板：只翻门面上的开关（面板节点显隐由 refreshBuffShopPanel 统一写） */
     openShopBuffPanel() {
-        if (!this.buffShopPanelVisible) return;
-        this.buffShopPanelVisible.value = true;
+        if (!this.buffShop) return;
+        this.buffShop.panelVisible.value = true;
     }
 }

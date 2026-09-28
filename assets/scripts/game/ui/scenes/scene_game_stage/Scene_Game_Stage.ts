@@ -5,7 +5,7 @@ import { ViewLayer } from '../../../../platform/ui/ViewInfo';
 import UIManager from '../../../../platform/ui/UIManager';
 import { AdMgr, type AdPlacement } from '../../../../platform/ad/AdMgr';
 import { View_Game_Stage } from './cmps/View_Game_Stage';
-import { StageScopeEvents, StageScopeKeys } from './cmps/UiScopeKeys';
+import { StageScopeEvents, StageScopeKeys } from './cmps/StageScope';
 import BaseView from '../../../../platform/ui/BaseView';
 
 import { useBattleStore } from '../../../stores';
@@ -15,15 +15,17 @@ import { EventNames } from '../../../battle/core/EventBus';
 import { Entity } from '../../../battle/Entity';
 import { DataCenter } from '../../../data';
 import { TbRoot } from '../../../../platform/excel_table/TbRoot';
+import { ShopConfig } from '../../../data/configs/ShopConfig';
 import { AttributeScaling } from '../../../battle/core/AttributeScaling';
 import { AttributeType } from '../../../battle/core/Types';
 import { MonsterPool } from '../../../game_stage/entityview/MonsterPool';
 import { ProjectileViewPool } from '../../../game_stage/entityview/ProjectileViewPool';
 import { DamageTextLayer } from '../../../game_stage/entityview/DamageTextLayer';
 import { HeroSelect, RelicShop, BuffShop } from '../../../battle';
+import { SkillSlots } from '../../../battle/SkillSlots';
 import { RelicSystem } from '../../../battle/BattleEquipSystem';
 import { Ability_LightningChain } from '../../../battle/ScriptedAbilities';
-import { Modifier_CounterStorm, Modifier_EagleEye, Modifier_ZeusThunder } from '../../../battle/ScriptedModifiers';
+import { Modifier_CounterStorm, Modifier_EagleEye, Modifier_MusketHeadshot, Modifier_ZeusThunder } from '../../../battle/ScriptedModifiers';
 import { pickTarget } from '../../../battle/Targeting';
 import { initializeAI } from '../../../battle/ai';
 import { GraphCircle } from '../../../common/GraphCircle';
@@ -177,7 +179,7 @@ export class Scene_Game_Stage extends BaseView {
    *
    * 每个功能一个类（都在 `game/battle/`，纯 TS、无 cc 依赖），场景只做四件事：
    *   ① 持有节点（入口按钮 / 面板节点）—— **节点在谁名下，显隐就由谁写**（绝不跨组件改别人的节点）
-   *   ② 把功能类的状态 `provide` 给整棵 UI 子树（键见 `UiScopeKeys`）
+   *   ② 把功能类的**门面**（只读面）`provide` 给整棵 UI 子树（键见 `StageScope`）
    *   ③ 把子树冒泡上来的事件转交给功能类（本场景只是"转发"，不含任何"能不能"的判断）
    *   ④ 提供平台能力：金币真源与扣费、广告（播放期间暂停战斗）、创建/切换英雄实体
    *
@@ -195,6 +197,11 @@ export class Scene_Game_Stage extends BaseView {
   relicShop!: RelicShop;
   /** 击杀商店 Buff（纯 TS 封装，随界面建一次） */
   buffShop!: BuffShop;
+  /**
+   * 技能槽（纯 TS 封装，随界面建一次）：4 个格子的技能 id / 等级 / 锁定状态。
+   * 商店抽到技能 → `RelicShop` 调 `grant()` 落槽；HUD 的 `SkillSlot` 格子读它渲染。
+   */
+  skillSlots!: SkillSlots;
 
   /** 遗物入口按钮节点（编辑器拖引用；显隐与点击都由本场景管） */
   @property(Node)
@@ -235,11 +242,14 @@ export class Scene_Game_Stage extends BaseView {
     })
     this.relicShop = new RelicShop({
       getBag: () => this.heroRelics,
+      getSkillSlots: () => this.skillSlots,
       getGold: () => this.battleStore.gold,
       spendGold: (amount) => this.spendGold(amount),
       getHeroLevel: () => this.battleStore.level ?? 1,
       getPhase: () => this.stage,
       playAd: (placement) => this.playRewardAd(placement),
+      // 技能槽全锁定时选中技能 → 飘字提示（节点在 HUD 名下 → 由 HUD 写它的表现）
+      onSkillAllLocked: () => this.uiView?.showFloatText('技能槽已全部锁定，先解锁再选技能'),
     }, () => this.config?.relicPool ?? [])
     this.buffShop = new BuffShop({
       getHero: () => this.hero,
@@ -247,26 +257,27 @@ export class Scene_Game_Stage extends BaseView {
       spendGold: (amount) => this.spendGold(amount),
       playAd: (placement) => this.playRewardAd(placement),
     })
+    // 技能槽：等级上限于配置（abilities.json 的 max_level），英雄自带/肉鸽技能都靠它
+    this.skillSlots = new SkillSlots({
+      getHero: () => this.hero,
+      getMaxLevel: (skillId) => {
+        const cfg = ShopConfig.getAbility(skillId)
+        return cfg ? ShopConfig.getSkillMaxLevel(cfg) : 1
+      },
+      hasSkill: (skillId) => !!ShopConfig.getAbility(skillId),
+      // 槽位内容变了（升级 / 填槽 / 替换）→ 重新投影英雄技能列表，让 battleStore.heroSkills 不落后
+      // （技能是在商店面板里发的，不会顺带触发受伤/回血那条同步路径）
+      onChanged: () => this.syncHeroToStore(),
+    })
 
-    // 状态向下（provide）：面板 / item 在任意深度 inject 到的都是功能类自己的 ref，只读渲染
-    this.scope.provide(StageScopeKeys.HeroSelectList, this.heroSelect.candidates)
-    this.scope.provide(StageScopeKeys.HeroSelectPanelVisible, this.heroSelect.panelVisible)
-    this.scope.provide(StageScopeKeys.HeroSelectSelectedId, this.heroSelect.selectedId)
-    this.scope.provide(StageScopeKeys.HeroSelectRefreshCost, this.heroSelect.refreshCost)
-    this.scope.provide(StageScopeKeys.HeroSelectAdFreeLeft, this.heroSelect.adFreeLeft)
-
-    this.scope.provide(StageScopeKeys.RelicPanelVisible, this.relicShop.panelVisible)
-    this.scope.provide(StageScopeKeys.RelicSlots, this.relicShop.slots)
-    this.scope.provide(StageScopeKeys.RelicRollUsed, this.relicShop.rollUsed)
-    this.scope.provide(StageScopeKeys.RelicAdMode, this.relicShop.adMode)
-    this.scope.provide(StageScopeKeys.RelicRefreshCost, this.relicShop.refreshCost)
-    this.scope.provide(StageScopeKeys.RelicAdFreeLeft, this.relicShop.adFreeLeft)
-    
-    this.scope.provide(StageScopeKeys.BuffShopPanelVisible, this.buffShop.panelVisible)
-    this.scope.provide(StageScopeKeys.BuffShopSlots, this.buffShop.slots)
-    this.scope.provide(StageScopeKeys.BuffShopStacks, this.buffShop.stacks)
-    this.scope.provide(StageScopeKeys.BuffShopRefreshCost, this.buffShop.refreshCost)
-    this.scope.provide(StageScopeKeys.BuffShopAdFreeLeft, this.buffShop.adFreeLeft)
+    // 状态向下（provide）：**一个功能一个键，provide 的是功能实例（按只读门面声明类型）**，不是逐条裸 ref。
+    //  面板/item 在任意深度 inject 到的就是这个对象：只读渲染 + 问它要规则（如 `shop.refreshGate()`），
+    //  规则因此只有一处 —— 曾经拆成 19 条 ref，导致「刷新按钮能不能点」在 3 个面板里各抄了一遍。
+    //  门面类型见各功能类（`HeroSelectVM` / `RelicShopVM` / `BuffShopVM` / `SkillSlotsVM`）。
+    this.scope.provide(StageScopeKeys.HeroSelect, this.heroSelect)
+    this.scope.provide(StageScopeKeys.RelicShop, this.relicShop)
+    this.scope.provide(StageScopeKeys.BuffShop, this.buffShop)
+    this.scope.provide(StageScopeKeys.SkillSlots, this.skillSlots)
 
     // 通知向上（scope.on）：面板/item 的 emit 沿 node.parent 冒泡到这里，本场景只做转交，规则全在功能类里
     this.scope.on(StageScopeEvents.HeroRefresh, () => this.heroSelect.refresh(), this)
@@ -275,13 +286,16 @@ export class Scene_Game_Stage extends BaseView {
     this.scope.on(StageScopeEvents.RelicPicked, (relicId: number, viaAd: boolean) => this.relicShop.pick(relicId, viaAd), this)
     this.scope.on(StageScopeEvents.BuffShopRefresh, () => this.buffShop.refresh(), this)
     this.scope.on(StageScopeEvents.BuffShopBought, (buffId: number) => this.buffShop.buy(buffId), this)
+    // 技能槽：格子上的锁图标被点 → 由本场景改真源（格子自己不改状态）；被拒（槽 0 永久锁定）就飘字说明
+    this.scope.on(StageScopeEvents.SkillLockToggled, (index: number) => this.toggleSkillSlotLock(index), this)
 
     // 面板显隐：功能类只写自己的 `panelVisible`，**节点 active 由持有节点的视图写** ——
-    //   遗物面板节点在本场景名下 → 这里写；选英雄 / Buff 面板节点在 HUD 名下 → HUD 写（同一组 ref）
+    //   遗物面板节点在本场景名下 → 这里写；选英雄 / Buff 面板节点在 HUD 名下 → HUD 写（同一组门面）
     this.scope.watch(() => this.relicShop.panelVisible.value, () => this.applyRelicPanelVisible())
 
     this.applyRelicPanelVisible()
-    // 费用与广告次数的初始投影（面板的置灰判据读它；换局 / 换英雄后还要再同步一次）
+    // 费用与广告次数的初始投影（面板问门面要判据 `refreshGate()`，判据读的就是这两个 ref；
+    //   换局 / 换英雄后还要再同步一次）
     this.relicShop.syncCost()
     this.buffShop.syncCost()
   }
@@ -317,6 +331,18 @@ export class Scene_Game_Stage extends BaseView {
   /** 入口按钮点击 → 交给 RelicShop 开面板（节点显隐由 applyRelicPanelVisible 统一写） */
   openRelicPanel(): void {
     this.relicShop?.open()
+  }
+
+  /**
+   * 技能槽的锁图标被点：**真源在 `SkillSlots`，只有本场景能改**（格子组件只上报下标）。
+   *
+   * 被拒的情形（槽 0 = 英雄专属技能，按设计稿永久锁定）→ 飘字告诉玩家为什么点不动，
+   * 而不是静默无反应 —— 「点不动又不说」是最容易被当成 bug 的交互。
+   */
+  private toggleSkillSlotLock(index: number): void {
+    if (!this.skillSlots) return;
+    if (this.skillSlots.toggleLock(index)) return;
+    if (index === 0) this.uiView?.showFloatText('英雄专属技能槽不可解锁');
   }
 
   close() {
@@ -368,6 +394,18 @@ export class Scene_Game_Stage extends BaseView {
     // 换局：最终 Boss 引用作废（旧 ctx 的实体）
     this.finalBoss = null;
 
+    // 换局：上一局的英雄实体**必须一并作废**（本函数是全项目唯一的换局入口）。
+    //   ① 逻辑侧：`hero` 不清 → `update` 的守卫（`!this.hero` 早退）形同虚设，而上一局阵亡的英雄
+    //      `IsDead()` 恒为 true → **新一局第一帧**就命中那条兜底断言 → `endRun('defeat','hero_dead_fallback')`
+    //      → 结算面板立刻又弹出来（表现：「点确定退出后再进游戏，显示的是上一次的结算页面」），
+    //      而且顺带白送一次局外经验（settleMetaRewards 会再跑一遍）。
+    //      上一局是胜利（英雄还活着）时不会弹面板，但会带着旧英雄一路 `tick`，同样不对。
+    //   ② 表现侧：解绑 hero 节点的受击订阅（节点保留，等 selectHero 重新 bind）——
+    //      顺带保证 selectHero 里 `if (hero.entity) RemoveEntity(...)` 不会去动**别的 ctx** 的实体。
+    //   清掉之后不变式成立：`hero` 要么是 null，要么属于当前 `ctx`。
+    this.hero = null;
+    this.heroNode?.getComponent(Hero)?.unbind();
+
     // this.monsters = [];
     this.spawnIndex = 0
     this.spawnMaxIndex = 5
@@ -380,6 +418,8 @@ export class Scene_Game_Stage extends BaseView {
     this.heroSelect?.reset();
     this.relicShop?.reset();
     this.buffShop?.reset();
+    // 换局：技能槽整体复位（技能清空、只剩槽 0 锁定）；技能本身随英雄实体一起重建
+    this.skillSlots?.reset();
     this.lastRelicBagKey = '';
     // 换局：普攻锁定目标随战斗上下文作废（避免指向上一局的实体）
     this.attackTarget = null;
@@ -408,11 +448,12 @@ export class Scene_Game_Stage extends BaseView {
     // 第二个参数 = 参照节点：飘字不做坐标转换，靠"层节点与 monsterParent 同坐标系"这个契约，这里用于自检
     this.ensureDamageTextLayer().bind(this.ctx, this.monsterParent);
 
-    // 注册脚本逃逸口（闪电链等代码类技能 / 鹰眼·反击·雷核等代码类 Modifier）
+    // 注册脚本逃逸口（闪电链等代码类技能 / 鹰眼·反击·雷核·爆头等代码类 Modifier）
     this.ctx.scriptRegistry.registerClass('Ability_LightningChain', Ability_LightningChain);
     this.ctx.scriptRegistry.registerClass('Modifier_EagleEye', Modifier_EagleEye);
     this.ctx.scriptRegistry.registerClass('Modifier_CounterStorm', Modifier_CounterStorm);
     this.ctx.scriptRegistry.registerClass('Modifier_ZeusThunder', Modifier_ZeusThunder);
+    this.ctx.scriptRegistry.registerClass('Modifier_MusketHeadshot', Modifier_MusketHeadshot);
 
     // 注册怪物 AI（chase/wander/orbit/attack_stop/boss）
     initializeAI();
@@ -595,6 +636,8 @@ export class Scene_Game_Stage extends BaseView {
     this.updateProjectiles();
     // 4. 推进核心战斗系统（Modifier 计时 / DoT / 冷却 / 普攻冷却 / 弹道）
     this.ctx.Tick(dt);
+    // 4.1 技能栏冷却投影：把 4 个槽的 CD 进度写给 UI（必须排在 ctx.Tick 之后，读到的是本帧的冷却）
+    this.skillSlots?.tick();
 
     // 6. 商店：遗物被动的独立冷却由 ModifierSystem 随 ctx.Tick 一起推进，无需额外处理
     // this.shopTimer -= dt;
@@ -730,6 +773,13 @@ export class Scene_Game_Stage extends BaseView {
     else this.heroRelics.RebindOwner(this.hero);
     // Buff 商店买过的层数同样按层重放（层数真源在 BuffShop，不在英雄实体上）
     this.buffShop?.rebind();
+
+    // 技能槽：英雄自带技能（不含普攻）按顺序占最低的几个索引（槽 0 = 英雄专属技能，永久锁定），
+    // 已抽到的肉鸽技能尽量留在原槽并重新挂到新实体上（与遗物/Buff 一样：换英雄不丢）
+    const unitSkillIds = this.hero.abilities.getAll()
+      .filter((a) => !a.isAttack())
+      .map((a) => a.getId());
+    this.skillSlots?.attachHero(this.hero, unitSkillIds);
 
     // 遗物面板的费用/广告次数（换局/换英雄后都要重算，面板按它决定刷新按钮置灰）
     this.relicShop?.syncCost();
@@ -1294,7 +1344,10 @@ export class Scene_Game_Stage extends BaseView {
 
   /** 面板节点显隐的**唯一写入口**（面板只写 panelVisible 这个开关，不自己动自己的节点） */
   private applyRelicPanelVisible(): void {
-    if (this.relicPanelNode) this.relicPanelNode.active = this.relicShop.panelVisible.value;
+    const visible = this.relicShop.panelVisible.value;
+    if (this.relicPanelNode) this.relicPanelNode.active = visible;
+    // 技能详情面板常驻、渲染层级在遗物面板之上 → 面板一开就把它收掉（它由 HUD 持有）
+    if (visible) this.uiView?.hideSkillDetail();
   }
 
   /**

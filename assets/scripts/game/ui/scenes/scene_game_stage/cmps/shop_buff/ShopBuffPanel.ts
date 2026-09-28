@@ -1,30 +1,24 @@
-import { _decorator, Button, Color, Label, Node, Sprite } from 'cc';
-import { type Ref } from 'db://assets/scripts/platform/reactivity';
+import { _decorator, Button, Label, Node } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
-import { useBattleStore } from '../../../../../stores';
-import { StageScopeEvents, StageScopeKeys } from '../UiScopeKeys';
+import { StageScopeEvents, StageScopeKeys } from '../StageScope';
+import { applyRefreshButton } from '../RefreshButtonView';
 import { ShopBuffItem } from './ShopBuffItem';
+import { refreshButtonKey } from '../../../../../battle/RefreshGate';
+import type { BuffShopVM } from '../../../../../battle/BuffShop';
 
 const { ccclass, property } = _decorator;
-
-/** 刷新按钮可点 / 置灰时的配色（按钮底图是深色 Sprite，置灰就调亮它） */
-const REFRESH_BTN_ENABLED_COLOR = new Color(255, 255, 255, 255);
-const REFRESH_BTN_DISABLED_COLOR = new Color(124, 124, 124, 255);
-/** 费用文字的两种颜色：够钱（原色）/ 不够钱（红） */
-const COST_ENOUGH_COLOR = new Color(106, 105, 107, 255);
-const COST_LACK_COLOR = new Color(255, 60, 60, 255);
 
 /**
  * 击杀商店（Buff 商店）面板（内嵌在战斗 HUD 预制件里的 UI 页面 → 继承 `UIWidget`，**不加 @uiview**）
  *
  * ── 职责边界（业务全在 `BuffShop`（game/battle/BuffShop.ts），本面板只管"摆"和"通知"）──
- *   · **渲染**：把注入的 `BuffShopSlots`（4 个摊位）铺到 item 上；空摊收起
- *   · **置灰**：刷新按钮可用性 = 「金币 ≥ 刷新费用」或「还有广告免费刷新次数」
- *   · **通知**：点刷新 → `emit(BuffShopRefresh)`；关面板 → 写 `BuffShopPanelVisible=false`
+ *   · **渲染**：把门面里的 `slots`（4 个摊位）铺到 item 上；空摊收起
+ *   · **置灰**：刷新按钮可用性**不再自己算** —— 问门面 `buffShop.refreshGate()`（判据唯一真源）
+ *   · **通知**：点刷新 → `emit(BuffShopRefresh)`；关面板 → 写门面的 `panelVisible=false`
  *   · 每个摊位的「买一层」由 item 自己 `emit(BuffShopBought, buffId)` 冒泡到宿主，**不经过本面板**
  *
  * 与遗物面板的差别：摊位是**可反复购买**的（层数封顶），所以没有"本次已选过"的置灰态 ——
- * 每格的可用性由 item 自己按「层数 + 金币」算（层数从注入的 `BuffShopStacks` 读，买完成功会自动刷新）。
+ * 每格的可用性由 item 自己问门面（`stackOf / maxStackOf / nextPriceOf / canBuy`），买完成功会自动刷新。
  */
 @ccclass('ShopBuffPanel')
 export class ShopBuffPanel extends UIWidget {
@@ -45,25 +39,17 @@ export class ShopBuffPanel extends UIWidget {
     @property(Node)
     closeBtnNode: Node = null;
 
-    battleStore = useBattleStore();
-
     /** 摊位上的 item 组件（首次刷新时缓存一次） */
     private items: ShopBuffItem[] = [];
 
-    /* 宿主注入的页面级状态（=`BuffShop` 的 ref，场景在 onLoad 里 provide） */
-    /** 4 个摊位的 Buff id（0 = 空摊） */
-    private slots: Ref<number[]> = null;
-    /** 面板显隐（面板只写它，节点显隐由持有节点的 HUD 统一写） */
-    private panelVisible: Ref<boolean> = null;
-    /** 刷新费用 / 剩余广告免费刷新次数 */
-    private refreshCost: Ref<number> = null;
-    private adFreeLeft: Ref<number> = null;
+    /** 宿主注入的**功能门面**（=`BuffShop` 实例；场景在 onLoad 里 provide → onInit 注入得到） */
+    private shop: BuffShopVM = null;
 
     protected onInit(): void {
-        this.slots = this.inject<Ref<number[]>>(StageScopeKeys.BuffShopSlots, null);
-        this.panelVisible = this.inject<Ref<boolean>>(StageScopeKeys.BuffShopPanelVisible, null);
-        this.refreshCost = this.inject<Ref<number>>(StageScopeKeys.BuffShopRefreshCost, null);
-        this.adFreeLeft = this.inject<Ref<number>>(StageScopeKeys.BuffShopAdFreeLeft, null);
+        this.shop = this.inject<BuffShopVM>(StageScopeKeys.BuffShop, null);
+        if (!this.shop) {
+            ezgame.warn('[Buff商店面板] 没注入到 BuffShop 门面（不在 Scene_Game_Stage 子树下？），面板不会刷新');
+        }
 
         // 缓存 item（一次即可：摊位节点是预制件里摆死的 4 个）
         if (this.itemListNode) {
@@ -75,22 +61,16 @@ export class ShopBuffPanel extends UIWidget {
         if (!this.items.length) {
             ezgame.warn('[Buff商店面板] items 子节点上没有 ShopBuffItem 组件，面板不会有内容');
         }
-        if (!this.slots) {
-            ezgame.warn('[Buff商店面板] 没注入到 BuffShopSlots（不在 Scene_Game_Stage 子树下？），面板不会刷新');
-        }
 
         // 节点事件：一辈子只绑一次，onDispose 成对 off
         this.refreshBtnNode?.on(Button.EventType.CLICK, this.onClickRefresh, this);
         this.closeBtnNode?.on(Button.EventType.CLICK, this.onClickClose, this);
 
         // watcher 交给 scope 托管
-        if (this.slots) this.scope.watch(() => this.slots.value, () => this.refreshItems());
+        this.scope.watch(() => this.shop?.slots.value, () => this.refreshItems());
+        // 刷新按钮：watch **绘制指纹**（判据 + 费用），判据没变就不重画
         this.scope.watch(
-            [
-                () => this.battleStore.gold,
-                () => this.refreshCost?.value ?? 0,
-                () => this.adFreeLeft?.value ?? 0,
-            ],
+            () => refreshButtonKey(this.shop?.refreshGate(), this.shop?.refreshCost.value ?? 0),
             () => this.refreshRefreshButton(),
         );
     }
@@ -111,42 +91,24 @@ export class ShopBuffPanel extends UIWidget {
      * 刷新（宿主与各个 watcher 的公共出口）
      * =================================================================== */
 
-    /** 把 4 个摊位铺到 item 上（空摊收起；每格的层数/价格/置灰由 item 自己按注入状态算） */
+    /** 把 4 个摊位铺到 item 上（空摊收起；每格的层数/价格/置灰由 item 自己问门面） */
     private refreshItems(): void {
-        const slots = this.slots ? this.slots.value : [];
+        const slots = this.shop ? this.shop.slots.value : [];
         for (let i = 0; i < this.items.length; i++) {
             this.items[i].setItemInfo(Number(slots?.[i] ?? 0));
         }
     }
 
     /**
-     * 刷新按钮状态：金币够 → 可点（显示「刷新」+ 费用）；
-     * 金币不够但还有广告免费次数 → 也可点（显示「看广告」）；两者都不行 → 置灰不可点。
-     * ⚠ 判据必须与 `BuffShop.refresh()` 里的扣费逻辑完全一致。
+     * 刷新按钮的表现：判据来自 `BuffShop.refreshGate()`（**唯一真源**，与 `refresh()` 的准入同一份），
+     * 本面板只负责把判据画到节点上（配色/文案的实现在 `RefreshButtonView`）。
      */
     private refreshRefreshButton(): void {
-        const cost = this.refreshCost ? this.refreshCost.value : 0;
-        const gold = this.battleStore.gold;
-        const adLeft = this.adFreeLeft ? this.adFreeLeft.value : 0;
-
-        const canPay = gold >= cost;
-        const canAdRefresh = !canPay && adLeft > 0;
-        const enabled = canPay || canAdRefresh;
-
-        if (this.refreshBtnNode) {
-            const btn = this.refreshBtnNode.getComponent(Button);
-            if (btn) btn.interactable = enabled;
-            const sprite = this.refreshBtnNode.getComponent(Sprite);
-            if (sprite) sprite.color = enabled ? REFRESH_BTN_ENABLED_COLOR.clone() : REFRESH_BTN_DISABLED_COLOR.clone();
-        }
-        if (this.refreshBtnLabel) {
-            this.refreshBtnLabel.string = canPay ? '刷新' : (canAdRefresh ? '看广告' : '刷新');
-            this.refreshBtnLabel.color = enabled ? REFRESH_BTN_ENABLED_COLOR.clone() : REFRESH_BTN_DISABLED_COLOR.clone();
-        }
-        if (this.refreshCostLabel) {
-            this.refreshCostLabel.string = `${cost}`;
-            this.refreshCostLabel.color = canPay ? COST_ENOUGH_COLOR.clone() : COST_LACK_COLOR.clone();
-        }
+        applyRefreshButton(
+            { btnNode: this.refreshBtnNode, btnLabel: this.refreshBtnLabel, costLabel: this.refreshCostLabel },
+            this.shop ? this.shop.refreshGate() : null,
+            this.shop ? this.shop.refreshCost.value : 0,
+        );
     }
 
     /* ===================================================================
@@ -160,6 +122,6 @@ export class ShopBuffPanel extends UIWidget {
 
     /** 点关闭：只翻页面级开关（面板节点显隐由持有节点的 HUD 统一写） */
     private onClickClose(): void {
-        if (this.panelVisible) this.panelVisible.value = false;
+        if (this.shop) this.shop.panelVisible.value = false;
     }
 }

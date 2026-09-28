@@ -28,7 +28,6 @@
       ]
     ],
     "abilities": [
-      12,
       16
     ],
     "attack_interval": 1,
@@ -178,8 +177,7 @@
       ]
     ],
     "abilities": [
-      17,
-      18
+      17
     ],
     "attack_interval": 1.25,
     "gold": 0,

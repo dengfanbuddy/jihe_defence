@@ -66,6 +66,15 @@ export type {
     ConfigAction,
     AbilityCfg,
     AbilityBehavior,
+    AbilityScope,
+    AbilityRarity,
+} from '../excel_table/Tb_AbilityConfig';
+export {
+    abilityInShop,
+    abilityMaxLevel,
+    abilityEffectsAtLevel,
+    abilityLevelDesc,
+    AbilityCfgContainer,
 } from '../excel_table/Tb_AbilityConfig';
 export type {
     RelicCfg,
@@ -75,9 +84,6 @@ export type {
 export type {
     UnitCfg,
 } from '../excel_table/Tb_UnitConfig';
-export type {
-    ShopSkillCfg,
-} from '../excel_table/Tb_ShopSkillConfig';
 export type {
     KillBuffCfg,
     KillBuffStat,
@@ -89,21 +95,31 @@ export type {
 // ============ 肉鸽 / 局内商店（每个功能一个类，规则与流程分开） ============
 //
 // 分层：UI（面板/item，只渲染与上报）→ 功能类（本层，只管流程与状态）→ 规则/系统（下方）
-//   · RelicShop   遗物商店：抽什么 / 花多少 / 能不能选 / 要不要广告 / 选中后入背包
-//   · RelicDraw   遗物抽取规则（纯函数；品质权重 / 阶段门槛 / 越阶 / 去重 / 费用与广告额度）
+//   · RelicShop   肉鸽商店：抽什么（遗物 + 技能混合池）/ 花多少 / 能不能选 / 要不要广告 / 选中后发放
+//   · RelicDraw   抽取规则（纯函数；品质权重 / 阶段门槛 / 越阶 / 种类权重 / 技能保底 / 去重 / 费用与广告额度）
+//   · SkillSlots  技能槽：4 个格子的技能与等级 / 锁定状态 / 新技能落槽规则 / 冷却投影
 //   · HeroSelect  选英雄：候选池 / 刷新（金币或广告）/ 选中 → 回调宿主创建英雄
 //   · BuffShop    击杀商店 Buff：摊位抽取 / 价格与层数 / 购买 → 属性当场生效
 //   · RelicSystem 遗物背包 + 属性（BattleEquipSystem，一件遗物 = 一组永久 Modifier）
 
 export { RelicShop } from './RelicShop';
-export type { RelicShopDeps } from './RelicShop';
+export type { RelicShopDeps, ShopSlotVM, RelicShopVM } from './RelicShop';
 export { RelicDraw } from './RelicDraw';
-export type { RelicOption } from './RelicDraw';
+export type { ShopOption, ShopOptionKind } from './RelicDraw';
+export { evaluateRefreshGate, refreshButtonKey } from './RefreshGate';
+export type { RefreshGate } from './RefreshGate';
+export {
+    SkillSlots,
+    SKILL_SLOT_COUNT,
+    HERO_SLOT_INDEX,
+} from './SkillSlots';
+export type { SkillSlotState, SkillGrantResult, SkillSlotsDeps, SkillOwner, SkillSlotsVM } from './SkillSlots';
+export { describeAbility, describeBasics, describeEffects, describeEffectsAtLevel } from './AbilityDesc';
 export { HeroSelect } from './HeroSelect';
-export type { HeroSelectDeps } from './HeroSelect';
+export type { HeroSelectDeps, HeroSelectVM } from './HeroSelect';
 export { BuffShop } from './BuffShop';
-export type { BuffShopDeps } from './BuffShop';
-export { ShopConfig, SHOP_RARITY_ORDER, SHOP_RELIC_ID_MIN, SHOP_RELIC_ID_MAX } from '../data/configs/ShopConfig';
+export type { BuffShopDeps, BuffShopVM } from './BuffShop';
+export { ShopConfig, SHOP_RARITY_ORDER, SHOP_RELIC_ID_MIN, SHOP_RELIC_ID_MAX, SHOP_SKILL_ID_MIN, SHOP_SKILL_ID_MAX } from '../data/configs/ShopConfig';
 export type { ShopRarity } from '../data/configs/ShopConfig';
 export { BattleEquip, RelicSystem } from './BattleEquipSystem';
 export { Ability_LightningChain } from './ScriptedAbilities';

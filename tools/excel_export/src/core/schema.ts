@@ -9,7 +9,7 @@ import type { FieldDef, TableSchema } from './types.ts';
 /** JSON 输出目录（相对项目根） */
 export const JSON_DIR = 'assets/resources/tb';
 
-/** 项目内置的权威表（战斗核心 7 张 + 肉鸽商店 4 张） */
+/** 项目内置的权威表（战斗核心 7 张 + 肉鸽商店 3 张） */
 export const TABLES: TableSchema[] = [
     // ==================== units：英雄 + 怪物统一实体表 ====================
     {
@@ -84,7 +84,15 @@ export const TABLES: TableSchema[] = [
         ],
     },
 
-    // ==================== abilities：技能表 ====================
+    // ==================== abilities：技能表（单位技能 + 肉鸽额外技能，一张表） ====================
+    //  2026-09 合并：原 `shop_skills` 表（30 个肉鸽额外技能）并入本表，靠 `scope` 区分技能出现在哪一侧：
+    //    scope=unit  单位自带（units.json 的 abilities 引用它）
+    //    scope=shop  肉鸽商店抽取池（额外技能，id 段 101~130）
+    //    scope=both  两侧都出
+    //  多级统一为「一行多级」：`max_level` 说明最高几级（1~3），`lv1/lv2/lv3` 是各级效果描述，
+    //  `effects` 是 1 级效果，`effects_lv2/effects_lv3` 是更高一级的**整体覆盖**（留空 = 沿用上一级）。
+    //  ⚠ 单位技能里那条老的 `upgrades_to` 链（火枪鹰眼 12→13→14→15、宙斯 19→20→21→22）保持不变：
+    //    它们一行 = 一个形态、`max_level=1`，靠换 id 升阶；商店技能靠 `max_level` 原地升级。两套并存，按行各自生效。
     {
         name: 'abilities',
         label: '技能表',
@@ -93,8 +101,15 @@ export const TABLES: TableSchema[] = [
         excelFile: 'abilities.xlsx',
         primaryKey: 'id',
         fields: [
-            { key: 'id', type: 'int', desc: '技能ID', required: true },
+            { key: 'id', type: 'int', desc: '技能ID（单位技能 1~99 / 肉鸽额外技能 101~130）', required: true },
             { key: 'name', type: 'string', desc: '技能名', required: true },
+            { key: 'code', type: 'string', desc: '唯一英文代码（程序引用用；单位技能可留空）' },
+            { key: 'name_en', type: 'string', desc: '英文名（展示/校对用）' },
+            {
+                key: 'scope', type: 'enum', required: true,
+                desc: '归属：unit=单位自带（units.json 的 abilities 引用）· shop=肉鸽商店抽取池 · both=两侧都出',
+                enumValues: ['unit', 'shop', 'both'],
+            },
             { key: 'icon', type: 'string', desc: '图标资源路径' },
             {
                 key: 'behavior', type: 'enum', desc: '施放行为', required: true,
@@ -120,8 +135,31 @@ export const TABLES: TableSchema[] = [
             { key: 'script_id', type: 'string', desc: '复杂逻辑代码类名（逃逸口）' },
             { key: 'level', type: 'int', desc: '当前等级（预留）' },
             { key: 'level_damage', type: 'numberarray', desc: '每级伤害，如 20,40,60' },
-            { key: 'upgrades_to', type: 'int', desc: '升级形态的技能ID（抽到重复技能时整体替换）' },
+            { key: 'upgrades_to', type: 'int', desc: '升级形态的技能ID（**单位技能**的换 id 升阶链；肉鸽技能不用它，改用 max_level 原地升级）' },
             { key: 'projectile_prefab', type: 'string', desc: '技能弹道预制件路径' },
+
+            /* ── 以下为「一行多级」+ 商店抽取所需列（原 shop_skills 表并入） ── */
+
+            {
+                key: 'rarity', type: 'enum', desc: '品质（**只有商店技能填**：白/蓝/黄/红，同 relics.rarity 四档；单位技能留空）',
+                enumValues: ['common', 'rare', 'epic', 'legendary'],
+            },
+            { key: 'stage', type: 'int', desc: '抽取阶段门槛 1~4（商店技能必填；阶段推导同 shop_constants.stageMaxByPhase）' },
+            { key: 'weight', type: 'int', desc: '同品质内的抽取权重（留空按 1）' },
+            { key: 'max_level', type: 'int', desc: '最高等级 1~3（重复抽到同名技能 +1 级，满级后不再进池；单位技能填 1）' },
+            { key: 'tags', type: 'stringarray', desc: '流派标签' },
+            { key: 'lv1', type: 'string', desc: '1 级效果描述（给玩家看；留空时运行时按 cooldown/effects 自动拼一句话兜底）' },
+            { key: 'lv2', type: 'string', desc: '2 级效果描述' },
+            { key: 'lv3', type: 'string', desc: '3 级效果描述（满级）' },
+            {
+                key: 'effects_lv2', type: 'json',
+                desc: '2 级效果**整体覆盖** `effects`（留空 = 沿用 1 级；动作类型见 ConfigAction）',
+            },
+            {
+                key: 'effects_lv3', type: 'json',
+                desc: '3 级效果**整体覆盖**（留空 = 沿用上一级）',
+            },
+            { key: 'synergy', type: 'string', desc: '联动说明（设计参考，不参与结算）' },
         ],
     },
 
@@ -207,35 +245,7 @@ export const TABLES: TableSchema[] = [
 
     // ==================== （equipments 表已并入 relics：同一件遗物的局外版） ====================
 
-    // ==================== shop_skills：肉鸽额外技能表 ====================
-    {
-        name: 'shop_skills',
-        label: '肉鸽额外技能表',
-        format: 'array',
-        jsonPath: `${JSON_DIR}/shop_skills.json`,
-        excelFile: 'shop_skills.xlsx',
-        primaryKey: 'id',
-        fields: [
-            { key: 'id', type: 'int', desc: '技能ID', required: true },
-            { key: 'code', type: 'string', desc: '唯一代码（英文，程序引用用）', required: true },
-            { key: 'name', type: 'string', desc: '名称', required: true },
-            { key: 'name_en', type: 'string', desc: '英文名' },
-            {
-                key: 'rarity', type: 'enum', desc: '品质（白/蓝/黄/红）', required: true,
-                enumValues: ['common', 'rare', 'epic', 'legendary'],
-            },
-            { key: 'stage', type: 'int', desc: '所属阶段 1~4（抽取门槛，同 shop_items.stage）' },
-            { key: 'weight', type: 'int', desc: '同品质内的抽取权重' },
-            { key: 'max_level', type: 'int', desc: '可升级层数（重复抽到同名技能 +1 级，满级后不可再选）' },
-            { key: 'tags', type: 'stringarray', desc: '流派标签' },
-            { key: 'lv1', type: 'string', desc: '1 级效果描述' },
-            { key: 'lv2', type: 'string', desc: '2 级效果描述' },
-            { key: 'lv3', type: 'string', desc: '3 级效果描述（满级）' },
-            { key: 'synergy', type: 'string', desc: '联动说明（设计参考，不参与结算）' },
-            { key: 'effects', type: 'json', desc: '效果 JSON 数组（走 EffectExecutor 动作；设计稿阶段多留空，复杂机制用 script_id）' },
-            { key: 'script_id', type: 'string', desc: '复杂逻辑代码类名（逃逸口）' },
-        ],
-    },
+    // ==================== （shop_skills 表已并入 abilities：同一张技能表，靠 scope 区分归属） ====================
 
     // ==================== kill_buffs：击杀商店 Buff 表 ====================
     {
@@ -384,6 +394,7 @@ export const TABLES: TableSchema[] = [
             phaseDefaultRemainingTime: '阶段默认剩余时间（秒）',
             skillSlotCount: '技能槽数量',
             skillSlotUnlockLevels: '技能槽解锁等级（数组）',
+            pxPerMeter: '1 米 = 多少像素（距离换算口径：设计稿/文案里的 m × 本值 = 配表像素，用于击退/牵引等位移）',
         },
     },
 ];

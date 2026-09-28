@@ -2,7 +2,7 @@ import { _decorator, Component, game, Node } from 'cc';
 import UIManager from '../../platform/ui/UIManager';
 import { TbRoot } from '../../platform/excel_table/TbRoot';
 import { BattleConstUtil } from '../battle/core/BattleConstUtil';
-// 肉鸽商店配置（shop_constants / shop_draw / shop_items / shop_skills / kill_buffs）：
+// 肉鸽商店配置（shop_constants / shop_draw / relics / abilities(含肉鸽技能) / kill_buffs）：
 // 以副作用导入触发 @tb_config 装饰器注册，必须在 loadTbs() 之前完成
 import '../data/configs/ShopConfig';
 import { Scene_Menu } from '../ui/scenes/scene_menu/Scene_Menu';

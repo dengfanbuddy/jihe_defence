@@ -10,8 +10,8 @@
  *
  * 用法：node tools/excel_export/scripts/check-shop-draw.mjs
  *
- * ⚠ 本脚本复刻了 battle/ShopSystem.ts 的抽取判定（Node 里跑不起 cc 依赖）。
- *   改 ShopSystem 的抽取逻辑时，请同步这里的判定，否则体检结果会失真。
+ * ⚠ 本脚本复刻了 battle/RelicDraw.ts 的抽取判定（Node 里跑不起 cc 依赖）。
+ *   改 RelicDraw 的抽取逻辑时，请同步这里的判定，否则体检结果会失真。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +23,11 @@ const TB = path.resolve(HERE, '../../..', 'assets/resources/tb');
 const read = (name) => JSON.parse(fs.readFileSync(path.join(TB, `${name}.json`), 'utf8'));
 const consts = read('shop_constants');
 const drawBands = read('shop_draw');
-const skills = read('shop_skills');
+// 肉鸽额外技能 = abilities.json 里 scope 含 shop 的那些（原 shop_skills 表已并入 abilities，id 段 101~130）
+const abilities = read('abilities');
+const skills = abilities
+    .filter(a => a.scope === 'shop' || a.scope === 'both')
+    .map(a => ({ id: a.id, name: a.name, rarity: a.rarity, stage: a.stage, weight: a.weight ?? 1, max_level: a.max_level ?? 1 }));
 // 商店道具 = 遗物里**有局内版**的那些（scope=inner 或 both，id 1001~1293，共 293 件）；
 // id < 1000 是手工 demo 遗物，`scope="outer"`（只有局外版，如 id 1294~1302）不进商店池 ——
 // 判定口径必须与 game/data/configs/ShopConfig.ts 的 getRelics() 一致
@@ -84,7 +88,8 @@ function drawOnce(phase, level, owned) {
         for (const sk of skills) {
             if (sk.rarity !== rarity || sk.stage > allowed) continue;
             if (used.has(`skill:${sk.id}`)) continue;
-            if (owned.skills.has(sk.id)) continue;
+            // 重复抽到同名技能 = 升 1 级；**满级之后才**从池子里去掉（max_level 封顶）
+            if ((owned.skills.get(sk.id) ?? 0) >= (sk.max_level ?? 1)) continue;
             byKind.skill.push({ kind: 'skill', id: sk.id, rarity, w: sk.weight });
         }
 
@@ -103,7 +108,9 @@ function drawOnce(phase, level, owned) {
     // 技能保底
     let haveSkill = picked.filter(p => p.kind === 'skill').length;
     while (haveSkill < consts.guaranteeSkillPerDraw) {
-        const pool = skills.filter(s => s.stage <= cap && !used.has(`skill:${s.id}`) && !owned.skills.has(s.id));
+        const pool = skills.filter(s => s.stage <= cap
+            && !used.has(`skill:${s.id}`)
+            && (owned.skills.get(s.id) ?? 0) < (s.max_level ?? 1));
         if (!pool.length) break;
         const s = pool[Math.floor(Math.random() * pool.length)];
         const at = picked.map(p => p.kind).lastIndexOf('relic');
@@ -135,7 +142,7 @@ for (const phase of phases) {
         let upgradeTotal = 0;
 
         for (let n = 0; n < RUNS; n++) {
-            const { picked, upgrades } = drawOnce(phase, level, { relics: new Set(), skills: new Set() });
+            const { picked, upgrades } = drawOnce(phase, level, { relics: new Set(), skills: new Map() });
             upgradeTotal += upgrades;
             minOpts = Math.min(minOpts, picked.length);
             if (new Set(picked.map(p => `${p.kind}:${p.id}`)).size !== picked.length) {
@@ -166,7 +173,8 @@ for (const phase of phases) {
 // 池子耗尽
 const drained = drawOnce(4, 30, {
     relics: new Set(relics.map(r => r.id)),
-    skills: new Set(skills.map(s => s.id)),
+    // 技能全满级（max_level）才算「抽干」
+    skills: new Map(skills.map(s => [s.id, s.max_level ?? 1])),
 });
 console.log(`\n池子耗尽（全部已获得）：抽到 ${drained.picked.length} 个选项（预期 0 → UI 需提示无可用内容）`);
 if (drained.picked.length !== 0) problems.push('池子耗尽时仍抽出了选项，遗物唯一性 / 技能满级判定可能有漏');

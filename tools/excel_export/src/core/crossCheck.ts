@@ -9,8 +9,9 @@
  *   - modifiers.effects 的声明式效果类型 / 状态名 / 周期间隔 → EffectTypes + StateType
  *   - relics.scope（inner/outer/both）与两侧的 description_* 与 modifiers_* 列的配套关系
  *   - relics.modifiers_inner / modifiers_outer（同一件遗物的局内版 + 局外版）的 Modifier 引用与 kv 参数 → modifiers 表的效果模板
+ *   - abilities.scope（unit/shop/both）：含 shop 时必须配齐 rarity/stage/max_level（抽取必需列）
+ *   - abilities.effects / effects_lv2 / effects_lv3 的动作类型与 Modifier 引用 → modifiers 表
  *   - kill_buffs.attr_id 的属性编号 → attributes 表
- *   - shop_skills.effects 的动作类型与 Modifier 引用 → modifiers 表
  *
  * 只导部分表时（--table），被引用表若不在本次范围内，会回退读取磁盘上的 JSON；
  * 两者都没有则跳过该组校验并给出说明，避免误报。
@@ -50,6 +51,9 @@ const EVENT_NAMES = new Set([
 const RELIC_SCOPES = new Set(['inner', 'outer', 'both']);
 /** 遗物局外分类（hero_specific 已随英雄专属装备删除，2026-07） */
 const RELIC_CATEGORIES = new Set(['d2_basic', 'd2_upgrade', 'd2_neutral']);
+
+/** 技能归属：unit = 单位自带（units.json 的 abilities 引用）/ shop = 肉鸽商店抽取池 / both = 两侧都出 */
+const ABILITY_SCOPES = new Set(['unit', 'shop', 'both']);
 
 export interface TableOutput {
     schema: TableSchema;
@@ -203,12 +207,48 @@ export function crossCheck(outputs: Map<string, TableOutput>, report: Report, fa
         report.warn(`${emptyModifiers} 条 Modifier 既没有 effects/events 也没有 script_id（挂上去不产生任何效果）`);
     }
 
-    // ---------- abilities ----------
+    // ---------- abilities（单位技能 + 肉鸽额外技能，同一张表） ----------
+    let emptyShopSkills = 0;
     for (const { rec, where } of rowsOf('abilities')) {
         if (rec.upgrades_to !== undefined && rec.upgrades_to !== null) {
             checkId(rec.upgrades_to, abilityIds, '技能id(upgrades_to)', where);
         }
+        // 每级效果都是「动作数组」，逐级校验（effects=1 级 / effects_lv2 / effects_lv3=整体覆盖）
         checkActions(rec.effects, where, report, checkId, modifierIds);
+        checkActions(rec.effects_lv2, `${where}.effects_lv2`, report, checkId, modifierIds);
+        checkActions(rec.effects_lv3, `${where}.effects_lv3`, report, checkId, modifierIds);
+
+        // scope 必填：决定这个技能出现在哪一侧（单位自带 / 商店抽取池 / 两侧都出）
+        const scope = rec.scope;
+        if (scope === undefined || scope === null || scope === '') {
+            report.error(`${where}: 缺少 scope（必须 unit=单位自带 / shop=肉鸽商店 / both=两侧都出）`);
+        } else if (!ABILITY_SCOPES.has(String(scope))) {
+            report.error(`${where}: scope "${String(scope)}" 非法（必须 unit / shop / both）`);
+        }
+
+        const inShop = scope === 'shop' || scope === 'both';
+        if (inShop) {
+            // 商店技能靠这几个列进抽取池，缺一个就抽不出来 / 抽出来是空壳
+            for (const key of ['rarity', 'stage', 'max_level']) {
+                if (rec[key] === undefined || rec[key] === null) {
+                    report.error(`${where}: scope 含 shop，但缺少 ${key}（rarity/stage/max_level 都是抽取必需列）`);
+                }
+            }
+            if (typeof rec.max_level === 'number' && (rec.max_level < 1 || rec.max_level > 3)) {
+                report.warn(`${where}: max_level=${rec.max_level}，技能最高只支持 3 级`);
+            }
+            if (typeof rec.stage === 'number' && (rec.stage < 1 || rec.stage > 4)) {
+                report.warn(`${where}: stage=${rec.stage} 超出 1~4（阶段门槛只到 4）`);
+            }
+            // 只有文案、没有动作也没有 script_id = 抽到之后不会产生任何战斗效果
+            const hasAction = (Array.isArray(rec.effects) && rec.effects.length > 0)
+                || (Array.isArray(rec.effects_lv2) && rec.effects_lv2.length > 0)
+                || (Array.isArray(rec.effects_lv3) && rec.effects_lv3.length > 0);
+            if (!hasAction && !rec.script_id) emptyShopSkills++;
+        }
+    }
+    if (emptyShopSkills > 0) {
+        report.warn(`${emptyShopSkills} 个商店技能既没有 effects 也没有 script_id（能抽到、能进技能槽，但还没有战斗效果）`);
     }
 
     // ---------- relics（一件遗物一行：局内版 270 / 两侧都有 28 / 仅局外版 9） ----------
@@ -282,11 +322,6 @@ export function crossCheck(outputs: Map<string, TableOutput>, report: Report, fa
     }
     if (emptyRelics > 0) {
         report.warn(`${emptyRelics} 条遗物两侧都没有 modifiers 也没有 script_id（获得后不产生任何效果）`);
-    }
-
-    // ---------- shop_skills ----------
-    for (const { rec, where } of rowsOf('shop_skills')) {
-        checkActions(rec.effects, where, report, checkId, modifierIds);
     }
 
     // ---------- kill_buffs ----------

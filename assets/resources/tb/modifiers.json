@@ -376,19 +376,7 @@
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "events": [
-      {
-        "event": "on_attack_landed",
-        "actions": [
-          {
-            "type": "apply_modifier",
-            "modifier": 7,
-            "duration": 0.3,
-            "chance": 0.15
-          }
-        ]
-      }
-    ]
+    "script_id": "Modifier_MusketHeadshot"
   },
   {
     "id": 24,

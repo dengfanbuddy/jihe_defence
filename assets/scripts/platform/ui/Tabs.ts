@@ -9,7 +9,7 @@
  *
  * ── 通信规约（与 docs/UI框架使用说明.md §7 一致）──
  *   · tab 节点 / content 节点都是**自己的子项**，宿主直接持有并写状态是允许的（不需要跨组件 getComponent）
- *   · 选中态「真源」在 `Tabs` 这一份，向下用 `provide`（不塞全局 store：它是页面级 UI 状态，判据见 UiScopeKeys 头注释）
+ *   · 选中态「真源」在 `Tabs` 这一份，向下用 `provide`（不塞全局 store：它是页面级 UI 状态，判据见 `StageScope.ts` 头注释）
  *   · 兄弟互斥不靠互相引用：选中态只由 Tabs 一处决定，表现通过 `applyTabSelected` → `TabItem.setSelected` 下发
  *
  * ── 编辑器怎么摆（Tabs 挂在同时包含 tab 和 content 的**共同祖先**上）──

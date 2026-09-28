@@ -4,6 +4,7 @@ import { RandomUtil } from '../../platform/utils/RandomUtil';
 import { ShopConfig } from '../data/configs/ShopConfig';
 import { TbRoot } from '../../platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../excel_table/Tb_UnitConfig';
+import { evaluateRefreshGate, type RefreshGate } from './RefreshGate';
 
 /**
  * HeroSelect —— **选英雄功能的完整封装**（纯 TS，无 cc 依赖）
@@ -43,6 +44,32 @@ export interface HeroSelectDeps {
     playAd(placement: AdPlacement): Promise<boolean>;
     /** 真正把英雄放到场上（创建实体 / 换英雄 / 遗物重挂 / 同步 store）——宿主实现 */
     selectHero(heroId: number): void;
+}
+
+/**
+ * HeroSelect 向局内 UI 暴露的**只读面**（宿主 `provide` 的是实例本身，用这个接口约束面板能碰什么）。
+ *
+ * 为什么要有它：面板原来只 inject 到 4 个裸 `ref`，拿不到"规则"，于是
+ * 「刷新按钮能不能点」这条判据在面板里被**重抄了一遍**（三个面板三份，逐字相同）。
+ * 现在面板拿到的是这个门面，问它要判据（`refreshGate()`）即可。
+ *
+ * ⚠ **动作不在只读面上**：`open / close / refresh / pick / reset` 一律不上门面 ——
+ *   UI 只 `scope.emit` 向上，由宿主转交给功能类（本项目「状态向下、通知向上」的方向性约束）。
+ *   门面只声明"读什么"，所以面板写 `vm.pick(...)` 会编译报错。
+ */
+export interface HeroSelectVM {
+    /** 面板是否显示（面板/HUD 只翻这个开关，节点 active 由持有节点的视图写） */
+    readonly panelVisible: Ref<boolean>;
+    /** 本局候选英雄 id（0 = 空位） */
+    readonly candidates: Ref<number[]>;
+    /** 当前选中的英雄 id（item 之间的互斥高亮） */
+    readonly selectedId: Ref<number>;
+    /** 刷新一次的金币费用 */
+    readonly refreshCost: Ref<number>;
+    /** 剩余「广告免费刷新」次数 */
+    readonly adFreeLeft: Ref<number>;
+    /** 刷新按钮的判据（唯一真源；面板只画，不再自己重算） */
+    refreshGate(): RefreshGate;
 }
 
 export class HeroSelect {
@@ -126,18 +153,29 @@ export class HeroSelect {
         this.candidates.value = RandomUtil.getRandomElements(pool, this.candidateCount());
     }
 
-    /** 现在能不能刷新（金币够 或 还有广告免费次数）——面板置灰判据与这里同一套 */
+    /**
+     * 刷新按钮的判据（**唯一真源**）：金币够 → 直接扣钱；不够但还有广告免费次数 → 看广告；都没有 → 置灰。
+     *
+     * 面板（`HeroSelectPanel`）拿它画按钮，`refresh()` 拿它做准入 —— 两边永远同一个答案，
+     * 不会再出现"面板能点、点了没反应"或"面板置灰、其实还能广告刷新"。
+     */
+    refreshGate(): RefreshGate {
+        return evaluateRefreshGate(this.deps.getGold(), this.refreshCost.value, this.adFreeLeft.value);
+    }
+
+    /** 现在能不能刷新（= 判据的 `enabled`；给日志/宿主查询用，面板请不要自己算，拿 `refreshGate()`） */
     canRefresh(): boolean {
-        return this.deps.getGold() >= this.refreshCost.value || this.adFreeLeft.value > 0;
+        return this.refreshGate().enabled;
     }
 
     /**
-     * 刷新候选 —— 与面板置灰判据同一套规则：
+     * 刷新候选 —— 准入用的就是 `refreshGate()` 那一份判据：
      *   ① 金币 ≥ 费用 → 扣费重抽；② 金币不够但还有广告免费次数 → 看广告重抽；③ 都不行 → 拒绝并打日志
      */
     refresh(): void {
         const cost = this.refreshCost.value;
-        if (this.deps.getGold() >= cost) {
+        const gate = this.refreshGate();
+        if (gate.canPay) {
             if (!this.deps.spendGold(cost)) {
                 console.warn(`[选英雄] 金币不足，刷新失败（${this.deps.getGold()}/${cost}）`);
                 return;
@@ -145,7 +183,7 @@ export class HeroSelect {
             this.rollCandidates();
             return;
         }
-        if (this.adFreeLeft.value <= 0) {
+        if (!gate.viaAd) {
             console.warn(`[选英雄] 金币不足（${this.deps.getGold()}/${cost}）且没有广告免费次数，刷新被拒`);
             return;
         }

@@ -5,7 +5,7 @@
  *   - shop_constants.json  商店规则常量（KV：抽取费用/选项数/阶段门槛/广告次数/池权重）
  *   - shop_draw.json       品质抽取概率（按英雄等级段的 白/蓝/黄/红 权重 + 越阶概率）
  *   - relics.json          肉鸽商店道具（293 件，id 1001~1293）＝ 之前的「遗物」，效果由 modifiers 描述
- *   - shop_skills.json     肉鸽额外技能（30 个，3 级可升）
+ *   - abilities.json       技能表（**含肉鸽额外技能 30 个，scope=shop，id 101~130**；原 shop_skills 表已并入）
  *   - kill_buffs.json      击杀商店 Buff（20 个，可重复购买、价格递增）
  *
  * 道具（遗物）的属性加成统一走 Modifier 管线：
@@ -27,8 +27,9 @@ import { TbRoot } from '../../../platform/excel_table/TbRoot';
 // 容器必须以「值导入」引入：@tb_config 装饰器靠模块求值完成 TbRoot 注册
 import { RelicCfgContainer, relicHasInner, relicInnerDesc } from '../../excel_table/Tb_RelicConfig';
 import type { RelicCfg, RelicRarity } from '../../excel_table/Tb_RelicConfig';
-import { ShopSkillCfgContainer } from '../../excel_table/Tb_ShopSkillConfig';
-import type { ShopSkillCfg } from '../../excel_table/Tb_ShopSkillConfig';
+// 肉鸽额外技能已并入 abilities 表（scope=shop）——独立表与容器 `Tb_ShopSkillConfig` 已删除，勿恢复
+import { AbilityCfgContainer, abilityInShop, abilityLevelDesc, abilityMaxLevel } from '../../excel_table/Tb_AbilityConfig';
+import type { AbilityCfg } from '../../excel_table/Tb_AbilityConfig';
 import { KillBuffCfgContainer } from '../../excel_table/Tb_KillBuffConfig';
 import type { KillBuffCfg } from '../../excel_table/Tb_KillBuffConfig';
 import { ShopDrawCfgContainer } from '../../excel_table/Tb_ShopDrawConfig';
@@ -45,6 +46,10 @@ export type ShopRarity = RelicRarity;
 /** 道具（遗物）id 段：1000 + 设计稿道具 id（1294 起是**只有局外版**的遗物，不进商店池，靠 scope 过滤） */
 export const SHOP_RELIC_ID_MIN = 1001;
 export const SHOP_RELIC_ID_MAX = 1293;
+
+/** 肉鸽额外技能 id 段：100 + 设计稿技能 id（101~130；单位技能在 1~99，互不重叠） */
+export const SHOP_SKILL_ID_MIN = 101;
+export const SHOP_SKILL_ID_MAX = 130;
 
 /** 内置默认值（与 shop_constants.json 保持一致，容器不可用时兜底） */
 const DEFAULTS: Record<string, ShopConstValue> = {
@@ -203,13 +208,34 @@ export class ShopConfig {
         return relicInnerDesc(cfg);
     }
 
-    /** 全部肉鸽额外技能 */
-    static getShopSkills(): ShopSkillCfg[] {
-        return pick(() => TbRoot.ins.getTbContainer(ShopSkillCfgContainer).cfgs, []);
+    /**
+     * 肉鸽额外技能池 = `abilities.json` 里 **scope 含 shop** 的技能（id 101~130，30 个）。
+     *
+     * ⚠ 2026-09 起技能不分表：单位技能与肉鸽技能同一张 `abilities.json`，
+     * 靠 `scope`（unit / shop / both）区分归属，所以这里**必须按 scope 过滤**，
+     * 否则英雄自带的技能（火球术、鹰眼瞄准…）会混进商店抽取池。
+     */
+    static getShopSkills(): AbilityCfg[] {
+        return pick(() => TbRoot.ins.getTbContainer(AbilityCfgContainer).cfgs, [])
+            .filter(abilityInShop);
     }
 
-    static getShopSkill(id: number): ShopSkillCfg | undefined {
-        return pick(() => TbRoot.ins.getTbContainer(ShopSkillCfgContainer).getCfgById(id), undefined);
+    /** 按 id 取肉鸽技能（id 不在商店池里返回 undefined） */
+    static getShopSkill(id: number): AbilityCfg | undefined {
+        return pick(() => {
+            const cfg = TbRoot.ins.getTbContainer(AbilityCfgContainer).getCfgById(id);
+            return cfg && abilityInShop(cfg) ? cfg : undefined;
+        }, undefined);
+    }
+
+    /** 任意技能（含单位技能）——详情面板按 id 查它拿名字/图标/描述 */
+    static getAbility(id: number): AbilityCfg | undefined {
+        return pick(() => TbRoot.ins.getTbContainer(AbilityCfgContainer).getCfgById(id), undefined);
+    }
+
+    /** 技能的最高等级（1~3；单位技能为 1） */
+    static getSkillMaxLevel(cfg: AbilityCfg): number {
+        return abilityMaxLevel(cfg);
     }
 
     /** 全部击杀商店 Buff */
@@ -231,9 +257,8 @@ export class ShopConfig {
         }
     }
 
-    /** 技能在指定等级下的效果描述 */
-    static getSkillLevelDesc(cfg: ShopSkillCfg, level: number): string {
-        const lv = Math.max(1, Math.min(cfg.max_level || 1, level));
-        return (lv >= 3 ? cfg.lv3 : lv === 2 ? cfg.lv2 : cfg.lv1) ?? cfg.lv1;
+    /** 技能在指定等级下的效果描述（lv1/lv2/lv3 逐级回落；全空返回 ''） */
+    static getSkillLevelDesc(cfg: AbilityCfg, level: number): string {
+        return abilityLevelDesc(cfg, level);
     }
 }

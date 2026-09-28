@@ -1,5 +1,6 @@
 import { Modifier } from './Modifier';
 import { DamageType } from './types';
+import { BattleConstUtil } from './core/BattleConstUtil';
 import type { BattleContext } from './BattleContext';
 
 /**
@@ -199,5 +200,57 @@ export class Modifier_ZeusThunder extends Modifier {
         if (inRange.length === 0) return;
         const pick = inRange[Math.floor(Math.random() * inRange.length)];
         ctx.damagePipeline.ApplyDamage(pick, host, Math.round(atk * autoPct), DamageType.Magical);
+    }
+}
+
+/**
+ * Modifier_MusketHeadshot —— 火枪「爆头冲击」被动（modifiers.json 23）
+ *
+ * **英雄的「唯一技能」**（2026-09 定案：每个英雄默认只有普攻 + 一个技能；
+ * 火枪的那个就是它，units.json 1001 的 `abilities` 只剩 16）。两件事都挂在
+ * **普攻命中**上（`on_attack_landed`，远程普攻在弹道命中时才触发，所以飞镖落地才算账）：
+ *
+ *   1. **附带额外伤害**：追加一次「当前攻击力 × pct」的物理伤害（与普攻分开结算的第二段伤害，
+ *      同源同类型，因此也走暴击/减伤管线）。按攻速 1.2 次/秒、攻击力 40 算 ≈ +2 伤害/次；
+ *      它是**攻击力乘法**，所以跟着攻击力成长一起涨（这是它作为唯一技能的价值所在）。
+ *   2. **概率击退**：`chance` 概率把目标沿「火枪 → 目标」方向推开 `knockback` **米**
+ *      （× `BattleConstUtil.getPxPerMeter()` 换成像素，见 Entity.ApplyKnockback；
+ *      锚点（英雄/防守点）不被推动，所以这条对怪生效、对英雄无效）。
+ *
+ * 参数全部来自施加方（ability 16 的 effect `kv`），改数值不用碰代码：
+ *   `{ pct: 0.05, chance: 0.15, knockback: 1 }` = 5% 额外伤害 / 15% 概率 / 击退 1m。
+ *
+ * 注册（与 Ability_LightningChain 同一入口，见 Scene_Game_Stage.initBattle）：
+ *   ctx.scriptRegistry.registerClass('Modifier_MusketHeadshot', Modifier_MusketHeadshot);
+ */
+export class Modifier_MusketHeadshot extends Modifier {
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        // 只认"自己打出去的那一下"（事件是广播给双方实体的：命中者与被命中者都会收到）
+        if (!host || event?.attacker !== host) return false;
+
+        const victim = event?.target as any;
+        if (!victim || victim.IsDead?.()) return false;
+        const ctx: BattleContext | undefined = host.ctxRef;
+        if (!ctx || !host.alive) return false;
+
+        const kv = this.getKV() ?? {};
+
+        // ① 附带「攻击力 × pct」的额外伤害
+        const pct = Number(kv.pct ?? 0);
+        const atk = host.getAttackDamage?.() ?? 0;
+        if (pct > 0 && atk > 0) {
+            const extra = Math.max(1, Math.round(atk * pct));
+            ctx.damagePipeline.ApplyDamage(victim, host, extra, DamageType.Physical);
+        }
+
+        // ② 概率击退（米 → 像素）
+        const chance = Number(kv.chance ?? 0);
+        const meters = Number(kv.knockback ?? 0);
+        if (chance > 0 && meters > 0 && Math.random() < chance) {
+            victim.ApplyKnockback?.(host, meters * BattleConstUtil.getPxPerMeter());
+        }
+        return false;
     }
 }
