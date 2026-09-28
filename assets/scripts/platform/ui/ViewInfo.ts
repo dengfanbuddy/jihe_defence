@@ -1,6 +1,3 @@
-import { BaseCtl } from "./BaseCtl";
-
-
 export enum ViewLayer {
     Scene,      // 场景层（特殊层）
     Bottom,     // 底部层
@@ -15,8 +12,6 @@ export enum ViewLayer {
 export interface ViewInfo {
     prefabPath: string, // 预制件路径
     layer: string, // 所属层级
-    dataModel?:new (...args: any[]) => {},//视图数据类类型
-    controller?:new (...args: any[]) => {},//控制器类型
     single?:boolean,//是否是单例，单例的话只能有一个当前视图存在
     [key:string]:any
 }

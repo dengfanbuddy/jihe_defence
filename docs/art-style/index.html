@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>集合防御 · 美术风格预设 V1.0</title>
+<style>
+/* ============================================================
+   集合防御 · 美术风格预设 —— 样式板
+   token 与 docs/美术风格预设.md §1 同源；改色三处同改：
+   docs/美术风格预设.md / docs/art-style/tokens.json / 本文件
+   ============================================================ */
+:root{
+  /* 强调色 · 青绿（系统与操作） */
+  --c-accent-600:#67999A;
+  --c-accent-500:#689B9B;   /* todo：建议并入 600 */
+  --c-accent-400:#70ACB3;
+  --c-accent-ring:#6FA9A7;  /* 只存在于贴图 rect_board_rd_20.png */
+  --c-range-line:#C0CCD1;
+  --c-range-line-2:#8CA8B3;
+  /* 身份色 · 暗红（英雄与人） */
+  --c-identity:#A85A5A;
+  /* 墨色 */
+  --c-ink-900:#445054;
+  --c-ink-800:#465259;
+  --c-ink-700:#56636A;
+  --c-ink-600:#6A696B;      /* todo：与冷板岩族统一 */
+  --c-ink-500:#5D5C5B;      /* todo：建议并入 600 */
+  --c-ink-400:#999999;
+  --c-ink-300:#747474;
+  --c-ink-200:#D8D8D8;
+  --c-text:#000000;
+  --c-text-on-dark:#FFFFFF;
+  /* 底与面 */
+  --c-canvas-menu:#EFEEED;
+  --c-canvas-battle:#EBF4FB;
+  --c-surface:#FFFFFF;
+  --c-surface-sunken:#D8D8D8;
+  --c-scrim:rgba(0,0,0,.70);
+  /* 语义 */
+  --c-damage-outline:#14181B;
+  --c-hit-hero:#FF4C4C;
+  --c-warn:#FF0000;         /* todo：建议 #C0392B */
+  /* 品质 */
+  --c-q-common:#DDDDDD;
+  --c-q-rare:#5096FF;
+  --c-q-epic:#CF68FF;       /* 设计稿写的是黄，见 md §9-5 */
+  --c-q-legendary:#FF6464;
+  /* 形状 */
+  --radius-s:4px;
+  --radius-m:8px;
+  --radius-l:16px;
+  /* 排版 */
+  --font: Arial, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 板面（本页自身，非游戏 token） */
+  --page-bg:#F7F6F5;
+  --page-line:#E3E1DF;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--page-bg);color:var(--c-text);
+  font-family:var(--font);font-size:14px;line-height:1.7;
+}
+a{color:var(--c-accent-600);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:20;background:var(--c-ink-800);color:#fff;
+  display:flex;align-items:center;gap:16px;padding:10px 20px;flex-wrap:wrap;
+}
+.topbar .brand{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:bold;letter-spacing:.5px}
+.topbar .brand .mark{
+  width:22px;height:22px;border:2.2px solid var(--c-accent-400);border-radius:50%;
+  display:inline-block;position:relative;
+}
+.topbar .brand .mark::after{
+  content:"";position:absolute;inset:6px;border-radius:50%;background:var(--c-accent-400);
+}
+.topbar nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.topbar nav a{
+  color:#fff;opacity:.75;font-size:13px;padding:4px 10px;border-radius:var(--radius-l);
+}
+.topbar nav a:hover{opacity:1;background:var(--c-ink-700);text-decoration:none}
+
+/* ---------- 布局 ---------- */
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+section{margin:0 0 46px}
+h1{font-size:30px;line-height:1.35;margin:0 0 6px}
+h2{
+  font-size:20px;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid var(--page-line);
+  display:flex;align-items:baseline;gap:10px;
+}
+h2 .no{
+  font-size:12px;color:#fff;background:var(--c-accent-600);border-radius:var(--radius-s);
+  padding:1px 7px;font-weight:normal;letter-spacing:.5px;
+}
+h3{font-size:15px;margin:24px 0 10px;color:var(--c-ink-900)}
+p{margin:8px 0}
+.sub{color:var(--c-ink-400);font-size:13px}
+.card{
+  background:var(--c-surface);border:1px solid var(--page-line);border-radius:var(--radius-l);
+  padding:18px 20px;margin:14px 0;
+}
+.hint{
+  background:var(--c-canvas-battle);border-left:3px solid var(--c-accent-400);
+  padding:10px 14px;border-radius:0 var(--radius-m) var(--radius-m) 0;font-size:13px;margin:12px 0;
+}
+.hint.warn{background:#FBF0EF;border-left-color:var(--c-identity)}
+
+/* ---------- 定调 ---------- */
+.tagline{font-size:19px;color:var(--c-ink-900);font-weight:bold;margin:6px 0 14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.chip{
+  border:1px solid var(--c-accent-400);color:var(--c-accent-600);
+  border-radius:999px;padding:2px 12px;font-size:13px;
+}
+.chip.no{border-color:var(--c-ink-200);color:var(--c-ink-400)}
+
+/* ---------- 色板 ---------- */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:12px}
+.sw{
+  background:var(--c-surface);border:1px solid var(--page-line);border-radius:var(--radius-m);
+  overflow:hidden;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease;
+}
+.sw:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(68,80,84,.10)}
+.sw .blk{height:64px;position:relative;border-bottom:1px solid var(--page-line)}
+.sw .blk .chk{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:bold;
+}
+.sw .meta{padding:8px 10px 10px}
+.sw .tok{font-size:12px;color:var(--c-ink-900);font-weight:bold;word-break:break-all}
+.sw .hex{font-size:12px;color:var(--c-ink-400);font-family:Consolas,Menlo,monospace}
+.sw .use{font-size:12px;color:var(--c-ink-600);margin-top:4px;line-height:1.5}
+.sw .src{font-size:11px;color:var(--c-ink-400);margin-top:4px;line-height:1.45}
+.badge{
+  position:absolute;top:6px;right:6px;font-size:10px;border-radius:999px;
+  padding:1px 7px;background:rgba(255,255,255,.9);color:var(--c-ink-700);
+}
+.badge.todo{background:#FBF0EF;color:var(--c-identity)}
+
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--c-surface)}
+th,td{border:1px solid var(--page-line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:var(--c-canvas-menu);color:var(--c-ink-900);font-weight:bold;white-space:nowrap}
+code{background:var(--c-canvas-menu);border-radius:3px;padding:1px 5px;font-family:Consolas,Menlo,monospace;font-size:12px}
+
+/* ---------- 排版阶梯 ---------- */
+.type-row{display:flex;align-items:baseline;gap:16px;border-bottom:1px dashed var(--page-line);padding:10px 0}
+.type-row:last-child{border-bottom:0}
+.type-row .lbl{width:150px;font-size:12px;color:var(--c-ink-400)}
+.type-row .demo{color:var(--c-ink-900)}
+.type-row .demo .num{font-weight:bold;color:var(--c-text)}
+
+/* ---------- 组件示意 ---------- */
+.demo-box{
+  background:var(--c-canvas-menu);border:1px solid var(--page-line);border-radius:var(--radius-m);
+  padding:16px;margin:10px 0;
+}
+.demo-box.battle{background:var(--c-canvas-battle)}
+.demo-label{font-size:12px;color:var(--c-ink-400);margin:16px 0 6px}
+.demo-label:first-child{margin-top:0}
+
+/* 顶部资源条 */
+.ui-topbar{
+  background:var(--c-ink-800);color:#fff;border-radius:var(--radius-m);
+  display:flex;align-items:center;gap:22px;padding:8px 14px;font-size:13px;
+}
+.ui-topbar .grp{display:flex;align-items:center;gap:6px}
+.ui-topbar .ico{
+  width:16px;height:16px;border-radius:50%;border:1.8px solid #fff;display:inline-block;
+  position:relative;flex:none;
+}
+.ui-topbar .ico.sq{border-radius:var(--radius-s)}
+.ui-topbar .up{
+  width:18px;height:18px;border-radius:var(--radius-s);border:1.5px solid #fff;
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1;
+}
+.ui-topbar .logo{width:24px;height:24px;border:2.2px solid var(--c-accent-400);border-radius:var(--radius-s)}
+
+/* 阶段进度 */
+.ui-phase{text-align:center;color:var(--c-ink-600)}
+.ui-phase .t1{font-size:20px;font-weight:bold;color:var(--c-ink-900)}
+.ui-phase .t2{font-size:24px;font-weight:bold;color:var(--c-ink-900);line-height:1.2}
+.bar{height:5px;border-radius:3px;background:var(--c-ink-200);overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--c-ink-600)}
+.ui-phase .bar{max-width:150px;margin:6px auto 0}
+
+/* 侧栏 */
+.ui-side{
+  width:120px;background:var(--c-surface-sunken);border-radius:var(--radius-m);padding:8px;
+  display:flex;flex-direction:column;gap:8px;font-size:13px;
+}
+.ui-side .row{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-m);
+  color:var(--c-ink-600);
+}
+.ui-side .row.on{background:var(--c-ink-700);color:#fff}
+.ui-side .dot{
+  width:14px;height:14px;border:1.8px solid currentColor;border-radius:var(--radius-s);flex:none;
+}
+.ui-side .dot.rd{border-radius:50%}
+
+/* 卡片 */
+.ui-card{
+  background:var(--c-surface);border:1px solid var(--page-line);border-radius:var(--radius-l);
+  padding:14px 16px;width:300px;position:relative;
+}
+.ui-card .ct{font-size:20px;font-weight:bold;color:var(--c-ink-900)}
+.ui-card .cd{font-size:12px;color:var(--c-ink-400);margin-top:4px;line-height:1.6}
+.ui-card .illu{
+  position:absolute;right:14px;bottom:10px;width:96px;height:58px;opacity:.9;
+}
+.ui-card.on{border:2px solid var(--c-accent-ring);padding:13px 15px}
+.ui-card .conor{
+  position:absolute;top:-1px;right:-1px;width:0;height:0;border-style:solid;
+  border-width:0 26px 26px 0;border-color:transparent var(--c-accent-400) transparent transparent;
+  border-top-right-radius:var(--radius-l);
+}
+.ui-card .gou{
+  position:absolute;top:4px;right:4px;color:#fff;font-size:13px;line-height:1;font-weight:bold;
+}
+.cards{display:flex;gap:16px;flex-wrap:wrap}
+
+/* 按钮 */
+.btn-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.btn{
+  border:0;border-radius:999px;background:var(--c-accent-600);color:#fff;
+  font-family:var(--font);font-size:14px;padding:9px 22px;display:inline-flex;align-items:center;gap:8px;
+  cursor:default;
+}
+.btn.sm{border-radius:var(--radius-m);background:var(--c-accent-500);font-size:13px;padding:5px 14px}
+.btn.hover{filter:brightness(.83)}   /* = 目标色 × #D3D3D3 */
+.btn.disabled{filter:brightness(.49)} /* = 目标色 × #7C7C7C */
+.btn .arrow{
+  width:0;height:0;border-style:solid;border-width:5px 0 5px 8px;
+  border-color:transparent transparent transparent #fff;
+}
+.tag{font-size:11px;color:var(--c-ink-400);display:block;text-align:center;margin-top:4px}
+.tag-w{display:inline-block;text-align:center}
+.tag-w .tag{margin-top:6px}
+
+/* 进度条 / 数值 */
+.stat{display:flex;align-items:center;gap:8px;width:210px;font-size:12px;color:var(--c-accent-600)}
+.stat .heart{
+  width:11px;height:11px;background:var(--c-accent-400);flex:none;
+  clip-path:polygon(50% 100%,0 42%,12% 12%,50% 32%,88% 12%,100% 42%);
+}
+.stat .bar{flex:1}
+.stat .bar > i{background:var(--c-accent-400)}
+.stat .num{white-space:nowrap}
+.stat.exp{color:var(--c-accent-400)}
+
+/* 武器格 / 头像格 */
+.tiles{display:flex;gap:8px;align-items:flex-end}
+.tile{
+  width:42px;height:42px;border-radius:var(--radius-m);background:var(--c-accent-400);
+  display:flex;align-items:center;justify-content:center;
+}
+.tile.portrait{background:var(--c-identity);width:52px;height:52px}
+.tile svg{display:block}
+.qbox{width:34px;height:34px;border-radius:var(--radius-m);display:flex;align-items:center;justify-content:center}
+.qbox span{width:20px;height:20px;border-radius:50%;border:2px solid #fff}
+
+/* 飘字 */
+.dmg{display:flex;align-items:center;gap:26px;flex-wrap:wrap;min-height:70px}
+.dmg .d{
+  font-family:var(--font);color:#fff;font-weight:bold;
+  -webkit-text-stroke:1.9px var(--c-damage-outline);paint-order:stroke fill;
+}
+.dmg .d.hero{color:var(--c-hit-hero)}
+.dmg .crit{display:flex;align-items:center;gap:6px}
+.dmg .crit .mk{
+  width:9px;height:12px;background:#fff;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  -webkit-text-stroke:1.6px var(--c-damage-outline);paint-order:stroke fill;
+}
+
+/* 范围圈 */
+.arena{
+  position:relative;height:190px;border-radius:var(--radius-m);
+  display:flex;align-items:center;justify-content:center;
+}
+.arena .ring{
+  position:absolute;width:170px;height:170px;border-radius:50%;
+  border:1px dashed var(--c-range-line);
+}
+.arena .ring2{
+  position:absolute;width:120px;height:120px;border-radius:50%;
+  border:1px solid var(--c-range-line-2);
+}
+.arena .hero{
+  position:relative;width:22px;height:22px;border-radius:50%;
+  border:4px solid var(--c-accent-400);background:transparent;
+}
+.arena .enemy{
+  position:absolute;left:16px;display:flex;flex-direction:column;gap:8px;
+}
+.arena .enemy .e{
+  width:20px;height:24px;background:#fff;border:1.6px solid var(--c-ink-600);
+  clip-path:polygon(50% 0,100% 26%,100% 100%,0 100%,0 26%);
+}
+/* Boss 提示栏（HUD，位于画布 x≈-321） */
+.arena .bossbar{
+  position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:10px;width:86px;
+}
+.arena .bossbar .bi{
+  width:22px;height:22px;border-radius:var(--radius-s);display:inline-block;vertical-align:middle;
+  border:1.6px solid var(--c-ink-600);margin-right:6px;
+}
+.arena .bossbar .bi.gold{background:#FBE097;border-color:#D38C1E}
+.arena .bossbar .bi.ink{background:#DBDBDB;border-color:#475A61}
+.arena .bossbar .bn{font-size:11px;color:var(--c-ink-600);vertical-align:middle}
+
+/* 禁用清单 */
+.dont{list-style:none;padding:0;margin:0}
+.dont li{
+  padding:8px 0 8px 26px;position:relative;border-bottom:1px dashed var(--page-line);font-size:13px;
+}
+.dont li:last-child{border-bottom:0}
+.dont li::before{
+  content:"×";position:absolute;left:4px;top:7px;color:var(--c-identity);font-weight:bold;
+}
+
+/* 复制区 */
+.copyarea{position:relative}
+textarea{
+  width:100%;min-height:180px;border:1px solid var(--page-line);border-radius:var(--radius-m);
+  padding:12px;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.6;
+  background:#FCFCFB;color:var(--c-ink-900);resize:vertical;
+}
+.copy-btn{
+  position:absolute;top:8px;right:8px;border:0;background:var(--c-accent-600);color:#fff;
+  font-family:var(--font);font-size:12px;padding:5px 12px;border-radius:var(--radius-m);cursor:pointer;
+}
+.copy-btn:active{filter:brightness(.85)}
+footer{color:var(--c-ink-400);font-size:12px;border-top:1px solid var(--page-line);padding-top:14px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="mark"></span>集合防御 · 美术风格预设 <span style="opacity:.6;font-weight:normal">V1.0</span></div>
+  <nav>
+    <a href="#tone">定调</a>
+    <a href="#palette">色板</a>
+    <a href="#quality">品质</a>
+    <a href="#type">排版</a>
+    <a href="#ui">组件</a>
+    <a href="#battle">战斗</a>
+    <a href="#rules">语法</a>
+    <a href="#dont">禁用</a>
+    <a href="#copy">Token</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= 0 定调 ================= -->
+  <section id="tone">
+    <h1>浅色纸面上的低多边形几何</h1>
+    <div class="tagline">白模质感的几何图形，一个墨色加一个青绿，铺在近乎无色的纸白底上，靠形状与尺度说话，不靠颜色堆叠。</div>
+    <div class="chips">
+      <span class="chip">几何极简</span>
+      <span class="chip">双色制</span>
+      <span class="chip">浅底可读</span>
+      <span class="chip">图纸 / 沙盘感</span>
+    </div>
+    <div class="chips">
+      <span class="chip no">不是暗底霓虹</span>
+      <span class="chip no">不是像素风</span>
+      <span class="chip no">不是写实 / 厚涂</span>
+      <span class="chip no">不是赛博科技</span>
+    </div>
+    <div class="hint">
+      <b>参考系</b>：Glyphica: Typing Survival 的视觉语法（形象库见 <code>docs/monster-design/</code>、<code>docs/boss-design/</code>）+ 低多边形白模等距渲染（主界面模式插图 <code>textures/game_bg/*.png</code>）。<br>
+      <b>参考的物</b>：建筑 / 地形沙盘模型、蓝图与工程图纸、留白充足的纸面印刷品。
+    </div>
+    <div class="hint warn">
+      <b>双强调色是本项目的隐藏口径</b>：<span style="color:var(--c-accent-600);font-weight:bold">青绿 = 系统与操作</span>（按钮 / 进度 / 可点格子 / 范围预告），
+      <span style="color:var(--c-identity);font-weight:bold">暗红 = 英雄与人</span>（头像格底 / 英雄卡框 / 解锁环）。两色不许互换，也不要用暗红表示报错。
+    </div>
+  </section>
+
+  <!-- ================= 1 色板 ================= -->
+  <section id="palette">
+    <h2><span class="no">01</span>色板（点击色块复制 hex）</h2>
+    <p class="sub">每个色值都有实测出处：截图取色 / 预制件 <code>_color</code> / TS 常量。标 <span style="color:var(--c-identity)">待收敛</span> 的见 <code>docs/美术风格预设.md</code> §9。</p>
+
+    <h3>强调色 · 青绿（系统与操作）</h3>
+    <div class="swatches" id="sw-accent"></div>
+
+    <h3>身份色 · 暗红（英雄与人）</h3>
+    <div class="swatches" id="sw-identity"></div>
+
+    <h3>墨色（文字与图标）</h3>
+    <div class="swatches" id="sw-ink"></div>
+
+    <h3>底与面</h3>
+    <div class="swatches" id="sw-surface"></div>
+    <div class="hint">
+      <b>局外暖白 / 局内冷白是刻意的分区</b>：<code>#EFEEED</code>（纸面 = 菜单）与 <code>#EBF4FB</code>（图纸 = 战场）只差 ΔRGB≈15，
+      肉眼是"氛围差"而不是"两套配色"。<b>这是规范，不是失误。</b>
+    </div>
+
+    <h3>语义色</h3>
+    <div class="swatches" id="sw-semantic"></div>
+
+    <h3>单位配色（原型期口径，待主美裁决）</h3>
+    <p class="sub">来源 <code>assets/scripts/game/common/EntityVisualConfig.ts</code> —— 唯一的单位配色来源，逻辑与表现共用（体型倍率同时是碰撞半径倍率）。</p>
+    <table>
+      <tr><th>类别</th><th>底色</th><th>体型</th><th>受击色</th><th>实机截图实测</th></tr>
+      <tr><td>英雄</td><td>不染色（美术本色）</td><td>×1</td><td><code>#FF4C4C</code></td><td>青绿空心环 <code>#6AAAB0</code> ✅</td></tr>
+      <tr><td>普通怪</td><td><code>#6B8E9B</code></td><td>×1</td><td><code>#FFFFFF</code></td><td>⚠ 图1 无敌人入镜</td></tr>
+      <tr><td>精英怪</td><td><code>#9B59B6</code></td><td>×1.3</td><td><code>#E0B0FF</code></td><td>—</td></tr>
+      <tr><td>金币 / 经验 Boss</td><td><code>#E74C3C</code></td><td>×1.5</td><td><code>#FFFFFF</code></td><td>—</td></tr>
+      <tr><td>击杀 Boss</td><td><code>#E74C3C</code></td><td>×1.5</td><td><code>#FFA500</code></td><td>—</td></tr>
+      <tr><td>阶段 / 最终 Boss</td><td><code>#3B1C32</code></td><td>×1.5 / ×2</td><td><code>#00FFFF</code></td><td>—</td></tr>
+    </table>
+    <div class="hint warn">
+      <b>⚠ 实机证据现状（已修正一处误判）</b>：图1 战斗截图里<b>没有敌人入镜</b>；画面左侧那列（<code>#6A696B</code> + 暖色排线）<b>不是敌人，是 HUD 的 Boss 提示栏</b>
+      （几何核对：画布 <code>x≈-321</code>、<code>y∈[-100,100]</code> = <code>View_Game_Stage/bosses</code>）。<br>
+      所以敌人的实机表现<b>无截图证据</b>，口径只能以代码表为准。高饱和色（<code>#9B59B6</code> / <code>#E74C3C</code> / <code>#3B1C32</code> / <code>#00FFFF</code>）属早期口径，
+      建议：<b>先补一张有敌人在场的截图，再定论</b>；方向上档位差主要靠<b>体型与徽记附件</b>（外环 / 王冠 / 基座），暖色只留 <code>#D38C1E</code> 给"经济 Boss"。
+    </div>
+  </section>
+
+  <!-- ================= 品质 ================= -->
+  <section id="quality">
+    <h2><span class="no">02</span>品质 4 档</h2>
+    <div class="demo-box">
+      <div class="tiles" id="q-demo"></div>
+    </div>
+    <table>
+      <tr><th>档位</th><th>工程 UI（预制件实测）</th><th>设计稿 / 配表口径</th><th>状态</th></tr>
+      <tr><td>common</td><td><code>#DDDDDD</code></td><td>白</td><td>✅</td></tr>
+      <tr><td>rare</td><td><code>#5096FF</code></td><td>蓝</td><td>✅</td></tr>
+      <tr><td>epic</td><td><code>#CF68FF</code>（<b>紫</b>）</td><td><b>黄</b></td><td>⚠ 两套，须裁决（md §9-5）</td></tr>
+      <tr><td>legendary</td><td><code>#FF6464</code></td><td>红</td><td>✅</td></tr>
+    </table>
+  </section>
+
+  <!-- ================= 排版 ================= -->
+  <section id="type">
+    <h2><span class="no">03</span>排版阶梯</h2>
+    <div class="card" id="type-demo"></div>
+    <div class="hint">
+      工程全量 <code>Arial</code>（中文靠系统回退）；飘字是手写几何字形（<code>GeometricDigits.ts</code>，零字体资产），不受字体方案影响。<br>
+      浅底白字必须压边：描边色 <code>#14181B</code>，宽度 = 字号 × <code>0.12</code>。
+    </div>
+  </section>
+
+  <!-- ================= 组件 ================= -->
+  <section id="ui">
+    <h2><span class="no">04</span>UI 组件（逐件对照截图）</h2>
+
+    <div class="demo-label">顶部资源条 —— 底 #465259，白图标 + 白数字</div>
+    <div class="demo-box">
+      <div class="ui-topbar">
+        <span class="logo"></span>
+        <span class="grp"><i class="ico sq" style="border-color:#fff"></i>200<span class="up">+</span></span>
+        <span class="grp"><i class="ico"></i>200<span class="up">+</span></span>
+        <span class="grp"><i class="ico sq"></i>200<span class="up">+</span></span>
+      </div>
+    </div>
+
+    <div class="demo-label">侧边导航 —— 未选中墨线图标；选中为深板岩药丸底整块高亮</div>
+    <div class="demo-box">
+      <div class="ui-side">
+        <div class="row on"><i class="dot"></i>游戏</div>
+        <div class="row"><i class="dot rd"></i>英雄</div>
+        <div class="row"><i class="dot"></i>成就</div>
+      </div>
+    </div>
+
+    <div class="demo-label">模式卡片 —— 白底大圆角 + 等距低多边形白模插图；选中 = 青绿描边环 + 角标 + 勾</div>
+    <div class="demo-box">
+      <div class="cards">
+        <div class="ui-card">
+          <div class="ct">阶段模式</div>
+          <div class="cd">逐步挑战更高难度<br>解锁新的敌人和奖励</div>
+          <svg class="illu" viewBox="0 0 120 70" aria-hidden="true">
+            <polygon points="20,64 92,64 106,54 34,54" fill="#C0C0C0"/>
+            <polygon points="34,54 106,54 106,48 34,48" fill="#A0C0C0"/>
+            <polygon points="34,48 106,48 106,42 34,42" fill="#80A0A0"/>
+            <polygon points="34,42 106,42 106,36 34,36" fill="#A0C0C0"/>
+            <polygon points="34,36 106,36 106,30 34,30" fill="#608080"/>
+          </svg>
+        </div>
+        <div class="ui-card on">
+          <div class="conor"></div><div class="gou">✓</div>
+          <div class="ct">无尽模式</div>
+          <div class="cd">无尽的敌人浪潮<br>挑战你的极限生成能力</div>
+          <svg class="illu" viewBox="0 0 120 70" aria-hidden="true">
+            <polygon points="16,62 74,62 86,52 28,52" fill="#A0A0A0"/>
+            <polygon points="28,52 86,52 86,46 28,46" fill="#C0C0C0"/>
+            <polygon points="28,46 86,46 86,40 28,40" fill="#80A0A0"/>
+            <polygon points="88,60 100,60 104,54 92,54" fill="#608080"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-label">按钮 —— 主按钮 #67999A；hover = 目标色 × #D3D3D3；disabled = × #7C7C7C（不另配彩色态）</div>
+    <div class="demo-box">
+      <div class="btn-row">
+        <span class="tag-w"><span class="btn">开始战斗<i class="arrow"></i></span><span class="tag">主按钮 accent-600</span></span>
+        <span class="tag-w"><span class="btn sm">选择难度</span><span class="tag">次按钮 accent-500</span></span>
+        <span class="tag-w"><span class="btn hover">hover</span><span class="tag">× #D3D3D3</span></span>
+        <span class="tag-w"><span class="btn disabled">disabled</span><span class="tag">× #7C7C7C</span></span>
+      </div>
+    </div>
+
+    <div class="demo-label">战斗 HUD —— 数值条（青绿）+ 英雄头像格（身份色）+ 武器格 4 连</div>
+    <div class="demo-box battle">
+      <div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+        <div class="tiles">
+          <div class="tile portrait">
+            <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="1.8"/>
+              <path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="1.4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="stat"><i class="heart"></i><span class="bar"><i style="width:100%"></i></span><span class="num">300 / 300</span></div>
+            <div class="stat exp" style="margin-top:6px"><span style="width:11px"></span><span class="bar"><i style="width:100%"></i></span><span class="num">Lv.1 300 / 300</span></div>
+          </div>
+        </div>
+        <div class="tiles">
+          <div class="tile"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="5" y="10" width="10" height="7" fill="#fff"/><path d="M15 12l4-2v7l-4-2z" fill="#fff"/></svg></div>
+          <div class="tile"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="5" y="10" width="10" height="7" fill="#fff"/><path d="M15 12l4-2v7l-4-2z" fill="#fff"/></svg></div>
+          <div class="tile"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="5" y="10" width="10" height="7" fill="#fff"/><path d="M15 12l4-2v7l-4-2z" fill="#fff"/></svg></div>
+          <div class="tile"><svg width="20" height="20" viewBox="0 0 24 24"><rect x="5" y="10" width="10" height="7" fill="#fff"/><path d="M15 12l4-2v7l-4-2z" fill="#fff"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-label">范围圈（虚线 / 淡线 = 预告）与单位本体</div>
+    <div class="demo-box battle">
+      <div class="arena">
+        <div class="ring"></div>
+        <div class="ring2"></div>
+        <div class="hero"></div>
+        <div class="enemy"><span class="e"></span><span class="e"></span><span class="e"></span></div>
+        <div class="bossbar">
+          <span class="bi gold"></span><span class="bn">金币</span>
+          <span class="bi ink"></span><span class="bn">击杀</span>
+        </div>
+      </div>
+      <div class="sub" style="margin-top:8px">左侧竖列 = <b>Boss 提示栏</b>（50×50 图标 + 名称 + 倒计时）：金 = 打它有钱，墨 = 打它有经验。<br>注：图中的盾形 = 待定稿的敌人本体方向，<b>不是</b> Boss 提示栏。</div>
+    </div>
+  </section>
+
+  <!-- ================= 战斗 ================= -->
+  <section id="battle">
+    <h2><span class="no">05</span>战斗场景规范</h2>
+    <table>
+      <tr><th>元素</th><th>规范</th><th>出处</th></tr>
+      <tr><td>战场底</td><td>纯色 <code>#EBF4FB</code> 全屏，无纹理 / 无网格 / 无暗角</td><td><code>Scene_Game_Stage.prefab</code> 全屏 Sprite</td></tr>
+      <tr><td>范围圈</td><td>1px 淡青灰 <code>#C0CCD1</code>，只描边不填充；预算更淡时可用青绿 25% alpha（≈ <code>#CADDE3</code>）</td><td><code>GraphCircle</code> + 预制件 lineColor</td></tr>
+      <tr><td>英雄本体</td><td>青绿空心圆环，靠"环"而不是"块"表达"我 = 中心"</td><td>图1 中心实测 <code>#6AAAB0</code></td></tr>
+      <tr><td>敌人本体</td><td><b>待实机核对</b>：方向是「白模几何体 + 墨线」，浅底上优先用<b>灰阶 + 体型</b>区分，不靠彩色</td><td>⚠ 图1 无敌人入镜</td></tr>
+      <tr><td>Boss 提示栏（HUD）</td><td>左侧竖列：<b>50×50 图标 + 名称 + 倒计时</b>；经济 Boss 图标为<b>金币金</b>（<code>#BF9340</code>），击杀 Boss 图标为<b>墨青</b>（<code>#6A797E</code>）</td><td><code>View_Game_Stage/bosses</code> + 图标取色</td></tr>
+      <tr><td>飘字</td><td>白字 + <code>#14181B</code> 描边；颜色 = <b>打谁</b>（英雄受击红）、尺度 / 形状 = <b>打击分量</b>（暴击 1.6× + 左侧实心菱形标）、寿命 = <b>优先级</b></td><td><code>DamageTextConfig.ts</code> 唯一来源</td></tr>
+      <tr><td>受击反馈</td><td>闪烁染色停留 <code>0.08s</code>（区间 0.05~0.1）</td><td><code>HIT_FLASH_DURATION</code></td></tr>
+      <tr><td>层级</td><td>飘字层压在所有战斗实体之上、UI 之下（节点顺序即层级）</td><td><code>ensureDamageTextLayer</code></td></tr>
+    </table>
+    <div class="demo-label">飘字示意（普通 / 暴击 / 英雄受击）</div>
+    <div class="demo-box battle">
+      <div class="dmg">
+        <span class="d" style="font-size:16px">43</span>
+        <span class="crit"><span class="mk"></span><span class="d" style="font-size:26px">186</span></span>
+        <span class="d hero" style="font-size:18px">27</span>
+        <span class="sub">普通 16px · 暴击 1.6×+菱形标 · 英雄受击红</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 语法 ================= -->
+  <section id="rules">
+    <h2><span class="no">06</span>形状与线条语法</h2>
+    <table>
+      <tr><th>规则</th><th>口径</th></tr>
+      <tr><td>双色制</td><td>一个墨色 + 一个强调色；灰色只承担辅助信息</td></tr>
+      <tr><td>线宽</td><td>主结构 2.2~3px，细节 1.2~1.6px，全部圆头；UI 描边 1~2px</td></tr>
+      <tr><td>圆角</td><td>三档：<code>4</code> / <code>8</code> / <code>16</code>（贴图 <code>rect_rd_5 / rd_10 / rd_20</code>，<code>rect_board_*</code> 为只描边的环）</td></tr>
+      <tr><td>虚线语义</td><td><b>虚线 / 淡线 = 范围·预告·未发生</b>；<b>实线 = 已存在的实体</b></td></tr>
+      <tr><td>材质</td><td>无渐变、无阴影、无高光、无贴图纹理；纯色块 + 描边</td></tr>
+      <tr><td>体量即配置</td><td>体型倍率同时是碰撞半径倍率（<code>UNIT_VISUALS.scale</code>）：看起来多大 = 被推开多远</td></tr>
+      <tr><td>剪影优先</td><td>小尺寸（碰撞直径 ≈50px 量级）下必须能分辨，细节不承担识别任务</td></tr>
+      <tr><td>状态外挂</td><td>层数 / 血条 / 词条一律挂在本体外围，不入本体造型</td></tr>
+    </table>
+  </section>
+
+  <!-- ================= 禁用 ================= -->
+  <section id="dont">
+    <h2><span class="no">07</span>禁用清单</h2>
+    <ul class="dont">
+      <li>暗底 + 霓虹发光、赛博科技风</li>
+      <li>渐变、投影、内 / 外发光、材质纹理、拟物高光</li>
+      <li>一个界面出现第三种强调色（青绿 / 暗红之外只能是辅助灰或品质色）</li>
+      <li>用颜色表示"暴击"（颜色通道已被"打谁"占用，暴击用尺度 + 几何标）</li>
+      <li>把范围圈画成实心或高对比实线（那是"已存在实体"的语法）</li>
+      <li>用暗红 <code>#A85A5A</code> 表示报错，或用纯红 <code>#FF0000</code> 表示英雄身份</li>
+      <li>单位识别依赖细节（小尺寸下必须是强剪影）</li>
+      <li>界面里出现新的青绿 / 墨色（新颜色必须先进规范再进工程）</li>
+    </ul>
+  </section>
+
+  <!-- ================= 复制 ================= -->
+  <section id="copy">
+    <h2><span class="no">08</span>Token 复制</h2>
+    <div class="copyarea">
+      <button class="copy-btn" onclick="copyFrom('txt-css',this)">复制</button>
+      <textarea id="txt-css" readonly>/* 集合防御 · 美术风格预设 V1.0 —— CSS 变量 */
+:root{
+  /* 强调色 · 青绿（系统与操作） */
+  --c-accent-600:#67999A;   /* 品牌主色：主按钮 / 转场 / 进度环 */
+  --c-accent-500:#689B9B;   /* 次按钮（待收敛：并入 600） */
+  --c-accent-400:#70ACB3;   /* 大面积填充：格子 / 数值条 */
+  --c-accent-ring:#6FA9A7;  /* 选中描边环（只存在于贴图） */
+  --c-range-line:#C0CCD1;   /* 范围圈 */
+  --c-range-line-2:#8CA8B3; /* 第二层范围圈 */
+  /* 身份色 · 暗红（英雄与人） */
+  --c-identity:#A85A5A;
+  /* 墨色 */
+  --c-ink-900:#445054; --c-ink-800:#465259; --c-ink-700:#56636A;
+  --c-ink-600:#6A696B; --c-ink-500:#5D5C5B; --c-ink-400:#999999;
+  --c-ink-300:#747474; --c-ink-200:#D8D8D8;
+  --c-text:#000000; --c-text-on-dark:#FFFFFF;
+  /* 底与面 */
+  --c-canvas-menu:#EFEEED; --c-canvas-battle:#EBF4FB;
+  --c-surface:#FFFFFF; --c-surface-sunken:#D8D8D8; --c-scrim:rgba(0,0,0,.70);
+  /* 语义 */
+  --c-damage-outline:#14181B; --c-hit-hero:#FF4C4C; --c-warn:#FF0000;
+  /* 品质 */
+  --c-q-common:#DDDDDD; --c-q-rare:#5096FF; --c-q-epic:#CF68FF; --c-q-legendary:#FF6464;
+  /* 形状 */
+  --radius-s:4px; --radius-m:8px; --radius-l:16px;
+}</textarea>
+    </div>
+
+    <div class="copyarea" style="margin-top:16px">
+      <button class="copy-btn" onclick="copyFrom('txt-ts',this)">复制</button>
+      <textarea id="txt-ts" readonly>/**
+ * 集合防御 · UI 主题 token（建议新增 assets/scripts/game/common/UiTheme.ts）
+ * 口径见 docs/美术风格预设.md；改色必须同步 docs/art-style/tokens.json
+ */
+export const UiTheme = {
+    /** 强调色 · 青绿 = 系统与操作 */
+    accent600: 0x67999a,   // 品牌主色：主按钮 / 转场 / 进度环
+    accent500: 0x689b9b,   // 次按钮（待收敛：并入 600）
+    accent400: 0x70acb3,   // 大面积填充：格子 / 数值条
+    accentRing: 0x6fa9a7,  // 选中描边环（贴图烘焙色，勿在代码里新用）
+    rangeLine: 0xc0ccd1,   // 战场范围圈
+    rangeLine2: 0x8ca8b3,  // 第二层范围圈
+    /** 身份色 · 暗红 = 英雄与人 */
+    identity: 0xa85a5a,
+    /** 墨色 */
+    ink900: 0x445054, ink800: 0x465259, ink700: 0x56636a,
+    ink600: 0x6a696b, ink400: 0x999999, ink200: 0xd8d8d8,
+    /** 底与面 */
+    canvasMenu: 0xefeeed, canvasBattle: 0xebf4fb, surface: 0xffffff,
+    /** 语义 */
+    damageOutline: 0x14181b, hitHero: 0xff4c4c, warn: 0xff0000,
+    /** 品质 4 档 */
+    quality: [0xdddddd, 0x5096ff, 0xcf68ff, 0xff6464],
+} as const;</textarea>
+    </div>
+
+    <div class="copyarea" style="margin-top:16px">
+      <button class="copy-btn" onclick="copyFrom('txt-prompt',this)">复制</button>
+      <textarea id="txt-prompt" readonly>【中文 · 沟通用】
+极简几何风格，低多边形白模质感，浅色纸面背景（冷白 #EBF4FB / 米白 #EFEEED），只用一个墨灰（#445054~#6A696B）加一个青绿（#67999A / #70ACB3），大留白，细线描边，无渐变无阴影无高光，等距视角，干净的 UI 布局，克制的几何装饰。
+
+【English · 出图用】
+minimal geometric art style, low-poly untextured clay-model look, paper-white background (cool white #EBF4FB / warm off-white #EFEEED), duotone palette: one ink grey (#445054-#6A696B) + one teal accent (#67999A / #70ACB3), generous negative space, thin clean outlines, flat shading only - no gradients, no drop shadows, no specular highlights, isometric composition, tidy minimal UI layout, restrained geometric ornaments, muted desaturated look.
+
+【Negative】
+dark background, neon glow, cyberpunk, photorealistic, painterly, heavy textures, colorful gradients, busy particles, lens flare, drop shadow, bevelled edges, high saturation rainbow palette</textarea>
+    </div>
+  </section>
+
+  <footer>
+    取样：图1 战斗场景截图（386×686）、图2 主界面截图（392×693）、<code>Scene_Menu.prefab</code>、<code>View_Game_Stage.prefab</code>、<code>Scene_Game_Stage.prefab</code>、<code>Top_ChangeScene.ts</code>、<code>EntityVisualConfig.ts</code>、<code>DamageTextConfig.ts</code>、<code>textures/**</code> 取色。<br>
+    权威文档 <code>docs/美术风格预设.md</code> · 机读副本 <code>docs/art-style/tokens.json</code> · 给 AI 的提示词 <code>docs/art-style/ui-design-prompt.md</code>（可直接粘贴，含实测版式与自检清单）<br>
+    本页与上述文件同源，改色三处同改。
+  </footer>
+</div>
+
+<script>
+/* ---------- 色板数据（与 tokens.json 同源） ---------- */
+const PALETTE = {
+  'sw-accent': [
+    ['--c-accent-600','#67999A','品牌主色：主按钮底、转场动画、进度环、选中文字','Top_ChangeScene.ts mainColor','ok'],
+    ['--c-accent-500','#689B9B','次按钮底（选择难度）','Scene_Menu .../game/info/select','todo'],
+    ['--c-accent-400','#70ACB3','大面积填充：技能/武器格底、HP·EXP 条','工程 30+ 处','ok'],
+    ['--c-accent-ring','#6FA9A7','选中描边环（只存在于贴图 rect_board_rd_20）','贴图烘焙色','ok'],
+    ['--c-range-line','#C0CCD1','战场范围圈（攻击半径 / 刷怪圈）','Scene_Game_Stage.prefab Graphics','todo'],
+    ['--c-range-line-2','#8CA8B3','第二层范围圈','Scene_Game_Stage.prefab 覆写','ok']
+  ],
+  'sw-identity': [
+    ['--c-identity','#A85A5A','英雄身份色：HUD 头像格底、英雄卡头像底与描边环、解锁环','View_Game_Stage/head + 菜单英雄卡 17 处','ok']
+  ],
+  'sw-ink': [
+    ['--c-ink-900','#445054','一级标题、等级大数字（40px）','Scene_Menu 标题','ok'],
+    ['--c-ink-800','#465259','顶部栏底色','Scene_Menu/head','ok'],
+    ['--c-ink-700','#56636A','底部栏底色、次级底','Scene_Menu/bottom','ok'],
+    ['--c-ink-600','#6A696B','战斗 HUD 图标与正文、数值','View_Game_Stage 12 处','todo'],
+    ['--c-ink-500','#5D5C5B','属性/装备小图标','英雄卡属性图标 12 处','todo'],
+    ['--c-ink-400','#999999','次要说明文字（14px）','Scene_Menu value 20 处','ok'],
+    ['--c-ink-300','#747474','遮罩（alpha 166）、禁用态','hero card lock/mask','ok'],
+    ['--c-ink-200','#D8D8D8','侧栏底、进度条轨道、分隔','Scene_Menu 侧栏','ok'],
+    ['--c-text','#000000','正文与小标题','菜单正文','ok'],
+    ['--c-text-on-dark','#FFFFFF','深底上的文字与图标','顶/底栏、按钮','ok']
+  ],
+  'sw-surface': [
+    ['--c-canvas-menu','#EFEEED','局外纸面底（暖米白）','截图 31% 占比 / 预制件','ok'],
+    ['--c-canvas-battle','#EBF4FB','局内战场底（冷蓝白）','Scene_Game_Stage 全屏 Sprite','ok'],
+    ['--c-surface','#FFFFFF','卡片、面板、浮层','截图 16.85%','ok'],
+    ['--c-surface-sunken','#D8D8D8','侧边导航底、分组底','截图 20.93%','ok']
+  ],
+  'sw-semantic': [
+    ['--c-damage-outline','#14181B','飘字描边（浅底白字必须压边）','DamageTextConfig.outlineColor','ok'],
+    ['--c-hit-hero','#FF4C4C','英雄受击闪 + 英雄飘字色','EntityVisualConfig Hero.hitColor','ok'],
+    ['--c-warn','#FF0000','金币不足（现状纯红，建议 #C0392B）','HeroSelectPanel / ShopRelicsPanel','todo'],
+    ['--c-gold','#D38C1E','金币 / 经济 Boss 专用金（唯一暖色强调）','textures/common/gold_boss_icon.png','todo']
+  ]
+};
+
+/* 亮度对比：浅色块上写深字，深色块上写白字 */
+function luminance(hex){
+  const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+  return 0.2126*r + 0.7152*g + 0.0722*b;
+}
+
+for (const [host, items] of Object.entries(PALETTE)) {
+  const box = document.getElementById(host);
+  items.forEach(([token, hex, usage, src, status]) => {
+    const el = document.createElement('div');
+    el.className = 'sw';
+    el.title = '点击复制 ' + hex;
+    const light = luminance(hex) > 0.55;
+    el.innerHTML =
+      '<div class="blk" style="background:' + hex + '">' +
+        '<span class="badge' + (status === 'todo' ? ' todo' : '') + '">' + (status === 'todo' ? '待收敛' : '已统一') + '</span>' +
+        '<span class="chk" style="color:' + (light ? '#445054' : '#FFFFFF') + '">' + hex + '</span>' +
+      '</div>' +
+      '<div class="meta">' +
+        '<div class="tok">' + token + '</div>' +
+        '<div class="hex">' + hex + '</div>' +
+        '<div class="use">' + usage + '</div>' +
+        '<div class="src">出处：' + src + '</div>' +
+      '</div>';
+    el.addEventListener('click', () => copyText(hex, el.querySelector('.chk')));
+    box.appendChild(el);
+  });
+}
+
+/* 品质框示意 */
+const QUALITY = [
+  ['#DDDDDD','common 白'],
+  ['#5096FF','rare 蓝'],
+  ['#CF68FF','epic 紫/黄 ⚠'],
+  ['#FF6464','legendary 红']
+];
+document.getElementById('q-demo').innerHTML = QUALITY.map(([hex, label]) => {
+  const light = luminance(hex) > 0.55;
+  return '<span class="tag-w">' +
+    '<span class="qbox" style="background:' + hex + '"><span style="border-color:' + (light ? '#FFFFFF' : '#FFFFFF') + '"></span></span>' +
+    '<span class="tag">' + label + '</span></span>';
+}).join('');
+
+/* 排版阶梯 */
+const TYPE = [
+  [40, 'Display', '等级大数字 / 页面主标题'],
+  [24, 'H1', '强调数值'],
+  [20, 'H2', '卡片标题 / 正文 / 数值'],
+  [16, 'Body', '说明 / 次级数值 / 按钮文字'],
+  [14, 'Caption', '辅助说明'],
+  [12, 'Micro', '单位后缀 / 最小说明']
+];
+document.getElementById('type-demo').innerHTML = TYPE.map(([size, name, usage]) =>
+  '<div class="type-row">' +
+    '<span class="lbl">' + name + ' · ' + size + 'px</span>' +
+    '<span class="demo" style="font-size:' + size + 'px"><span class="num">99</span> 阶段模式 <span class="num">300/300</span></span>' +
+    '<span class="sub" style="margin-left:auto">' + usage + '</span>' +
+  '</div>'
+).join('');
+
+/* 复制（file:// 下 Clipboard API 不可用时回退到 select + execCommand） */
+function copyText(text, feedbackEl){
+  const done = () => {
+    if (!feedbackEl) return;
+    const old = feedbackEl.textContent;
+    feedbackEl.textContent = '已复制';
+    setTimeout(() => { feedbackEl.textContent = old; }, 900);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => fallback(text, done));
+  } else {
+    fallback(text, done);
+  }
+}
+function fallback(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { alert('复制失败，请手动选择文本：\n' + text); }
+  document.body.removeChild(ta);
+}
+function copyFrom(id, btn){
+  const ta = document.getElementById(id);
+  const old = btn.textContent;
+  const done = () => { btn.textContent = '已复制 ✓'; setTimeout(() => { btn.textContent = old; }, 1000); };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(ta.value).then(done, () => fallback(ta.value, done));
+  } else {
+    ta.removeAttribute('readonly');
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { alert('请按 Ctrl+C 复制（已为你选中）'); }
+    ta.setAttribute('readonly', 'readonly');
+  }
+}
+</script>
+</body>
+</html>

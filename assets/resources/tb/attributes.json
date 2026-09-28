@@ -115,7 +115,7 @@
     "id": 15,
     "name": "暴击倍率",
     "stack_mode": "best",
-    "base": 100,
+    "base": 150,
     "min": 100,
     "max": 1000
   },

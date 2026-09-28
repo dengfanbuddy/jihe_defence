@@ -1,4 +1,4 @@
-// UIManager.ts - 单场景UI管理器（兼容原UIMgr注解收集与打开方式）
+// UIManager.ts - 单场景UI管理器（@uiview 注册表 + 层级栈 + 缓存超时）
 // 特性：场景层切换自动关闭其他层级 + 缓存超时防止内存增长
 
 import {
@@ -9,7 +9,6 @@ import {
 import BaseView from "./BaseView";
 import { LogMgr } from "../log/LogMgr";
 import { ViewInfo, ViewLayer } from "./ViewInfo";
-import UIMgr from "./UIMgr";
 import { isConstructor } from "../utils/TypeUtil";
 import { GlobalEventMgr } from "../event/GlobalEventMgr";
 
@@ -21,14 +20,14 @@ const { ccclass, property } = _decorator;
  */
 interface LayerInfo {
     node: Node;
-    stack: BaseView<any, any>[];
+    stack: BaseView[];
 }
 
 /**
  * 缓存的视图信息
  */
 interface CachedViewInfo {
-    view: BaseView<any, any>;
+    view: BaseView;
     expireTime: number;
 }
 
@@ -61,7 +60,7 @@ export default class UIManager extends Component {
     private viewCache: Map<string, CachedViewInfo> = new Map();
 
     /** 全局前置回调，在每次 showView 前调用 */
-    public globalBeforeShowFun: (layerNode: Node, showView: BaseView<any, any>, stack: BaseView<any, any>[]) => void = null;
+    public globalBeforeShowFun: (layerNode: Node, showView: BaseView, stack: BaseView[]) => void = null;
 
     /** 场景层名称列表 —— 在这些层级上打开 UI 时，会自动关闭其他非场景层的 UI */
     private sceneLayerNames: string[] = [ViewLayer[ViewLayer.Scene]];
@@ -69,12 +68,10 @@ export default class UIManager extends Component {
     /** 视图缓存超时（毫秒），默认 60s */
     public static DEFAULT_CACHE_TIME: number = 60000;
 
-    /** 视图信息 —— 直接引用 UIMgr.viewInfos（装饰器注册的目标） */
-    static get viewInfos(): { [name: string]: ViewInfo } {
-        return UIMgr.viewInfos;
-    }
+    /** 视图信息 —— `@uiview` 装饰器注册的目标（key = 视图类名） */
+    static viewInfos: { [name: string]: ViewInfo } = {};
 
-    changeSceneView: () => new (...args: any[]) => BaseView<any, any> = null;
+    changeSceneView: () => new (...args: any[]) => BaseView = null;
 
     // ================ 单例 ================
 
@@ -125,7 +122,7 @@ export default class UIManager extends Component {
      * - 如果目标层是场景层，会自动关闭并缓存其他非场景层的 UI
      * - 支持从缓存中恢复最近关闭的同类型视图
      */
-    public async showUI<T extends BaseView<any, any>>(
+    public async showUI<T extends BaseView>(
         viewType: new (...args: any[]) => T,
         afterShowCb?: () => void,
         ...args: any[]
@@ -156,7 +153,7 @@ export default class UIManager extends Component {
         }
 
         // ---- 单例检查（栈中查找） ----
-        let view: BaseView<any, any> = null;
+        let view: BaseView = null;
         if (uiInfo.single) {
             let pos = -1;
             for (let i = 0; i < stack.length; i++) {
@@ -234,7 +231,7 @@ export default class UIManager extends Component {
      * - 默认将视图移入缓存（expire 后自动销毁）
      * - 传入 options.destroy = true 则立即销毁
      */
-    public async closeUI<T extends BaseView<any, any>>(
+    public async closeUI<T extends BaseView>(
         view: T | (new (...args: any[]) => T),
         options?: {
             cb?: () => void;
@@ -248,7 +245,7 @@ export default class UIManager extends Component {
             closeByType = true;
             viewType = view as new (...args: any[]) => T;
         } else {
-            viewType = (view as BaseView<any, any>).constructor as new (...args: any[]) => T;
+            viewType = (view as BaseView).constructor as new (...args: any[]) => T;
         }
 
         const viewName = viewType.name || viewType.prototype.name;
@@ -267,7 +264,7 @@ export default class UIManager extends Component {
         const stack = this.layers.get(layerName).stack;
 
         // 收集需要关闭的视图
-        const toClose: BaseView<any, any>[] = [];
+        const toClose: BaseView[] = [];
         if (closeByType) {
             stack.forEach((v) => {
                 if (v.viewName === viewName) {
@@ -275,7 +272,7 @@ export default class UIManager extends Component {
                 }
             });
         } else {
-            const idx = stack.indexOf(view as BaseView<any, any>);
+            const idx = stack.indexOf(view as BaseView);
             if (idx !== -1) {
                 toClose.push(stack[idx]);
             }
@@ -328,7 +325,7 @@ export default class UIManager extends Component {
     // ================ 缓存机制 ================
 
     /** 将视图加入缓存 */
-    private addToCache(view: BaseView<any, any>): void {
+    private addToCache(view: BaseView): void {
         const key = this.cacheKey(view);
         // 如果有同 key 旧缓存，先销毁
         const existing = this.viewCache.get(key);
@@ -346,7 +343,7 @@ export default class UIManager extends Component {
     }
 
     /** 从缓存中取回视图（不移除则返回 null） */
-    private takeFromCache(viewName: string): BaseView<any, any> | null {
+    private takeFromCache(viewName: string): BaseView | null {
         // 遍历查找匹配构造器名的缓存
         for (const [key, cached] of this.viewCache) {
             if (key === viewName) {
@@ -446,11 +443,11 @@ export default class UIManager extends Component {
         return this.viewUid++;
     }
 
-    private cacheKey(view: BaseView<any, any>): string {
+    private cacheKey(view: BaseView): string {
         return view.constructor.name;
     }
 
-    private removeFromStack(stack: BaseView<any, any>[], view: BaseView<any, any>): void {
+    private removeFromStack(stack: BaseView[], view: BaseView): void {
         const idx = stack.indexOf(view);
         if (idx !== -1) {
             stack.splice(idx, 1);
@@ -458,7 +455,7 @@ export default class UIManager extends Component {
     }
 
     /** 在层级节点的子节点中查找指定类型的视图（查找 inactive 的） */
-    private findViewOnLayer<T extends BaseView<any, any>>(
+    private findViewOnLayer<T extends BaseView>(
         layerNode: Node,
         viewType: new (...args: any[]) => T,
     ): T | null {

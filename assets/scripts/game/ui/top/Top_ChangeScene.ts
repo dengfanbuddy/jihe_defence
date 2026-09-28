@@ -53,12 +53,12 @@ function alignVertices(a: Vec2[], b: Vec2[]): [Vec2[], Vec2[]] {
 }
 
 @uiview({
-    prefabPath: 'prefabs/ui/Top_ChangeScene', // 预制件路径
+    prefabPath: 'prefabs/ui/top/Top_ChangeScene', // 预制件路径（与 assets/resources 下的实际目录一致）
     layer: ViewLayer[ViewLayer.Top], // 所属层级
     single:true,//是否是单例，单例的话只能有一个当前视图存在
 })
 @ccclass('Top_ChangeScene')
-export class Top_ChangeScene extends BaseView<null,null> {
+export class Top_ChangeScene extends BaseView {
     @property(Graphics)
     private graphics: Graphics = null;
 

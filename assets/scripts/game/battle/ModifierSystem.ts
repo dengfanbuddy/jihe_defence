@@ -1,7 +1,9 @@
 import { AttributeContribution, BattleEvents, DamageType, DispelLevel, ModifierStackMode, StateType } from './types';
-import { Modifier } from './Modifier';
+import { Modifier, normalizeDuration } from './Modifier';
 import type { ModifierCfg } from '../excel_table/Tb_ModifierConfig';
 import type { ModifierCfgContainer } from '../excel_table/Tb_ModifierConfig';
+import type { ModifierTickEffect } from '../excel_table/EffectTypes';
+import { resolveAttrEntries } from '../excel_table/EffectTypes';
 import type { BattleContext } from './BattleContext';
 import type { AttributeSystem } from './AttributeSystem';
 import type { StatusSystem } from './StatusSystem';
@@ -37,10 +39,15 @@ export class ModifierSystem {
      * 添加 Modifier
      * @param id ModifierCfg.id
      * @param source 来源实体（可选）
-     * @param duration 覆盖持续时间（秒；缺省用定义值）
+     * @param duration 覆盖持续时间（秒；缺省用定义值）。**`null` 与缺省同义 = 未指定**
+     *                 （表格空单元格导出就是 null，见 `Modifier.normalizeDuration`），别当成 0 秒
      * @param kv 传给 OnCreated 的参数
+     * @param origin 来源组标识（授予条目标识，如 'relic:1' / 'ability:6' / 'buff:12'）。
+     *              同 (id, origin) 才按 stack_mode 合并（refresh 刷时 / stack 叠层 / none 覆盖）；
+     *              不同 origin 各持独立实例（分别计时/失效/叠加），互不干扰。
+     *              缺省共享空分组 = 旧的"实体上按 id 唯一"行为。
      */
-    AddModifier(id: number, source?: unknown, duration?: number, kv?: Record<string, any>): Modifier | null {
+    AddModifier(id: number, source?: unknown, duration?: number | null, kv?: Record<string, any>, origin?: string): Modifier | null {
         const def = this.defs.getCfgById(id);
         if (!def) {
             console.warn(`[ModifierSystem] 未找到 Modifier 定义: ${id}`);
@@ -49,24 +56,30 @@ export class ModifierSystem {
         // 免疫/不可施加检查：Invulnerable 状态下不可施加 debuff（可配）
         if (this.status.get(StateType.Invulnerable) && def.is_debuff) return null;
 
-        const existing = this.find(id);
-        if (existing && def.stack_mode !== ModifierStackMode.Renew) {
-            return this.applyStackRule(existing, def, source, duration, kv);
+        // 最强互斥家族（strongest_only）：实体上同 id 只保留最强幅度实例，跨来源也互斥
+        if (def.strongest_only) {
+            return this.addStrongestOnly(def, source, duration, kv, origin);
         }
 
-        const mod = this.createModifier(def, source, duration, kv);
+        const existing = this.findByOrigin(id, origin);
+        if (existing && def.stack_mode !== ModifierStackMode.Renew) {
+            return this.applyStackRule(existing, def, source, duration, kv, origin);
+        }
+
+        const mod = this.createModifier(def, source, duration, kv, origin);
         this.modifiers.push(mod);
         this.onAdded(mod);
         return mod;
     }
 
-    private applyStackRule(existing: Modifier, def: ModifierCfg, source: unknown, duration?: number, kv?: Record<string, any>): Modifier {
+    private applyStackRule(existing: Modifier, def: ModifierCfg, source: unknown, duration?: number | null, kv?: Record<string, any>, origin?: string): Modifier {
         switch (def.stack_mode) {
             case ModifierStackMode.Refresh:
-                // 刷新持续时间
-                existing.remainingTime = duration !== undefined ? duration : def.duration;
+                // 刷新持续时间（duration 缺省 / null = 未指定 → 用定义值；别把 null 写进 remainingTime）
+                existing.remainingTime = normalizeDuration(def, duration);
                 existing.source = source;
                 existing.OnRefresh(kv);
+                this.recollect(); // kv 幅度变化时贡献需重算
                 this.ctx.bus.publish(BattleEvents.OnModifierRefreshed, {
                     target: this.entity, modifierId: def.id, stackCount: existing.stackCount, source,
                 });
@@ -76,7 +89,7 @@ export class ModifierSystem {
                 const max = def.max_stack ?? 999;
                 if (existing.stackCount < max) {
                     existing.setStackCount(existing.stackCount + 1);
-                    existing.remainingTime = duration !== undefined ? duration : def.duration;
+                    existing.remainingTime = normalizeDuration(def, duration);
                     existing.OnRefresh(kv);
                     this.recollect();
                     this.ctx.bus.publish(BattleEvents.OnModifierRefreshed, {
@@ -89,17 +102,63 @@ export class ModifierSystem {
             default:
                 // 不叠加：移除旧的，新建
                 this.RemoveModifier(existing);
-                const mod = this.createModifier(def, source, duration, kv);
+                const mod = this.createModifier(def, source, duration, kv, origin);
                 this.modifiers.push(mod);
                 this.onAdded(mod);
                 return mod;
         }
     }
 
-    private createModifier(def: ModifierCfg, source: unknown, duration?: number, kv?: Record<string, any>): Modifier {
+    /**
+     * strongest_only 施加：实体上同 id 至多一个实例，按幅度保留最强（跨来源互斥）。
+     * - 新幅度 >= 现存最强 → 移除全部现存同 id 实例，挂新实例（全新时长）
+     * - 新幅度 < 现存最强 → 该效果为 refresh 型则仅刷新最强实例时长（不覆盖幅度），否则忽略
+     */
+    private addStrongestOnly(def: ModifierCfg, source: unknown, duration?: number | null, kv?: Record<string, any>, origin?: string): Modifier {
+        const alive = this.modifiers.filter((m) => m.getId() === def.id);
+        if (alive.length > 0) {
+            let strongest = alive[0];
+            let best = this.potencyOf(def, strongest.getKV());
+            for (let i = 1; i < alive.length; i++) {
+                const p = this.potencyOf(def, alive[i].getKV());
+                if (p > best) { best = p; strongest = alive[i]; }
+            }
+            const incoming = this.potencyOf(def, kv);
+            if (incoming < best) {
+                // 更弱：仅补时，幅度保持最强（不合并 kv，避免最强幅度被弱档覆盖）
+                if (def.stack_mode === ModifierStackMode.Refresh) {
+                    strongest.remainingTime = normalizeDuration(def, duration);
+                    strongest.source = source;
+                    this.ctx.bus.publish(BattleEvents.OnModifierRefreshed, {
+                        target: this.entity, modifierId: def.id, stackCount: strongest.stackCount, source,
+                    });
+                }
+                return strongest;
+            }
+            // 同强或更强 → 替换全部现存实例
+            for (const m of [...alive]) this.RemoveModifier(m);
+        }
+        const mod = this.createModifier(def, source, duration, kv, origin);
+        this.modifiers.push(mod);
+        this.onAdded(mod);
+        return mod;
+    }
+
+    /**
+     * 效果强度：以首条属性条目的幅度为准（支持 `attrs_var` 由 kv 传入、条目 `var` 绑定），
+     * 绝对值比较（支持负向减益）。
+     */
+    private potencyOf(def: ModifierCfg, kv?: Record<string, any>): number {
+        const entries = resolveAttrEntries(def.effects, kv);
+        if (entries.length === 0) return 0;
+        return Math.abs(entries[0].value);
+    }
+
+    private createModifier(def: ModifierCfg, source: unknown, duration?: number | null, kv?: Record<string, any>, origin?: string): Modifier {
         const mod = new Modifier(def, duration, kv);
         mod.target = this.entity;
         mod.source = source;
+        mod.origin = origin ?? '';
         // 复杂逻辑逃逸：script_id 指向注册在 ScriptRegistry 中的类
         if (def.script_id) {
             const Cls = this.ctx.scriptRegistry.get(def.script_id);
@@ -107,6 +166,7 @@ export class ModifierSystem {
                 const scripted = new Cls(def, duration, kv);
                 scripted.target = this.entity;
                 scripted.source = source;
+                scripted.origin = origin ?? '';
                 return scripted;
             }
             console.warn(`[ModifierSystem] script_id 未注册: ${def.script_id}`);
@@ -175,6 +235,12 @@ export class ModifierSystem {
     find(id: number): Modifier | undefined {
         return this.modifiers.find((m) => m.getId() === id);
     }
+
+    /** 按 (id, origin) 查找同分组实例：同 id 跨来源不合并（origin 缺省 = 空分组） */
+    findByOrigin(id: number, origin?: string): Modifier | undefined {
+        const key = origin ?? '';
+        return this.modifiers.find((m) => m.getId() === id && (m.origin ?? '') === key);
+    }
     getAll(): Modifier[] { return this.modifiers; }
     has(id: number): boolean { return this.modifiers.some((m) => m.getId() === id); }
     getStackCount(id: number): number {
@@ -187,14 +253,10 @@ export class ModifierSystem {
 
     Tick(dt: number): void {
         for (const m of [...this.modifiers]) {
-            // 周期效果（DoT/HoT）—— 在剩余时间扣除前处理
-            if (m.def.tick) {
-                m.tickTimer += dt;
-                while (m.tickTimer >= m.def.tick.interval) {
-                    m.tickTimer -= m.def.tick.interval;
-                    this.processTick(m);
-                }
-            }
+            // 自带冷却（cd）：每个实例独立计时，互不影响
+            if (m.cdRemaining > 0) m.cdRemaining = Math.max(0, m.cdRemaining - dt);
+            // 周期效果（DoT/HoT）—— 每条周期效果各持一个计时器；在剩余时间扣除前处理
+            for (const eff of m.advanceTicks(dt)) this.processTickEffect(m, eff);
             if (m.paused || m.isPermanent()) {
                 m.OnTick(dt);
                 continue;
@@ -207,24 +269,31 @@ export class ModifierSystem {
         }
     }
 
-    /** 处理 Modifier 的周期效果（tick.damage / tick.heal / tick.apply_modifier） */
-    private processTick(m: Modifier): void {
-        const t = m.def.tick!;
+    /** 处理一条周期效果（tick_damage / tick_heal / tick_apply_modifier） */
+    private processTickEffect(m: Modifier, eff: ModifierTickEffect): void {
         const source = m.source ?? this.entity;
         const target = m.target ?? this.entity;
-        if (t.damage && t.damage > 0) {
-            this.ctx.damagePipeline.ApplyDamage(
-                target, source, t.damage,
-                t.damage_type ?? DamageType.Magical,
-            );
-        }
-        if (t.heal && t.heal > 0) {
-            if (target.Heal) target.Heal(t.heal, source);
-        }
-        if (t.apply_modifier) {
-            const chance = t.apply_modifier_chance ?? 1;
-            if (Math.random() < chance && target.modifiers) {
-                target.modifiers.AddModifier(t.apply_modifier, source, t.apply_modifier_duration);
+        switch (eff.type) {
+            case 'tick_damage': {
+                if (eff.value > 0) {
+                    this.ctx.damagePipeline.ApplyDamage(
+                        target, source, eff.value,
+                        eff.damage_type ?? DamageType.Magical,
+                    );
+                }
+                break;
+            }
+            case 'tick_heal': {
+                if (eff.value > 0 && target.Heal) target.Heal(eff.value, source);
+                break;
+            }
+            case 'tick_apply_modifier': {
+                const chance = eff.chance ?? 1;
+                if (Math.random() < chance && target.modifiers) {
+                    // tick 施加的效果归属触发它的 Modifier 的来源组（同源可 refresh/stack）
+                    target.modifiers.AddModifier(eff.modifier, source, eff.duration, undefined, m.origin);
+                }
+                break;
             }
         }
     }

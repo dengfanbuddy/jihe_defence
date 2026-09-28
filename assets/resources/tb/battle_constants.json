@@ -4,7 +4,7 @@
   "critRateCap": 0.6,
   "critDmgBase": 0.5,
   "dodgeCap": 0.4,
-  "atkSpeedCap": 3.0,
+  "atkSpeedCap": 3,
   "atkRangeCap": 15,
   "shadowKillThreshold": 0.3,
   "levelSuppressThreshold": 5,
@@ -13,7 +13,7 @@
   "freezeMaxStacks": 3,
   "freezeSlowPerStack": 0.2,
   "burnDmgRatio": 0.15,
-  "poisonDmgRatio": 0.10,
+  "poisonDmgRatio": 0.1,
   "equipSlotCount": 4,
   "initialEnergy": 100,
   "initialHp": 100,
@@ -47,5 +47,10 @@
   "aiAttackSpeedDefault": 1,
   "phaseDefaultRemainingTime": 360,
   "skillSlotCount": 4,
-  "skillSlotUnlockLevels": [1, 5, 12, 20]
+  "skillSlotUnlockLevels": [
+    1,
+    5,
+    12,
+    20
+  ]
 }

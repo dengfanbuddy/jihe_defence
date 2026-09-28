@@ -8,6 +8,7 @@ import { BattleEvents } from './types';
 import { AIRegistry } from './ai/AIRegistry';
 import { AttributeType } from './core/Types';
 import { BattleConstUtil } from './core/BattleConstUtil';
+import type { UnitKind } from '../common/EntityVisualConfig';
 import type { AttributeCfg } from '../excel_table/Tb_AttributeConfig';
 import type { ModifierCfg } from '../excel_table/Tb_ModifierConfig';
 import type { AbilityCfg } from '../excel_table/Tb_AbilityConfig';
@@ -165,8 +166,9 @@ export class BattleContext {
 
     /**
      * 从 UnitCfg 创建实体（纯配置驱动）
+     * @param kind 表现类别（可选）：缺省由配置解析；阶段/最终 Boss 由刷新方显式传入
      */
-    CreateEntityFromDef(def: UnitCfg): Entity {
+    CreateEntityFromDef(def: UnitCfg, kind?: UnitKind): Entity {
         const entity = new Entity(
             def.id,
             this.nextEntityId++,
@@ -175,7 +177,7 @@ export class BattleContext {
             this,
             def.base_attributes,
         );
-        entity.Reinit(def);
+        entity.Reinit(def, kind);
         this.AddEntity(entity);
         return entity;
     }

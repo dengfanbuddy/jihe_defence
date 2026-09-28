@@ -66,7 +66,7 @@ export enum EquipmentCategory {
     Consumable = 'consumable',
 }
 
-/** 武器品质（数字，>=2.5 视为百分比加成层） */
+/** 装备品质（沿用旧装备数字口径：1 / 1.3 / 1.6 / 2；由遗物 rarity 换算而来，`percent` 加成需 ≥1.6） */
 export type WeaponQuality = number;
 
 /** 加成层类型（v2 简化：flat 固定值 / percent 百分比） */
@@ -84,14 +84,13 @@ export interface FeatureBonus {
     bonuses: OuterBonusGroup;
 }
 
-/** 装备配置（业务层类型，来自 equipments.json） */
+/** 局外装备配置（业务层类型；数据源 = `relics.json` 里**有局外版**的遗物，即 `modifiers_outer` / `description_outer`） */
 export interface EquipmentConfig {
     id: number;
     name: string;
     description: string;
     category: EquipmentCategory | string;
     quality: WeaponQuality;
-    heroId?: string;
     /** 属性加成（二维数组：[[属性编号, 值], ...]） */
     attributes: AttributeArray;
     /** 属性分层映射（数组：[[属性编号, 'flat'|'percent'], ...]） */

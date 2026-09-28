@@ -8,7 +8,9 @@ import type { AttributeCfgContainer } from '../excel_table/Tb_AttributeConfig';
  * 设计：
  *   - 属性定义（叠加方式、钳制范围）来自 TbRoot 配置容器（attributes.json）
  *   - 每个属性 = 基础值 + 所有 Modifier 的贡献汇总
- *   - 四种叠加方式：加法 / 乘法 / 补数乘法 / 优者生效
+ *   - 四种叠加方式：加法(固定值) / 百分比 / 乘法 / 补数乘法 / 优者生效
+ *     · percent = `base × (1 + Σv)`：同类**加法叠加**、只对基础值乘算一次（多来源不复利）
+ *     · add     = `+ Σv` 固定值，加在百分比之后
  *   - 修改后标记 dirty，下次读取时统一重算（Dota 2 的 Property Resolution）
  *
  * v2：属性 id 统一为 number（AttributeType 枚举），配置用二维数组 [[id, value]]
@@ -124,36 +126,50 @@ export class AttributeSystem {
         // 按 order 分组排序，保证确定性
         const sorted = [...list].sort((a, b) => a.order - b.order);
 
-        // 按模式分组（属性默认模式 + modifier 覆盖模式）
+        // 按模式分组（属性默认模式 + modifier 覆盖模式），组内存「配置原值」
         const groups = new Map<AttributeStackMode, number[]>();
         for (const c of sorted) {
             const mode = c.mode ?? defaultMode;
             if (!groups.has(mode)) groups.set(mode, []);
-            groups.get(mode)!.push(AttributeScaling.normalize(id, c.value));
+            groups.get(mode)!.push(c.value);
         }
+        /**
+         * 配置值 → 运行时值。
+         * - percent：配置值统一是「百分数」（14 = +14%），对所有属性一视同仁，**不走 AttributeScaling**
+         * - 其余：走 AttributeScaling（百分比型属性 int = 值×100，如魔抗 20 = 20%）
+         */
+        const toRuntime = (mode: AttributeStackMode, v: number): number =>
+            mode === AttributeStackMode.Percent ? v / 100 : AttributeScaling.normalize(id, v);
+        const values = (mode: AttributeStackMode): number[] =>
+            (groups.get(mode) ?? []).map(v => toRuntime(mode, v));
 
         let result = base;
-        // 处理顺序：先 add（最基础），再 multiply，再 complement，最后 best
-        const add = groups.get(AttributeStackMode.Add);
-        if (add) result += add.reduce((s, v) => s + v, 0);
 
-        const mul = groups.get(AttributeStackMode.Multiply);
-        if (mul) {
+        // percent 最先：只对**基础值**乘算，多来源同类加法叠加（1 + Σv）而不是复利（Π(1+v)）
+        const pct = values(AttributeStackMode.Percent);
+        if (pct.length) result *= 1 + pct.reduce((s, v) => s + v, 0);
+
+        // 固定值（add）加在百分比之后
+        const add = values(AttributeStackMode.Add);
+        if (add.length) result += add.reduce((s, v) => s + v, 0);
+
+        const mul = values(AttributeStackMode.Multiply);
+        if (mul.length) {
             let factor = 1;
             for (const v of mul) factor *= 1 + v;
             result *= factor;
         }
 
-        const comp = groups.get(AttributeStackMode.Complement);
-        if (comp) {
+        const comp = values(AttributeStackMode.Complement);
+        if (comp.length) {
             // 补数乘法：final = 1 - (1 - base) × Π(1 - v)
             let survive = 1 - result;
             for (const v of comp) survive *= 1 - v;
             result = 1 - survive;
         }
 
-        const best = groups.get(AttributeStackMode.Best);
-        if (best && best.length > 0) {
+        const best = values(AttributeStackMode.Best);
+        if (best.length > 0) {
             result = Math.max(result, ...best);
         }
 

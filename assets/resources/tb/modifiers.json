@@ -7,61 +7,44 @@
     "dispel_level": 1,
     "duration": 3,
     "stack_mode": "stack",
-    "properties": [
-      [
-        13,
-        0
-      ]
-    ],
-    "tick": {
-      "interval": 1,
-      "damage": 10,
-      "damage_type": "magical"
-    }
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            13,
+            0
+          ]
+        ]
+      },
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 10,
+        "damage_type": "magical"
+      }
+    ]
   },
   {
     "id": 2,
-    "name": "减速30%",
+    "name": "减速",
     "is_debuff": true,
     "is_hidden": false,
     "dispel_level": 1,
     "duration": 2.5,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        5,
-        -90
-      ]
-    ]
-  },
-  {
-    "id": 3,
-    "name": "减速50%",
-    "is_debuff": true,
-    "is_hidden": false,
-    "dispel_level": 1,
-    "duration": 2.5,
-    "stack_mode": "refresh",
-    "properties": [
-      [
-        5,
-        -150
-      ]
-    ]
-  },
-  {
-    "id": 4,
-    "name": "减速40%",
-    "is_debuff": true,
-    "is_hidden": false,
-    "dispel_level": 1,
-    "duration": 2.5,
-    "stack_mode": "refresh",
-    "properties": [
-      [
-        5,
-        -120
-      ]
+    "strongest_only": true,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          {
+            "attr": 5,
+            "value": -90,
+            "var": "slow"
+          }
+        ]
+      }
     ]
   },
   {
@@ -72,11 +55,16 @@
     "dispel_level": 1,
     "duration": 8,
     "stack_mode": "renew",
-    "properties": [
-      [
-        7,
-        20
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            7,
+            20
+          ]
+        ]
+      }
     ]
   },
   {
@@ -87,9 +75,12 @@
     "dispel_level": 2,
     "duration": 5,
     "stack_mode": "none",
-    "states": {
-      "invulnerable": true
-    }
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "invulnerable"
+      }
+    ]
   },
   {
     "id": 7,
@@ -99,9 +90,12 @@
     "dispel_level": 2,
     "duration": 1.5,
     "stack_mode": "none",
-    "states": {
-      "stunned": true
-    }
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "stunned"
+      }
+    ]
   },
   {
     "id": 8,
@@ -111,15 +105,20 @@
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        3,
-        20
-      ],
-      [
-        1,
-        100
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            20
+          ],
+          [
+            1,
+            100
+          ]
+        ]
+      }
     ]
   },
   {
@@ -130,15 +129,20 @@
     "dispel_level": 1,
     "duration": 8,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        4,
-        50
-      ],
-      [
-        11,
-        30
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            4,
+            50
+          ],
+          [
+            11,
+            30
+          ]
+        ]
+      }
     ]
   },
   {
@@ -189,11 +193,16 @@
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        3,
-        15
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            15
+          ]
+        ]
+      }
     ],
     "events": [
       {
@@ -237,11 +246,16 @@
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        16,
-        100
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            16,
+            100
+          ]
+        ]
+      }
     ]
   },
   {
@@ -252,11 +266,16 @@
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        1,
-        300
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            1,
+            300
+          ]
+        ]
+      }
     ]
   },
   {
@@ -267,16 +286,168 @@
     "dispel_level": 1,
     "duration": 15,
     "stack_mode": "refresh",
-    "properties": [
-      [
-        5,
-        -90
-      ]
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            5,
+            -90
+          ]
+        ]
+      },
+      {
+        "type": "tick_damage",
+        "interval": 3,
+        "value": 20,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "name": "鹰眼聚焦·一阶",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "stack",
+    "max_stack": 5,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            5
+          ]
+        ]
+      }
     ],
-    "tick": {
-      "interval": 3,
-      "damage": 20,
-      "damage_type": "magical"
-    }
+    "script_id": "Modifier_EagleEye"
+  },
+  {
+    "id": 21,
+    "name": "鹰眼聚焦",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 6,
+    "stack_mode": "stack",
+    "max_stack": 10,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            5
+          ]
+        ]
+      }
+    ],
+    "script_id": "Modifier_EagleEye"
+  },
+  {
+    "id": 22,
+    "name": "鹰眼专注",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 6,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            14,
+            20
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "name": "爆头冲击(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "apply_modifier",
+            "modifier": 7,
+            "duration": 0.3,
+            "chance": 0.15
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "name": "反击风暴(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_CounterStorm"
+  },
+  {
+    "id": 25,
+    "name": "钢铁战吼",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 8,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            6,
+            5
+          ],
+          [
+            11,
+            15
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "name": "雷霆之核",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "strongest_only": true,
+    "script_id": "Modifier_ZeusThunder"
+  },
+  {
+    "id": 1000,
+    "name": "属性修改",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "none",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs_var": "attrs"
+      }
+    ]
   }
 ]

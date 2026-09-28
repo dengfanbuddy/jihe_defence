@@ -1,12 +1,16 @@
 /**
  * Targeting —— 目标选择策略库
  *
- * 技能/普攻都可以配置自己的索敌策略（AbilityCfg.targeting）：
+ * 技能/普攻都可以配置自己的索敌策略（AbilityCfg.targeting / UnitCfg.attack_targeting）：
  *   - nearest     距离最近（默认）
  *   - lowest_hp   血量比例最低（优先斩杀）
- *   - farthest    距离最远
+ *   - farthest    距离最远（**在调用方传入的候选集内**，不含射程过滤）
  *   - random      随机
  *   - strongest   攻击力最高（优先威胁大的）
+ *
+ * 注意：本库只做"候选集内"的比较，不做射程判定。
+ * 射程过滤由调用方完成（如 Scene_Game_Stage.pickEnemy 先按 range 过滤再调用），
+ * 因此 farthest 的实际语义 = "射程内最远的敌人"，而非全图最远。
  *
  * 用法：
  *   const target = pickTarget(ability.def.targeting, enemies, caster.position);
@@ -25,7 +29,7 @@ interface Targetable {
 /**
  * 按策略从候选集中选择一个目标
  * @param strategy 策略（缺省 nearest）
- * @param candidates 候选实体
+ * @param candidates 候选实体（**射程过滤由调用方做**，本函数不判距离上限）
  * @param center 参考点（nearest/farthest 需要；可为空则用候选中心）
  */
 export function pickTarget(

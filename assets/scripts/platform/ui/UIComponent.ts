@@ -1,38 +1,63 @@
 import { Component, Node, EditBox, Slider, Toggle, ToggleContainer, warn, SystemEvent, Label, ProgressBar } from "cc";
-import BaseView from "./BaseView";
 import BaseEventMgr from "../event/BaseEventMgr";
 import { LogMgr } from "../log/LogMgr";
+import { getScope, UIScope, type ScopeKey } from "./UIScope";
 
 
 export class UIComponent extends Component {
-    _ownerView: BaseView<any, any> = null
-
-    // 管理所有UI组件
-    _uiComponents: Set<UIComponent> = new Set();
 
     // 存储绑定引用
     private _bindingReferences: Map<string, { component: any, eventHandlers: Function[] }> = new Map();
     private _isDestroyed: boolean = false;
 
-    public get ownerView() {
-        return this._ownerView
-    }
-    public set ownerView(view: BaseView<any, any>) {
-        this._ownerView = view
+    /** 组件作用域句柄（惰性创建，见 UIScope） */
+    private _scope: UIScope = null;
+
+    /**
+     * 本组件的作用域：provide/inject + watcher 统一回收 + 局部事件总线。
+     * 它同时是「向下提供值」的宿主节点和「向上解析」的起点（inject 沿 node.parent 向上找）。
+     */
+    public get scope(): UIScope {
+        if (!this._scope) {
+            this._scope = getScope(this);
+        }
+        return this._scope;
     }
 
-    // 注册组件 (改为public)
-    public registerComponent(comp: UIComponent, owerView: BaseView<any, any>) {
-        this._uiComponents.add(comp);
-        comp.ownerView = owerView;
+    /** 向本节点及其整棵子树提供值（Vue 的 provide），任意深度的后代都能 inject 到 */
+    protected provide<T>(key: ScopeKey, value: T): T {
+        return this.scope.provide<T>(key, value);
     }
 
-    // 注销组件
-    public unregisterComponent(comp: UIComponent) {
-        this._uiComponents.delete(comp);
-        comp.ownerView = null
+    /** 沿父链向上注入（Vue 的 inject，不含自己这一层） */
+    protected inject<T>(key: ScopeKey, fallback?: T): T {
+        return this.scope.inject<T>(key, fallback);
     }
 
+    /**
+     * 安全地摘掉**节点**事件（等价 `node.off(type, handler, target)`，但对已销毁的节点自动跳过）。
+     *
+     * 为什么必须用它：节点销毁时引擎**先销毁子节点、再销毁本节点自己的组件**，而每个被销毁的对象都会跑
+     * `CCObject._destruct()`（对象字段一律置 null —— `Node._eventProcessor` 正在其中；`_objFlags` 这类
+     * 数字会保留，所以 `isValid` 依然可靠）。于是组件 `onDestroy` 里对**后代**节点调 `off()` 时，那个节点
+     * 往往已经是"被 _destruct 过"的空壳 → `node._eventProcessor.off(...)` 抛
+     * `Uncaught TypeError: Cannot read properties of null (reading 'off')`。
+     * ⚠ 可选链 `node?.off(...)` **挡不住**这个错（`node` 不是 null，是它内部字段被清空了）。
+     *
+     * 跳过是安全的：监听随节点的事件处理器一起消亡，不存在泄漏。
+     * 正例参考 `Tabs.unbindTabClicks`（那里就是这个判断的手写版）。
+     *
+     * @param node   事件挂载的节点（可为 null/已销毁）
+     * @param type   事件名（`Button.EventType.CLICK` / `Node.EventType.*`）
+     * @param handler 注册时的同一个回调引用
+     * @param target  注册时的同一个 target
+     */
+    protected offNodeEvent(node: Node, type: string, handler: (...args: any[]) => void, target?: any): void {
+        if (!node || !node.isValid) {
+            return;
+        }
+        node.off(type, handler, target);
+    }
 
     protected __preload(): void {
         this.nodeBindHandle();
@@ -564,6 +589,15 @@ export class UIComponent extends Component {
     onDestroy(): void {
         // 标记为已销毁，防止在清理过程中触发新的事件
         this._isDestroyed = true;
+
+        // 销毁作用域：停掉 scope.watch 建的 watcher、清空局部事件、撤销本节点 provide
+        // （这里直接访问字段而不是 scope getter，避免在销毁中的节点上又新建一个作用域句柄）
+        // ⚠ onDestroy 抛异常会堵死引擎的销毁队列（画面永久卡住，见 AGENTS.md），所以每一步都各自兜住
+        try {
+            this._scope?.dispose();
+        } catch (error) {
+            warn(`${this.constructor.name} onDestroy 销毁作用域时出错`, error);
+        }
 
         try {
             // 清理所有绑定

@@ -1,15 +1,20 @@
 import { error } from 'cc';
-import UIMgr from "./ui/UIMgr";
+import UIManager from "./ui/UIManager";
 import { ResManager } from "./resources/ResMgr";
 import { logLevel, LogMgr } from "./log/LogMgr";
+import { AdMgr } from "./ad/AdMgr";
 
 /**门面模式 */
 class EzGame {
     public get ui(){
-        return UIMgr.ins;
+        return UIManager.ins;
     }
     public get res(){
         return ResManager.inst;
+    }
+    /** 激励视频广告（平台无关；未接入 SDK 时走开发兜底，见 platform/ad/AdMgr.ts） */
+    public get ad(){
+        return AdMgr.inst;
     }
 
     public get debug(){

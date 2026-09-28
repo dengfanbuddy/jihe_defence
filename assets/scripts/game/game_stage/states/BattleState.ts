@@ -5,7 +5,7 @@ import { EventNames } from "../../battle/core/EventBus";
 import { EventKeys } from "../../common/EventKeys";
 import { useBattleStore } from "../../stores";
 import { GameStageContext, GameStateType } from "../GameStateType";
-import { Scene_Game_Stage } from "../scene/Scene_Game_Stage";
+import { Scene_Game_Stage } from "../../ui/scenes/scene_game_stage/Scene_Game_Stage";
 
 
 export class BattleState implements IState<Scene_Game_Stage> {

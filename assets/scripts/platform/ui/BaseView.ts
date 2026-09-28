@@ -1,34 +1,40 @@
-import { effect, ReactiveEffectOptions, ReactiveEffectRunner, stop, watch, WatchCallback, 
-    WatchEffect, WatchHandle, WatchOptions, WatchSource } from "../reactivity/index";
-import { _decorator, Component, error, tween, Vec3,Node } from "cc";
+import { _decorator, tween, Vec3, Node } from "cc";
 import { UIComponent } from "./UIComponent";
-import BaseEventMgr from "../event/BaseEventMgr";
-import UIMgr from "./UIMgr";
-import { BaseCtl } from "./BaseCtl";
-import { getConstructorName } from "../utils/TypeUtil";
 
 // View.ts
 const { ccclass, property } = _decorator;
 
+/**
+ * UIManager 管理的视图基类（场景 / 视图 / 弹窗，需配 `@uiview` 注册）。
+ *
+ * 生命周期由 `UIManager.showUI/closeUI` 驱动，与作用域（继承自 UIComponent 的 `this.scope`）一一对应：
+ *   showView()   → `scope.resume()`   （显示）
+ *   closeView()  → `scope.pause()`    （隐藏/进缓存，**不销毁**）
+ *   deleteView() → `scope.dispose()`  （真销毁，停 watcher + 清局部事件 + 撤销 provide）
+ *
+ * 因此**场景本身就是整棵内嵌 UI 子树的 provide 宿主**：`Scene_Game_Stage` 里
+ * `this.scope.provide(key, value)`，其预制件内部任意深度的 `UIWidget`（含 `View_Game_Stage`）
+ * 都能 `inject(key)` 到 —— 注意要在早于子节点 onLoad 的时机提供，否则消费方改用惰性注入（用到时才 inject）。
+ * 详见 UIScope.ts。
+ *
+ * 内嵌在场景预制件里、不经 UIManager 的 UI 请继承 `UIWidget`，不要用本类。
+ *
+ * 视图内的 watcher 用 `this.scope.watch(...)`：随视图显示/隐藏自动 resume/pause，销毁时自动回收。
+ *
+ * 注：原有的 `dataModel` / `controller`（BaseCtl）MVC 已删除 —— 视图私有状态用继承来的
+ * `this.scope` / `this.provide`，业务逻辑放 store（`useBattleStore`）或纯 TS 系统（BattleContext 等）。
+ */
 @ccclass("BaseView")
-export default class BaseView<M,C> extends UIComponent {
+export default class BaseView extends UIComponent {
 
     /**视图实例的唯一标识符 */
     public uid:number = 0
-    /**视图实例对应的数据 */
-    public dataModel:M = null
-    /**视图实例对应的控制器 */
-    public controller:C = null;
-    /**视图实例对应的事件管理器 */
-    public eventMgr:BaseEventMgr = new BaseEventMgr()
     public node:Node = null;
     // 默认动画时长
     private static DEFAULT_ANIM_DURATION: number = 0.3;
 
     // 是否已初始化
     private _isInitialized: boolean = false;
-    private effectsRefs:ReactiveEffectRunner[] = []
-    private watcherHandles:WatchHandle[] = []
     protected animationShowFunc:()=>void = null;
     protected animationCloseFunc:()=>void = null;
     public useAnimation = false
@@ -36,24 +42,6 @@ export default class BaseView<M,C> extends UIComponent {
 
     public get viewName(){
         return this.node.name
-    }
-
-    protected __preload(): void {
-        super.__preload();
-        //初始化数据模型
-        let info = UIMgr.viewInfos[Object.getPrototypeOf(this).constructor.name];
-        if(info && info.dataModel) {
-            this.dataModel = new info.dataModel() as M;
-        }
-        if(info && info.controller) {
-            if(!BaseCtl.prototype.isPrototypeOf(info.controller.prototype)){
-                throw new Error("view的controller必须是BaseCtl的子类")
-            }
-            let ctrl = new info.controller() as BaseCtl<any>;
-            ctrl.view = this;
-            ctrl.initDo()
-            this.controller = ctrl as C;
-        }
     }
 
     // 生命周期：初始化（第一次显示时调用）
@@ -76,26 +64,6 @@ export default class BaseView<M,C> extends UIComponent {
 
     }
 
-    /**监听数据，如果是监听整个对象，则直接传入响应式对象，默认是deep的，递归处理内部属性，如果是监听对象的属性，则传入函数，函数里调用整个这个的值，如果属性是ref，需要使用()=>xx.value*/
-    protected watchData(source: WatchSource | WatchSource[] | WatchEffect | object, cb?: WatchCallback | null, options?: WatchOptions): WatchHandle {
-        let wachHandle = watch(source, cb, options)
-       this.watcherHandles.push(wachHandle)
-       return wachHandle;
-    }
-    //取消监听
-    protected unWatchData(wacher: WatchHandle) {
-        let index = this.watcherHandles.indexOf(wacher)
-        if(index==-1){
-            return
-        }
-        this.watcherHandles.splice(index,1)
-        wacher.stop()
-        
-    }
-    // protected addEffect<T = any>(fn: () => T, options?: ReactiveEffectOptions){
-    //     this.effectsRefs.push(effect(fn,options))
-    // }
-
     // 显示UI（带默认动画）
     public async showView(...args: any[]) {
         if(args){
@@ -103,11 +71,11 @@ export default class BaseView<M,C> extends UIComponent {
         }
         if (!this._isInitialized) {
             this._isInitialized = true;
-            // this.nodeBindHandle();
             this.init();
         }
         this.node.active = true;
-        this.watcherHandles.forEach(watcher=>watcher.resume())
+        // 作用域随视图一起恢复（UIManager 的 show/close/delete 与 scope 的 resume/pause/dispose 一一对应）
+        this.scope.resume();
         this.show();
         if(this.useAnimation){
             await this.playShowAnimation();
@@ -117,24 +85,17 @@ export default class BaseView<M,C> extends UIComponent {
     // 隐藏UI（带默认动画）
     public async closeView() {
         this.close();
-        this.watcherHandles.forEach(watcher=>watcher.pause())
-        this.effectsRefs.forEach(e=>stop(e))
-        this.effectsRefs = []
+        // 只暂停、不销毁：closeUI 默认会把视图放进缓存（节点仅 active=false），复用时不再走 onLoad，销毁作用域就废了
+        this.scope.pause();
         if(this.useAnimation){
             await this.playCloseAnimation();
         }
         this.node.active = false;
     }
     public deleteView(){
-        this.watcherHandles.forEach(watcher=>watcher.stop())
-        this.watcherHandles = []
+        // 真销毁（UIManager 传 destroy:true 或缓存过期）时才销毁作用域
+        this.scope.dispose();
         this.delete()
-        this.dataModel = null
-        this.controller = null
-
-    }
-    protected  getModelKey():string{
-        throw new error("modelkey 方法未实现："+getConstructorName(this))
     }
 
     // 播放显示动画

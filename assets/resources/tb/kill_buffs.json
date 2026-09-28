@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "code": "kb_atk",
+    "name": "狂怒",
+    "stat": "atk",
+    "per": 8,
+    "per_desc": "攻击力 +8%",
+    "max_stack": 10,
+    "price": 20,
+    "price_growth": 1.35,
+    "attr_id": 3,
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "叠满 +80%；攻击力无上限，可无限叠加"
+  },
+  {
+    "id": 2,
+    "code": "kb_atk_p",
+    "name": "破军",
+    "stat": "atk",
+    "per": 6,
+    "per_desc": "攻击力 +6%",
+    "max_stack": 12,
+    "price": 15,
+    "price_growth": 1.3,
+    "attr_id": 3,
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "叠满 +72%；攻击力无上限，可无限叠加"
+  },
+  {
+    "id": 3,
+    "code": "kb_hp",
+    "name": "磐石",
+    "stat": "hp",
+    "per": 10,
+    "per_desc": "最大生命 +10%",
+    "max_stack": 10,
+    "price": 18,
+    "price_growth": 1.35,
+    "attr_id": 1,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "叠满 +100%；生命上限无上限，可无限叠加"
+  },
+  {
+    "id": 4,
+    "code": "kb_hp_g",
+    "name": "巨灵",
+    "stat": "hp",
+    "per": 6,
+    "per_desc": "最大生命 +6%",
+    "max_stack": 15,
+    "price": 12,
+    "price_growth": 1.3,
+    "attr_id": 1,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "叠满 +90%；生命上限无上限，可无限叠加"
+  },
+  {
+    "id": 5,
+    "code": "kb_range",
+    "name": "超距鹰眼",
+    "stat": "range",
+    "per": 8,
+    "per_desc": "攻击范围 +8%",
+    "max_stack": 8,
+    "price": 22,
+    "price_growth": 1.4,
+    "attr_id": 16,
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "射程上限 15m；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 6,
+    "code": "kb_def",
+    "name": "铁壁",
+    "stat": "def",
+    "per": 4,
+    "per_desc": "护甲减伤 +4%",
+    "max_stack": 12,
+    "price": 16,
+    "price_growth": 1.32,
+    "attr_id": 6,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "护甲减伤上限 70%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 7,
+    "code": "kb_def_p",
+    "name": "板甲",
+    "stat": "def",
+    "per": 3,
+    "per_desc": "护甲减伤 +3%",
+    "max_stack": 15,
+    "price": 12,
+    "price_growth": 1.3,
+    "attr_id": 6,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "护甲减伤上限 70%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 8,
+    "code": "kb_aspd",
+    "name": "迅捷",
+    "stat": "aspd",
+    "per": 7,
+    "per_desc": "攻击速度 +7%",
+    "max_stack": 8,
+    "price": 24,
+    "price_growth": 1.42,
+    "attr_id": 4,
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "攻速上限 3.0；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 9,
+    "code": "kb_aspd_g",
+    "name": "急速",
+    "stat": "aspd",
+    "per": 5,
+    "per_desc": "攻击速度 +5%",
+    "max_stack": 10,
+    "price": 18,
+    "price_growth": 1.36,
+    "attr_id": 4,
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "攻速上限 3.0；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 10,
+    "code": "kb_crit",
+    "name": "锐锋",
+    "stat": "crit",
+    "per": 5,
+    "per_desc": "暴击率 +5%",
+    "max_stack": 8,
+    "price": 26,
+    "price_growth": 1.45,
+    "attr_id": 14,
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "暴击率上限 60%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 11,
+    "code": "kb_crit_p",
+    "name": "精准",
+    "stat": "crit",
+    "per": 4,
+    "per_desc": "暴击率 +4%",
+    "max_stack": 10,
+    "price": 20,
+    "price_growth": 1.4,
+    "attr_id": 14,
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "暴击率上限 60%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 12,
+    "code": "kb_dodge",
+    "name": "灵动",
+    "stat": "dodge",
+    "per": 3,
+    "per_desc": "闪避率 +3%",
+    "max_stack": 8,
+    "price": 28,
+    "price_growth": 1.45,
+    "attr_id": 8,
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "闪避上限 40%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 13,
+    "code": "kb_dodge_g",
+    "name": "轻身",
+    "stat": "dodge",
+    "per": 2,
+    "per_desc": "闪避率 +2%",
+    "max_stack": 12,
+    "price": 20,
+    "price_growth": 1.38,
+    "attr_id": 8,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "闪避上限 40%；触及上限后该 Buff 不再生效"
+  },
+  {
+    "id": 14,
+    "code": "kb_regen",
+    "name": "复苏",
+    "stat": "regen",
+    "per": 0.6,
+    "per_desc": "每秒回复 0.6% 最大生命",
+    "max_stack": 12,
+    "price": 15,
+    "price_growth": 1.32,
+    "attr_id": 9,
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "治疗量加算，无上限；适合持久战"
+  },
+  {
+    "id": 15,
+    "code": "kb_regen_p",
+    "name": "滋养",
+    "stat": "regen",
+    "per": 0.4,
+    "per_desc": "每秒回复 0.4% 最大生命",
+    "max_stack": 15,
+    "price": 12,
+    "price_growth": 1.3,
+    "attr_id": 9,
+    "tags": [
+      "控制减速"
+    ],
+    "note": "治疗量加算，无上限；适合持久战"
+  },
+  {
+    "id": 16,
+    "code": "kb_skyfall",
+    "name": "天怒",
+    "stat": "special",
+    "per": 0,
+    "per_desc": "每 10 次击杀触发 1 次全屏爆炸（攻击力 ×200%）",
+    "max_stack": 3,
+    "price": 40,
+    "price_growth": 1.5,
+    "script_id": "KillBuff_kb_skyfall",
+    "tags": [
+      "法术爆发"
+    ],
+    "note": "击杀计数全局累计；每层 +50% 爆炸伤害"
+  },
+  {
+    "id": 17,
+    "code": "kb_bloodbag",
+    "name": "血包",
+    "stat": "special",
+    "per": 0,
+    "per_desc": "击杀敌人 15% 概率掉落血包（回复 10% 生命）",
+    "max_stack": 5,
+    "price": 30,
+    "price_growth": 1.45,
+    "script_id": "KillBuff_kb_bloodbag",
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "血包落地存留 10 秒；每层概率 +15%、回复 +5%"
+  },
+  {
+    "id": 18,
+    "code": "kb_waveheal",
+    "name": "波次补给",
+    "stat": "special",
+    "per": 0,
+    "per_desc": "波次开始时回复 50% 缺失生命",
+    "max_stack": 2,
+    "price": 35,
+    "price_growth": 1.5,
+    "script_id": "KillBuff_kb_waveheal",
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "波次结算触发；2 级回复量提升至 100% 回满"
+  },
+  {
+    "id": 19,
+    "code": "kb_critheal",
+    "name": "战地急救",
+    "stat": "special",
+    "per": 0,
+    "per_desc": "暴击时回复造成伤害 5% 的生命",
+    "max_stack": 4,
+    "price": 32,
+    "price_growth": 1.45,
+    "script_id": "KillBuff_kb_critheal",
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "随暴击频率触发；每层回复比例 +3%"
+  },
+  {
+    "id": 20,
+    "code": "kb_snowball",
+    "name": "滚雪球",
+    "stat": "special",
+    "per": 0,
+    "per_desc": "每获取 100 金币，攻击力 +2%",
+    "max_stack": 6,
+    "price": 45,
+    "price_growth": 1.55,
+    "script_id": "KillBuff_kb_snowball",
+    "tags": [
+      "经济成长"
+    ],
+    "note": "累计金币全局结算；叠满攻击力 +12%"
+  }
+]

@@ -1,4 +1,4 @@
-import { DamageType } from './types';
+import { DamageType, MODIFY_ATTR_TEMPLATE_ID } from './types';
 import { Projectile } from './Projectile';
 import { pickTargets } from './Targeting';
 import type { ConfigAction } from '../excel_table/Tb_AbilityConfig';
@@ -36,6 +36,11 @@ export interface ActionContext {
     event?: any;
     /** 触发动作的 Modifier（Modifier 事件回调时携带） */
     self?: any;
+    /**
+     * 来源组标识：本动作产生的效果归属的授予条目（如 'ability:6' / 'relic:1' / 'buff:12'）。
+     * 主要被 apply_modifier 消费：同 (id, origin) 合并，跨 origin 各持独立实例。缺省 = 空分组。
+     */
+    origin?: string;
 }
 
 export class EffectExecutor {
@@ -51,7 +56,7 @@ export class EffectExecutor {
      * @param context 执行上下文（actor/target/point/event/self）
      */
     execute(action: ConfigAction, context: ActionContext): void {
-        const { actor, target, point, event, self } = context;
+        const { actor, target, point, event, self, origin } = context;
         const ctx = this.ctx;
 
         switch (action.type) {
@@ -118,7 +123,8 @@ export class EffectExecutor {
             case 'apply_modifier': {
                 if (this.rollChance(action.chance)) break;
                 const tgt = target ?? actor;
-                if (tgt?.modifiers) tgt.modifiers.AddModifier(action.modifier, actor, action.duration);
+                // kv：模板效果的幅度参数（如减速 { slow: -150 }），透传给 Modifier 的 OnCreated/var 绑定
+                if (tgt?.modifiers) tgt.modifiers.AddModifier(action.modifier, actor, action.duration, action.kv, origin);
                 break;
             }
             case 'remove_modifier': {
@@ -158,17 +164,16 @@ export class EffectExecutor {
                 break;
             }
             case 'modify_attr': {
-                // 临时属性修改（等效于隐式 Modifier，到期恢复）
+                // 属性修改统一转成「属性修改」共享模板 Modifier（见 MODIFY_ATTR_TEMPLATE_ID）：
+                // 走 ModifierSystem 的**贡献**通道（不是 addBase），percent/add 语义与肉鸽遗物完全一致，
+                // 并自动获得叠层/刷新/按 origin 隔离/驱散能力。
+                // @param duration 缺省 = 永久（-1）
                 const tgt = target ?? actor;
-                if (!tgt?.attrs) break;
-                const dur = action.duration ?? -1;
-                tgt.attrs.addBase(action.attribute, action.value);
-                if (dur > 0) {
-                    const kv = { attr: action.attribute, value: action.value, target: tgt };
-                    ctx.schedule(dur, () => {
-                        if (kv.target?.attrs) kv.target.attrs.addBase(kv.attr, -kv.value);
-                    });
-                }
+                if (!tgt?.modifiers) break;
+                tgt.modifiers.AddModifier(
+                    MODIFY_ATTR_TEMPLATE_ID, actor, action.duration ?? -1,
+                    { attrs: action.attrs }, origin,
+                );
                 break;
             }
             case 'execute_script': {

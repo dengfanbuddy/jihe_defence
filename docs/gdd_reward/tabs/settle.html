@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>结算 · 奖励数值设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article>
+  <div class="tab-intro">结算：一局结束统一产出<strong>局外奖励</strong> —— 英雄经验按<strong>关卡阶梯</strong>发、失败再乘阶段折扣，局外遗物按「数量→品质→id」三段概率抽，全部以 <strong>icon + 数量</strong> 展示在结束面板。</div>
+
+  <div class="callout ok"><strong>定案汇总（第一轮 12 条）：</strong>① 失败系数 10/20/30/40/50% ② 阶梯 = 80 × 1.12^(档-1)、20 档 ③ <strong>玩家账号经验不由结算发</strong>，改由局外任务系统（后续设计）④ 局内击杀奖励<strong>不随关卡缩放</strong>；局内遗物<strong>抽后不放回</strong> ⑤ 失败掉落 = 胜利的一半 ⑥ 品质权重随关卡<strong>微调</strong> ⑦ epic = 第三档品质 ⑧ <code>equipments</code> 就是局外遗物系统，<strong>统一命名</strong> ⑨ 成长维度收敛为攻击/生命/防御 ⑩ 曲线 k = 1.0 ⑪ icon 后续单独处理 ⑫ 当前难度存 <code>PlayerInfo</code>，每关单独配置可另建表。</div>
+
+  <div class="callout ok"><strong>定案汇总（第三轮 7 条）：</strong>① 抽卡<strong>手动</strong>触发、4 选 1、<strong>第 4 格是广告位</strong>（高品质 + 看广告才能拿）、选后其余置灰、要重新抽才能继续 ② buff <strong>只覆盖不叠加</strong>（限时型）③ 击杀数不设上限、<strong>精英/Boss 也算击杀</strong>、<strong>buff 用击杀点买</strong>（不是金币）④ 恢复 <code>monsterPool</code> 池子随机（怪种不足就先一直用现有的）⑤ 遗物展示 = <strong>背包按钮 + 可滚动列表 + 点 icon 弹详情</strong>⑦ 金币<strong>去掉</strong>阶段系数与时间通胀 ⑧ <code>difficulty_levels</code> 表<strong>现在就建</strong>。</div>
+
+  <div class="callout ok"><strong>定案汇总（第四轮 3 条）：</strong>① 普通怪金币<strong>上调</strong>（2 → <strong>3</strong>），并把<strong>前期几波怪改成 1 击必杀</strong>（关卡 1~10 用 <code>difficulty_levels.hp_mul = 0.25</code>）② 第 4 格广告位<strong>两次判定</strong> —— 先掷"这一格要不要走高品权重"，<strong>中了</strong>才用高品权重（白 0 / 蓝 30 / 紫 45 / 红 25），<strong>没中就和其余 3 格完全同权重</strong> ③ 每局免费抽<strong>机制保留、默认 0 次</strong>（<code>adFreeDrawPerRun = 0</code>），次数改由<strong>局外成就系统</strong>发放。详见 §三⑥ 与 §三②。</div>
+
+  <h2>结算管线</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 780 360" width="780" height="360" role="img" aria-label="对局结算管线">
+      <defs>
+        <marker id="arr2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+
+      <rect x="10" y="24" width="150" height="56" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="85" y="48" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">对局结束</text>
+      <text x="85" y="66" text-anchor="middle" fill="#8b98a5" font-size="11">最终 Boss 阵亡 = 胜</text>
+
+      <rect x="190" y="24" width="150" height="56" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="265" y="48" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">endRun 收口</text>
+      <text x="265" y="66" text-anchor="middle" fill="#8b98a5" font-size="11">幂等 · 唯一入口</text>
+
+      <rect x="370" y="24" width="180" height="56" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="460" y="48" text-anchor="middle" fill="#bcd8f0" font-size="13" font-weight="600">结算管线 settleRun</text>
+      <text x="460" y="66" text-anchor="middle" fill="#8b98a5" font-size="11">(result, level, stage)</text>
+
+      <rect x="250" y="120" width="170" height="54" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="335" y="142" text-anchor="middle" fill="#e6edf3" font-size="12.5" font-weight="600">① 英雄经验</text>
+      <text x="335" y="160" text-anchor="middle" fill="#8b98a5" font-size="11">关卡阶梯 × 阶段折扣</text>
+
+      <rect x="440" y="120" width="170" height="54" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="525" y="142" text-anchor="middle" fill="#e6edf3" font-size="12.5" font-weight="600">② 局外遗物</text>
+      <text x="525" y="160" text-anchor="middle" fill="#8b98a5" font-size="11">数量 → 品质 → id</text>
+
+      <rect x="630" y="120" width="140" height="54" rx="12" fill="#1d2632" stroke="#2a3441" stroke-dasharray="5 4"/>
+      <text x="700" y="142" text-anchor="middle" fill="#8b98a5" font-size="12.5" font-weight="600">③ 扩展奖励</text>
+      <text x="700" y="160" text-anchor="middle" fill="#8b98a5" font-size="11">预留接口</text>
+
+      <rect x="250" y="205" width="340" height="56" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="420" y="229" text-anchor="middle" fill="#bcd8f0" font-size="13" font-weight="600">RewardBundle 汇总</text>
+      <text x="420" y="247" text-anchor="middle" fill="#8b98a5" font-size="11">统一结构：kind / id / count / quality</text>
+
+      <rect x="250" y="290" width="340" height="52" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="420" y="312" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">结算面板 icon + 数量</text>
+      <text x="420" y="330" text-anchor="middle" fill="#8b98a5" font-size="11">「确定」→ 回主界面</text>
+
+      <path d="M160 52 H185" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M340 52 H365" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M460 80 V100 H335 V115" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M460 80 V100 H525 V115" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M460 80 V100 H700 V115" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M335 174 V200" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M525 174 V200" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M700 174 V190 H594" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+      <path d="M420 261 V285" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr2)"/>
+    </svg>
+    <div class="cap">三个奖励源互相独立、可并行扩展；结算在 <code>endRun</code> 内<strong>先算完并立即落库</strong>（<code>DataCenter.saveAll()</code>），面板只是这次发放的回执 —— 玩家不点「确定」也不会丢奖励。</div>
+  </div>
+
+  <div class="callout info"><strong>两条轴别混：</strong><strong>关卡</strong>（难度模式 1~200，<strong>跨局</strong>选择）决定经验的<strong>阶梯档位</strong>与遗物的<strong>品质档</strong>；<strong>阶段</strong>（局内 1~4 + Boss）只决定<strong>失败折扣</strong>。</div>
+
+  <h3>关卡从哪来（回复 12）</h3>
+  <div class="grid c2">
+    <div class="card"><h4>难度状态进 <code>PlayerInfo</code></h4><p>当前选择的难度按<strong>玩法分字段</strong>保存，例如 <code>difficultyByMode: { stage: 12, endless: 0, boss_rush: 3 }</code>（key = 模式 id）。结算只管读，不负责写。</p></div>
+    <div class="card"><h4>每关单独配置 → 另建表</h4><p>若每个难度要各自的怪物池/数值倍率/解锁条件，就单独出一张 <code>difficulty_levels</code> 表（主键 = 关卡，1~200），<strong>不塞进 battle_constants</strong>（KV 表不适合 200 行）。</p></div>
+  </div>
+  <div class="callout warn"><strong>关卡系统目前代码里还没有</strong>（<code>docs/数值配置参考手册.md</code> 写的是"难度 1~100，每 5 难度换一个关底 Boss"，本次抬到 200）⇒ 结算先落 <code>level</code> 入参接口，在关卡系统落地前<strong>恒为 1</strong>（等价于只有首档）。</div>
+
+  <h2>一、英雄经验</h2>
+  <table>
+    <thead><tr><th scope="col">结果</th><th scope="col">发放口径</th><th scope="col">公式</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="q r">胜利</span></td>
+        <td>按<strong>关卡所属阶梯</strong>发（<strong>不再固定</strong>，与用时 / 击杀无关）</td>
+        <td><code>阶梯基数 × 阶梯系数^(档位-1)</code>，<code>档位 = ceil(关卡 / 10)</code></td>
+      </tr>
+      <tr>
+        <td><span class="q u">失败</span></td>
+        <td>同档位的阶梯值 × <strong>阶段系数</strong>，最高 <strong>50%</strong>（= 胜利的一半）</td>
+        <td><code>阶梯值 × stageRatio</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>关卡阶梯（定案：基数 80 / 系数 1.12 / 20 档）</h3>
+  <table>
+    <thead><tr><th scope="col">档</th><th scope="col">关卡</th><th scope="col">胜利经验</th><th scope="col">失败 @阶段1<br><span style="font-weight:400">(10%)</span></th><th scope="col">失败 @阶段2<br><span style="font-weight:400">(20%)</span></th><th scope="col">失败 @阶段5 Boss<br><span style="font-weight:400">(50%)</span></th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1-10</td><td><strong>80</strong></td><td>8</td><td>16</td><td>40</td></tr>
+      <tr><td>2</td><td>11-20</td><td>90</td><td>9</td><td>18</td><td>45</td></tr>
+      <tr><td>3</td><td>21-30</td><td>100</td><td>10</td><td>20</td><td>50</td></tr>
+      <tr><td>4</td><td>31-40</td><td>112</td><td>11</td><td>22</td><td>56</td></tr>
+      <tr><td>5</td><td>41-50</td><td>126</td><td>13</td><td>25</td><td>63</td></tr>
+      <tr><td>6</td><td>51-60</td><td>141</td><td>14</td><td>28</td><td>71</td></tr>
+      <tr><td>7</td><td>61-70</td><td>158</td><td>16</td><td>32</td><td>79</td></tr>
+      <tr><td>8</td><td>71-80</td><td>177</td><td>18</td><td>35</td><td>89</td></tr>
+      <tr><td>9</td><td>81-90</td><td>198</td><td>20</td><td>40</td><td>99</td></tr>
+      <tr><td>10</td><td>91-100</td><td>222</td><td>22</td><td>44</td><td>111</td></tr>
+      <tr><td>11</td><td>101-110</td><td>248</td><td>25</td><td>50</td><td>124</td></tr>
+      <tr><td>12</td><td>111-120</td><td>278</td><td>28</td><td>56</td><td>139</td></tr>
+      <tr><td>13</td><td>121-130</td><td>312</td><td>31</td><td>62</td><td>156</td></tr>
+      <tr><td>14</td><td>131-140</td><td>349</td><td>35</td><td>70</td><td>175</td></tr>
+      <tr><td>15</td><td>141-150</td><td>391</td><td>39</td><td>78</td><td>196</td></tr>
+      <tr><td>16</td><td>151-160</td><td>438</td><td>44</td><td>88</td><td>219</td></tr>
+      <tr><td>17</td><td>161-170</td><td>490</td><td>49</td><td>98</td><td>245</td></tr>
+      <tr><td>18</td><td>171-180</td><td>549</td><td>55</td><td>110</td><td>275</td></tr>
+      <tr><td>19</td><td>181-190</td><td>615</td><td>62</td><td>123</td><td>308</td></tr>
+      <tr><td>20</td><td>191-200</td><td><strong>689</strong></td><td>69</td><td>138</td><td>345</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>实现口径：</strong>3 个常量（基数 80 / 系数 1.12 / 档上限 20）算出即可，与现有 <code>heroExpFormulaBase/Ratio</code> 同风格；首档 80 与现状 <code>clearRewardHeroExpBase</code> 对齐 ⇒ <strong>低关卡手感不变</strong>。</div>
+
+  <h3>失败阶段系数（定案）</h3>
+  <table>
+    <thead><tr><th scope="col">结束时阶段</th><th scope="col">含义</th><th scope="col">stageRatio</th><th scope="col">首档实得</th><th scope="col">末档实得</th></tr></thead>
+    <tbody>
+      <tr><td>阶段 1</td><td>第一个常规阶段就阵亡</td><td>10%</td><td>8</td><td>69</td></tr>
+      <tr><td>阶段 2</td><td>常规阶段</td><td>20%</td><td>16</td><td>138</td></tr>
+      <tr><td>阶段 3</td><td>常规阶段</td><td>30%</td><td>24</td><td>207</td></tr>
+      <tr><td>阶段 4</td><td>常规阶段（最后一段）</td><td>40%</td><td>32</td><td>276</td></tr>
+      <tr><td>阶段 5</td><td>Boss 阶段（超时未击杀 / 打 Boss 时阵亡）</td><td><strong>50%</strong></td><td>40</td><td>345</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>阶段以 <code>endRun</code> 触发瞬间的 <code>stage</code> 为准</strong>（不是"通关过几个阶段"）：死在阶段 3 的路上 = 30%；Boss 阶段读秒归零 = 阶段 5 = 50%。准备期（<code>stage = 0</code>）阵亡按阶段 1 兜底。</div>
+
+  <h3>玩家账号经验：结算不再发（回复 3）</h3>
+  <table>
+    <thead><tr><th scope="col">项目</th><th scope="col">口径</th></tr></thead>
+    <tbody>
+      <tr><td>结算产出</td><td><strong>只有英雄经验</strong>（+ 遗物）。玩家账号经验<strong>不再由对局结束发放</strong>。</td></tr>
+      <tr><td>账号经验来源</td><td>局外<strong>任务系统</strong>：如"今日完成难度模式 N 局""今日击杀怪物 X 只"等。<span class="q n">后续设计</span></td></tr>
+      <tr><td>结算仍要做的事</td><td>照旧写 <code>playerInfo.recordGameEnd(kills, stage)</code>（<code>totalGames</code> / <code>totalKills</code> / <code>maxWave</code>）—— 任务系统读的就是这些累计值。<code>PlayerInfo.addExp()</code> 保留给任务系统调用。</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>顺带简化了结算面板：</strong>奖励列表少一类（不再有"账号经验"格），经验类只剩英雄经验一格。</div>
+
+  <h3>局内击杀奖励不随关卡缩放（回复 4）</h3>
+  <div class="callout ok">所有关卡的<strong>局内金币 / 局内经验完全一致</strong>，目的：<strong>让局内节奏差不多</strong> —— 不同难度的一局在"抽几次、买几个 buff"上体感一致，难度只体现在敌人强度与<strong>结算收益</strong>上。</div>
+  <div class="callout warn"><strong>连带后果：</strong>关卡不再是局内经济来源，所以"上难度"的收益<strong>全部落在结算</strong>（经验阶梯 80→689、遗物品质档）。击杀奖励的缩放只有<strong>阶段维度</strong>（<code>currentRewardScale()</code> 里用 <code>stage</code>，与关卡无关）；⚠ 第三轮定案 7 之后这套缩放<strong>只留给局内经验</strong>，金币不再吃它（见 §三⑤）。</div>
+
+  <h3>发放对象 = 局内最后选择的英雄</h3>
+  <div class="grid c2">
+    <div class="card"><h4>口径</h4><p>中途重选英雄时，以<strong>最后一次选择</strong>的英雄为准 —— 与"局内成长（等级/遗物/Buff 不随重选清零）"一致，奖励跟着人走。</p></div>
+    <div class="card"><h4>落地要点</h4><p>取 <code>this.hero.id</code>（units.json 的 hero id，如 1001）作为 <code>HeroData</code> 的键；未解锁的英雄先 <code>unlockHero()</code> 再发经验。</p></div>
+  </div>
+  <div class="callout bad"><strong>现状是坏的：</strong><code>Scene_Game_Stage.firstHeroId()</code> 的 for 循环被注释掉了，<strong>恒返回 <code>null</code></strong> ⇒ 现在每局结束<strong>没有任何英雄拿到经验</strong>。本次要顺手修掉。</div>
+
+  <h2>二、局外遗物收集系统</h2>
+  <p>结算产出的遗物进<strong>局外收集</strong>，与局内遗物<strong>共用同一套 id</strong>（<code>relics.json</code>，298 件，其中商店道具 293 件 = id 1001~1293）。<strong>配置上一条遗物拆成两个互相独立的部分</strong>。</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 250" width="760" height="250" role="img" aria-label="relics.json 拆成局内与局外两部分">
+      <defs>
+        <marker id="arr4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+      <rect x="250" y="14" width="260" height="46" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="380" y="34" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">relics.json 一条</text>
+      <text x="380" y="51" text-anchor="middle" fill="#8b98a5" font-size="11">id / name / icon / rarity（共用）</text>
+
+      <rect x="40" y="110" width="320" height="120" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="200" y="134" text-anchor="middle" fill="#bcd8f0" font-size="13" font-weight="600">battle · 局内</text>
+      <text x="200" y="158" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">description</text>
+      <text x="200" y="178" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">modifiers[]  → 挂 Modifier</text>
+      <text x="200" y="198" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">script_id</text>
+      <text x="200" y="218" text-anchor="middle" fill="#8b98a5" font-size="11">商店文案 / 战斗生效</text>
+
+      <rect x="400" y="110" width="320" height="120" rx="12" fill="#1d3a2e" stroke="#1d5633"/>
+      <text x="560" y="134" text-anchor="middle" fill="#9fe7c0" font-size="13" font-weight="600">meta · 局外</text>
+      <text x="560" y="158" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">description</text>
+      <text x="560" y="178" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">attrs[][]   → 收集属性</text>
+      <text x="560" y="198" text-anchor="middle" fill="#e6edf3" font-size="11.5" font-family="ui-monospace,Consolas,monospace">effects[]   → 特殊效果</text>
+      <text x="560" y="218" text-anchor="middle" fill="#8b98a5" font-size="11">图鉴文案 / 局外加成</text>
+
+      <path d="M330 60 V85 H200 V105" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr4)"/>
+      <path d="M430 60 V85 H560 V105" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr4)"/>
+    </svg>
+    <div class="cap">上半段（id/name/icon/rarity）两边共用，保证"同一件遗物、同一个图标、同一个品质"；下半段两份配置各自独立，改局内数值不会影响局外加成。</div>
+  </div>
+
+  <table>
+    <thead><tr><th scope="col">部分</th><th scope="col">字段</th><th scope="col">用途</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2"><strong>battle</strong><br><span class="q n">局内</span></td><td><code>description</code></td><td>商店/选择界面的效果文案</td></tr>
+      <tr><td><code>modifiers[]</code> / <code>script_id</code></td><td>战斗生效：永久 Modifier 列表（纯属性走共享模板 1000 + <code>kv.attrs</code>）；复杂逻辑走 script_id</td></tr>
+      <tr><td rowspan="2"><strong>meta</strong><br><span class="q r">局外</span></td><td><code>attrs[][]</code></td><td>收集属性加成（<code>[[属性id, 值, "percent"|"add"], …]</code>），进 <code>OuterAttributeCalculator</code> 的 <code>relic</code> feature</td></tr>
+      <tr><td><code>effects[]</code></td><td>特殊效果，仅 <span class="q e">epic</span> / <span class="q l">legendary</span> 配（如 <code>startGold</code>；见下表）</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>冲突自动消失：</strong><code>id 1259 不朽之守护</code>（<span class="q r">rare</span>，语义是"重生"）与"只有高品质才有特殊效果"原本打架 —— 拆两部分后，<strong>复活语义只写在 <code>battle</code>，<code>meta</code> 自己另配</strong>，两边不互相解释。</div>
+
+  <h3>品质对照（回复 7：epic 是什么 + 定案颜色）</h3>
+  <p><code>epic</code> 就是 <code>relics.json</code> 里 <code>rarity</code> 的<strong>第三档</strong>（四档中的第三档）。之前中文有两套写法（导表 schema 表头写"黄（史诗）"、商店 UI 注释写"紫"），<strong>现已定案为紫色</strong>：</p>
+  <table>
+    <thead><tr><th scope="col">档</th><th scope="col">配置值 <code>rarity</code></th><th scope="col">颜色（定案）</th><th scope="col">色值</th><th scope="col">件数</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>common</code></td><td><strong>白</strong></td><td><code>#DDDDDD</code></td><td>187</td></tr>
+      <tr><td>2</td><td><code>rare</code></td><td><strong>蓝</strong></td><td><code>#5096FF</code></td><td>40</td></tr>
+      <tr><td>3</td><td><code>epic</code></td><td><strong>紫</strong></td><td><code>#CF68FF</code></td><td>38</td></tr>
+      <tr><td>4</td><td><code>legendary</code></td><td><strong>红</strong></td><td><code>#FF6464</code></td><td>33</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>落地动作：</strong>把导表 <code>schema.ts</code> 里 <code>epic</code> 的字段说明从「黄（史诗）」改成「<strong>紫（史诗）</strong>」，与商店/结算面板/图鉴统一；代码里的枚举名 <code>epic</code> 不动。</div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 140" width="760" height="140" role="img" aria-label="局外遗物三段抽取">
+      <defs>
+        <marker id="arr3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+      <rect x="10" y="18" width="220" height="84" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="120" y="46" text-anchor="middle" fill="#bcd8f0" font-size="13.5" font-weight="600">① 抽数量</text>
+      <text x="120" y="68" text-anchor="middle" fill="#e6edf3" font-size="12">0 ~ 3 件</text>
+      <text x="120" y="86" text-anchor="middle" fill="#8b98a5" font-size="11">胜/负两套权重</text>
+
+      <rect x="270" y="18" width="220" height="84" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="380" y="46" text-anchor="middle" fill="#bcd8f0" font-size="13.5" font-weight="600">② 抽品质</text>
+      <text x="380" y="68" text-anchor="middle" fill="#e6edf3" font-size="12">白 / 蓝 / 紫 / 红</text>
+      <text x="380" y="86" text-anchor="middle" fill="#8b98a5" font-size="11">随关卡微调</text>
+
+      <rect x="530" y="18" width="220" height="84" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="640" y="46" text-anchor="middle" fill="#bcd8f0" font-size="13.5" font-weight="600">③ 抽 id</text>
+      <text x="640" y="68" text-anchor="middle" fill="#e6edf3" font-size="12">该品质内均匀随机</text>
+      <text x="640" y="86" text-anchor="middle" fill="#8b98a5" font-size="11">= relics.json 的 id</text>
+
+      <path d="M230 60 H265" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr3)"/>
+      <path d="M490 60 H525" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr3)"/>
+      <text x="380" y="127" text-anchor="middle" fill="#8b98a5" font-size="11.5">②③ 对每一件独立重抽：抽到 3 件 ≠ 1 件 ×3，可能是 3 个不同品质 / 不同 id</text>
+    </svg>
+    <div class="cap">先定数量，再逐件定品质，再逐件定 id。三步都是独立概率，便于策划分步调参。</div>
+  </div>
+
+  <h3>第一层：数量权重（定案 5：失败 = 胜利的一半）</h3>
+  <table>
+    <thead><tr><th scope="col">数量</th><th scope="col">胜利</th><th scope="col">失败</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td>0 件</td><td>5%</td><td>35%</td><td>保底"空手"体验</td></tr>
+      <tr><td>1 件</td><td>45%</td><td>50%</td><td>最常见</td></tr>
+      <tr><td>2 件</td><td>35%</td><td>15%</td><td>小惊喜</td></tr>
+      <tr><td>3 件</td><td>15%</td><td>0%</td><td>暴击档（失败不给 3 件）</td></tr>
+      <tr><td><strong>期望件数</strong></td><td><strong>1.60</strong></td><td><strong>0.80</strong></td><td>失败 = 胜利的<strong>正好一半</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>第二层：品质权重（定案 6：随关卡变，但幅度很小）</h3>
+  <p>沿用商店的品质语言（同一套 <code>common/rare/epic/legendary</code>），档位由<strong>关卡</strong>决定 —— 高品质权重的涨幅刻意压小（红 3%→8%），保证低难度也能出红，高难度也不至于全红：</p>
+  <table>
+    <thead><tr><th scope="col">档</th><th scope="col">关卡</th><th scope="col">白 common</th><th scope="col">蓝 rare</th><th scope="col">紫 epic</th><th scope="col">红 legendary</th></tr></thead>
+    <tbody>
+      <tr><td>低档</td><td>1~50</td><td>55</td><td>30</td><td>12</td><td>3</td></tr>
+      <tr><td>中档</td><td>51~120</td><td>50</td><td>31</td><td>14</td><td>5</td></tr>
+      <tr><td>高档</td><td>121~180</td><td>45</td><td>32</td><td>16</td><td>7</td></tr>
+      <tr><td>满档</td><td>181~200</td><td>42</td><td>32</td><td>18</td><td>8</td></tr>
+      <tr><td colspan="2"><strong>整段变化</strong></td><td>55 → 42<br><span style="font-weight:400">(×0.76)</span></td><td>30 → 32<br><span style="font-weight:400">(≈持平)</span></td><td>12 → 18<br><span style="font-weight:400">(×1.5)</span></td><td>3 → 8<br><span style="font-weight:400">(×2.7)</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>失败局：品质档再降一档（定案 8：要打折）。</strong>失败 = 数量减半（EV 0.80）<strong>再叠加</strong>品质档降一级 ⇒ 失败局的遗物不只是少，还更差。</div>
+  <table>
+    <thead><tr><th scope="col">按关卡取到的档</th><th scope="col">胜利用</th><th scope="col">失败用（降一档）</th></tr></thead>
+    <tbody>
+      <tr><td>低档（关卡 1~50）</td><td>低档 55/30/12/3</td><td>低档（已最低，不再降）</td></tr>
+      <tr><td>中档（关卡 51~120）</td><td>中档 50/31/14/5</td><td>低档 55/30/12/3</td></tr>
+      <tr><td>高档（关卡 121~180）</td><td>高档 45/32/16/7</td><td>中档 50/31/14/5</td></tr>
+      <tr><td>满档（关卡 181~200）</td><td>满档 42/32/18/8</td><td>高档 45/32/16/7</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>综合效果一览：</strong>末档关卡打输 vs 打赢 —— 期望件数 0.80 vs 1.60（一半），红装权重 7 vs 8（≈持平，因为只降一档）。<strong>失败仍然值得打满阶段</strong>（阶段系数 10%→50% 决定经验），但遗物会明显缩水。</div>
+
+  <h3>第三层：属性与特殊效果（都在 <code>meta</code> 段）</h3>
+  <div class="grid c2">
+    <div class="card">
+      <h4>属性：一物一配</h4>
+      <p><code>meta.attrs</code> 是局外<strong>自己一份</strong>属性表，<strong>不再复用</strong> <code>battle.modifiers[].kv.attrs</code> —— 同一件遗物可以"局内给 14% 攻击、局外只给 8%"。</p>
+    </div>
+    <div class="card">
+      <h4>特殊效果：只配高品质</h4>
+      <p><code>meta.effects</code> 只给 <span class="q e">epic</span> / <span class="q l">legendary</span> 配（如 <strong>+开局金币数</strong>）；白/蓝留空数组即可。</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th scope="col">效果 key</th><th scope="col">含义</th><th scope="col">每份数值（样例）</th><th scope="col">允许品质</th></tr></thead>
+    <tbody>
+      <tr><td><code>startGold</code></td><td>开局金币 +N</td><td>epic +10 / legendary +25</td><td>epic · legendary</td></tr>
+      <tr><td><code>startHp</code></td><td>开局生命 +N%</td><td>+5% / +12%</td><td>epic · legendary</td></tr>
+      <tr><td><code>startLevel</code></td><td>开局局内等级 +1</td><td>+1</td><td>legendary</td></tr>
+      <tr><td><code>adFreeDraw</code></td><td>本局免费刷新次数 +1</td><td>+1</td><td>epic</td></tr>
+      <tr><td><code>reviveOnce</code></td><td>本局首次阵亡原地复活</td><td>1</td><td>legendary</td></tr>
+    </tbody>
+  </table>
+
+  <h3>叠加规则</h3>
+  <div class="grid c3">
+    <div class="card"><h4>可重复收集</h4><p>同一 id 可被反复抽到，收集数累加（<code>{ relicId: 份数 }</code>）。</p></div>
+    <div class="card"><h4>属性按份数线性叠加</h4><p>N 份 ⇒ <code>meta.attrs</code> ×N（<code>percent</code> 与 <code>add</code> 分别累加后进 <code>OuterAttributeCalculator</code>）。</p></div>
+    <div class="card"><h4>特殊效果：数值型叠加 / 次数型取最大</h4><p><code>startGold</code> 这类<strong>数值型</strong>按份数累加；<code>reviveOnce</code> 这类<strong>次数型</strong>只算存在与否。下面用例子说明为什么。</p></div>
+  </div>
+
+  <h4>「次数型只取最大值」到底什么意思（回复 7 的举例）</h4>
+  <table>
+    <thead><tr><th scope="col">情形</th><th scope="col">线性叠加（每份 +1 次复活）</th><th scope="col">取最大值（有就给 1 次）</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>抽到 <strong>1 份</strong>「不朽之守护」<br><span style="color:#8b98a5">meta.effects = [{key:'reviveOnce', value:1}]</span></td>
+        <td>本局首次阵亡 → 原地复活。<strong>1 次</strong></td>
+        <td>本局首次阵亡 → 原地复活。<strong>1 次</strong></td>
+      </tr>
+      <tr>
+        <td>抽到 <strong>3 份</strong>同一遗物</td>
+        <td>本局<strong>可以死 3 次</strong>，每次原地复活（相当于 3 条命）</td>
+        <td>仍然<strong>只有 1 次</strong>复活；另外 2 份只贡献它的属性加成</td>
+      </tr>
+      <tr>
+        <td>又抽到另一件也带 <code>reviveOnce</code> 的遗物</td>
+        <td>复活次数继续累加（4 次、5 次…）</td>
+        <td>还是 1 次（两件不叠加）</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>推荐：次数型取最大值。</strong>理由：一局能抽 205~249 次（见下节），如果复活次数线性叠加，玩家很容易攒出"几十条命"，失败条件直接失效、Boss 阶段的意义也没了。<strong>数值型（+金币、+生命%）继续按份数叠加</strong>，因为它们是量变、有边际递减；次数型是质变，必须收敛。</div>
+  <div class="callout info"><strong>实现口径：</strong>在应用 <code>meta.effects</code> 时按 <code>key</code> 分组 —— 数值型 <code>Σ value×份数</code>；次数型取 <code>max(value)</code>（份数>0 就算存在）。给效果表加一个字段标类型（<code>stack: sum | max</code>）最省事，避免以后每加一个效果都要改代码。</div>
+  <div class="grid c3" style="margin-top:12px">
+    <div class="card"><h4>可重复收集</h4><p>同一 id 可被反复抽到，收集数累加（<code>{ relicId: 份数 }</code>）。</p></div>
+    <div class="card"><h4>属性按份数线性叠加</h4><p>N 份 ⇒ <code>meta.attrs</code> ×N（<code>percent</code> 与 <code>add</code> 分别累加后进 <code>OuterAttributeCalculator</code>）。</p></div>
+    <div class="card"><h4>效果按类型叠加</h4><p>数值型 ×N；次数型取最大值。<span class="q n">定案</span></p></div>
+  </div>
+
+  <h3>命名统一（定案 8）：<code>equipments</code> 就是局外遗物</h3>
+  <div class="callout ok"><strong>不是两套系统，是同一套。</strong>现有 <code>equipments.json</code> + <code>EquipmentCollectionModule</code> 就是"局外遗物收集"，<strong>统一改名为「局外遗物」</strong>；数据源从 <code>equipments.json</code> 迁到 <code>relics.meta</code>（与局内遗物共用 id）。</div>
+  <table>
+    <thead><tr><th scope="col">旧命名</th><th scope="col">新命名 / 去向</th></tr></thead>
+    <tbody>
+      <tr><td><code>equipments.json</code> / <code>equipments.xlsx</code></td><td>废弃；数据并入 <code>relics.json</code> 的 <code>meta</code> 段</td></tr>
+      <tr><td><code>Tb_EquipmentConfig.ts</code> / <code>EquipmentConfig.ts</code></td><td>废弃（<code>quality 1~2.5</code>、<code>bonusTypes</code> 那套换算不再需要）</td></tr>
+      <tr><td><code>EquipmentCollectionModule</code></td><td><code>RelicCollectionModule</code>（localStorage key <code>relic_collection</code>，结构同构：<code>{ collected: Record&lt;number, number&gt; }</code>）</td></tr>
+      <tr><td>feature 名 <code>'equipment'</code></td><td><code>'relic'</code>（<code>OuterAttributeCalculator</code>）</td></tr>
+      <tr><td><code>battle_constants.equipSlotCount</code></td><td>无意义（局外遗物无槽位）→ 可清理</td></tr>
+    </tbody>
+  </table>
+
+  <h3>改 <code>relics</code> 结构的影响面（必须同步改）</h3>
+  <table>
+    <thead><tr><th scope="col">位置</th><th scope="col">现在</th><th scope="col">改成</th></tr></thead>
+    <tbody>
+      <tr><td><code>relics.xlsx</code> + <code>schema.ts</code></td><td>列：<code>description</code> / <code>modifiers</code> / <code>script_id</code> 平铺</td><td>列改名分组：<code>battle_description</code> / <code>battle_modifiers</code> / <code>battle_script_id</code> / <code>meta_description</code> / <code>meta_attrs</code> / <code>meta_effects</code>，导出时组装成两个对象</td></tr>
+      <tr><td><code>Tb_RelicConfig.ts</code></td><td><code>RelicCfg { description, modifiers, script_id }</code></td><td><code>RelicCfg { battle: {…}, meta: {…} }</code>（顶层只留 id/name/icon/rarity）</td></tr>
+      <tr><td><code>BattleEquipSystem.Apply()</code></td><td><code>for (const entry of this.def.modifiers)</code></td><td><code>this.def.battle.modifiers</code></td></tr>
+      <tr><td><code>ShopConfig.getRelicDesc()</code><br><code>ShopSystem.makeRelicOption()</code></td><td>读 <code>cfg.description</code></td><td>读 <code>cfg.battle.description</code></td></tr>
+      <tr><td><code>tools/excel_export/scripts/</code><br><code>gen-shop-from-hero-design.ts</code><br><code>migrate-modifier-effects.ts</code></td><td>写顶层 <code>description</code>/<code>modifiers</code></td><td>写 <code>battle.*</code>；迁移脚本把 298 条旧数据搬进 <code>battle</code>，并<strong>新设计</strong> <code>meta</code> 内容</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>流水线铁律：</strong>改 <code>assets/resources/tb/relics.json</code> 之后必须 <code>npm run import -- --force --table relics</code> 回灌 <code>relics.xlsx</code>，否则下一次 <code>npm run export</code> 会把 JSON 覆盖回去（历史上丢过改值）。</div>
+
+  <h2>三、局内经济闭环（定案 2：一局抽到遗物池的 70~85%）</h2>
+  <div class="callout ok"><strong>目标（定案）：</strong>一局把金币<strong>全部花光</strong>时，能抽到<strong>总遗物的 70~85%</strong>（293 × 70~85% = <strong>205~249 抽</strong>），同时 <strong>buff 能买 15~30 个</strong>。因为场上还有<strong>金币 Boss</strong>（黄金魔像）和<strong>防守 Boss</strong>（阶段 Boss，击杀后刷怪间隔缩短 ⇒ 后面刷得更快、金币更多），所以要<strong>据此重做每种怪的金币数</strong>。下面全部是基于现有真实配置算出来的。</div>
+
+  <h3>① 抽多少次 —— 205~249 次/局</h3>
+  <table>
+    <thead><tr><th scope="col">项目</th><th scope="col">值</th><th scope="col">来源</th></tr></thead>
+    <tbody>
+      <tr><td>商店遗物总数</td><td><strong>293 件</strong></td><td><code>relics.json</code> id 1001~1293</td></tr>
+      <tr><td>按品质</td><td>白 187 / 蓝 40 / 紫 38 / 红 33</td><td>同上</td></tr>
+      <tr><td><strong>目标抽卡次数</strong></td><td><strong>205 ~ 249 次 / 局</strong>（池子的 70~85%）</td><td>定案 2</td></tr>
+      <tr><td>每次抽取候选</td><td>4 个（遗物 + 技能混合）</td><td><code>shop_constants.optionCount = 4</code></td></tr>
+      <tr><td>每次可拿</td><td>1 件</td><td><code>pickCount = 1</code></td></tr>
+      <tr><td>阶段品质门槛</td><td>阶段1 只出白 · 阶段2 蓝 · 阶段3 紫 · 阶段4 红（+15% 越阶）</td><td><code>stageMaxByPhase</code> + <code>shop_draw.upgrade_chance</code></td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>这个目标反过来把「不放回」的口径定死了 —— 只有被选中的离开池子。</strong>因为若候选也消耗（4 件/次），205 次需要 <strong>820 个候选</strong> &gt; 池子 293 件，口径根本不成立。结论：<strong>选中的离开池子，未选中的候选留在池子里</strong>（现状 <code>RelicSystem.has()</code> 已是这个行为，无需改）。</div>
+  <div class="callout warn"><strong>一局就要吃掉池子的 70~85%</strong> ⇒ <strong>池子每局重置是必须的</strong>（定案 4）。跨局的永久进度由<strong>局外遗物收集</strong>承担，局内拿到的遗物不进局外 —— 两套池子职责分离，这也正是"局内抽完就没了、局外慢慢攒"的分工。</div>
+
+  <h3>② 抽卡交互（定案 1）</h3>
+  <div class="grid c2">
+    <div class="card"><h4>手动抽，4 选 1</h4><p>抽卡由<strong>玩家手动触发</strong>（不是定时 / 自动）；每次抽出 <strong>4 个</strong>候选，只能选 <strong>1 个</strong>。</p></div>
+    <div class="card"><h4>第 4 格 = 广告位</h4><p>第 4 个候选<strong>概率抽出高品质</strong>，<strong>需要看广告</strong>才能拿走；前 3 格是正常抽取。</p></div>
+    <div class="card"><h4>选完即锁</h4><p>选择后<strong>其余 3 个隐藏 / 置灰</strong>，本次抽取结束；想继续选只能<strong>重新抽</strong>（再付一次费）。</p></div>
+    <div class="card"><h4>与现状的差距</h4><p><code>optionCount=4 / pickCount=1</code> 已对齐；"选后其余置灰"也已实现（<code>pick()</code> 里把 <code>selectable=false</code> 并写 <code>reason='本次抽取已选择'</code>）。<strong>缺的是第 4 格广告位</strong> —— 现在广告只用于"额外多选 1 个"（<code>adExtraPickCount</code>）。</p></div>
+  </div>
+  <h4>第 4 格广告位（第四轮定案：<strong>先掷"要不要高品"，再抽品质</strong>）</h4>
+  <table>
+    <thead><tr><th scope="col">步骤</th><th scope="col">判定</th><th scope="col">权重 / 结果</th></tr></thead>
+    <tbody>
+      <tr><td>① 是否走高品</td><td>掷一次 <code>adSlotHighQualityChance</code>（<strong>建议 25%</strong>，新增常量，可调）</td><td>命中 / 未命中</td></tr>
+      <tr><td>② 命中 → 抽品质</td><td>用<strong>高品权重</strong>：白 <strong>0</strong> / 蓝 30 / 紫 45 / 红 25</td><td>永不出白 ⇒ "广告格"名副其实</td></tr>
+      <tr><td>② 未命中 → 抽品质</td><td><strong>与其余 3 格完全同权重</strong>（关卡档位那套：低档 55/30/12/3 …）</td><td>退化成普通格，不额外给好处、也不额外惩罚</td></tr>
+      <tr><td>③ 抽 id → 拿走</td><td>该品质内均匀随机；<strong>需看广告</strong>才能选（未命中时是否仍要广告见下）</td><td>只影响"选哪格"，不额外扣金币</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th scope="col">第 4 格</th><th scope="col">品质档期望<br><span style="font-weight:400">(档位 1~4，越小越白)</span></th><th scope="col">出红概率</th><th scope="col">相对前 3 格</th></tr></thead>
+    <tbody>
+      <tr><td>前 3 格（关卡 1~50 常规权重）</td><td>1.63</td><td>3%</td><td>基准</td></tr>
+      <tr><td>第 4 格 · 命中高品（白 0 / 蓝 30 / 紫 45 / 红 25）</td><td>2.95</td><td>25%</td><td>—</td></tr>
+      <tr><td><strong>第 4 格 · 综合（p = 25%）</strong></td><td><strong>1.96</strong></td><td><strong>8.5%</strong></td><td><strong>档位 +20%，红装 ×2.8</strong></td></tr>
+      <tr><td>第 4 格 · 综合（p = 35%，更慷慨）</td><td>2.09</td><td>10.7%</td><td>档位 +28%，红装 ×3.6</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>两处要顺带定：</strong>① <strong>未命中高品时，第 4 格还要看广告吗？</strong>建议<strong>不要</strong>（未命中就当普通格免费选）—— 否则约 3/4 的广告是白看的，玩家会学会永远跳过第 4 格，广告位等于没有。<span class="q n">待确认</span> ② <code>adExtraPickCount = 1</code>（看广告<strong>额外多选 1 个</strong>）与"选后其余置灰、必须重新抽"<strong>直接冲突</strong> ⇒ 建议<strong>归零 / 删除</strong>：广告只做两件事 —— <strong>第 4 格解锁</strong> + <strong>免费抽</strong>。</div>
+  <div class="callout ok"><strong>免费抽（第四轮定案 3）：机制保留、默认 0 次。</strong><code>shop_constants.adFreeDrawPerRun</code> <strong>3 → 0</strong>（基础值），实际可用次数 = 基础值 + <strong>局外成就系统</strong>发放的次数（存 <code>PlayerInfo</code>，用一次扣一次）。免费抽<strong>不花金币</strong>，但<strong>照样消耗遗物池</strong>（205~249 抽里含免费抽）。</div>
+
+  <h3>③ 抽卡单价必须重做（现状与目标差 6 倍）</h3>
+  <table>
+    <thead><tr><th scope="col">口径</th><th scope="col">单次费用</th><th scope="col">抽 205 次</th><th scope="col">抽 249 次</th></tr></thead>
+    <tbody>
+      <tr><td>现状 <code>50 / +50 / 封顶 200</code></td><td>200（封顶后恒定）</td><td><span class="q u">40,700 金</span></td><td><span class="q u">49,500 金</span></td></tr>
+      <tr><td><strong>建议 <code>20 / +2 / 封顶 30</code></strong></td><td>20 → 30</td><td><strong>6,120 金</strong></td><td><strong>7,440 金</strong></td></tr>
+      <tr><td>备选：固定 25</td><td>25</td><td>5,125 金</td><td>6,225 金</td></tr>
+    </tbody>
+  </table>
+  <div class="callout bad"><strong>现状的费用曲线是按"一局抽 9 次"设计的，与"一局抽 205 次"差 22 倍</strong> —— 不改费用，抽卡目标无从谈起。同时 <code>drawCostResetEachPhase</code>（费用每阶段重置）在 205 抽的规模下<strong>已经没有意义</strong>（费用在第 6 抽就进同一档），保持 <code>0</code> 即可。</div>
+
+  <h3>④ buff：击杀点购买 + 只覆盖不叠加（定案 2 / 3）</h3>
+  <div class="callout ok"><strong>两处修正（我上一轮算错了）：</strong>① buff <strong>不是用金币买</strong>，而是用<strong>击杀点</strong> —— <code>kill_buffs.price</code> 的语义本来就是击杀点（<code>Tb_KillBuffConfig</code> 的注释写着"击杀点购买"）；② buff <strong>只覆盖不叠加</strong> —— 它们基本都是<strong>限时 + 百分比加成 / 特殊效果</strong>，重复购买 = 重新计时，不做层数累加。</div>
+  <div class="callout info"><strong>连带简化：</strong><code>price_growth</code>（1.3~1.55 指数涨价）和 <code>max_stack</code>（层数上限）<strong>都不再需要</strong> —— 上一轮我算出的"叠 30 层要 46 万"这个问题自动消失了。同时表里<strong>缺 <code>duration</code> 字段</strong>（限时 buff 必须有），要补一列。</div>
+  <table>
+    <thead><tr><th scope="col">项目</th><th scope="col">值</th></tr></thead>
+    <tbody>
+      <tr><td>一局击杀点收入</td><td><strong>1,256 点</strong>（普通 1,200 + 精英 50 + 阶段 Boss 5 + 金币 Boss 1；<strong>精英与 Boss 都算击杀</strong>，击杀数不设上限）</td></tr>
+      <tr><td>目标购买次数</td><td><strong>15 ~ 30 次</strong></td></tr>
+      <tr><td>⇒ 反推单价</td><td><strong>1,256 ÷ 30 ~ 1,256 ÷ 15 = 42 ~ 84 击杀点 / 次</strong></td></tr>
+      <tr><td>现状配置</td><td><code>price</code> = 12 ~ 45 击杀点 ⇒ 1,256 点能买 <strong>28 ~ 100 个</strong>，明显偏便宜</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th scope="col">档位</th><th scope="col">建议单价（击杀点）</th><th scope="col">含哪些</th><th scope="col">建议时长</th></tr></thead>
+    <tbody>
+      <tr><td>基础属性（低 per）</td><td><strong>40</strong></td><td>破军 / 巨灵 / 板甲 / 急速 / 精准 / 轻身 / 滋养</td><td>60s</td></tr>
+      <tr><td>基础属性（高 per）</td><td><strong>60</strong></td><td>狂怒 / 磐石 / 铁壁 / 迅捷 / 复苏</td><td>60s</td></tr>
+      <tr><td>稀有属性</td><td><strong>80</strong></td><td>超距鹰眼 / 锐锋 / 灵动</td><td>45 ~ 60s</td></tr>
+      <tr><td>特殊机制</td><td><strong>120 ~ 150</strong></td><td>天怒 / 血包 / 波次补给 / 战地急救 / 滚雪球</td><td>30 ~ 60s（逐条定）</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>校验：</strong>20 个 buff 的均价 = <strong>74 击杀点</strong> ⇒ 1,256 ÷ 74 ≈ <strong>17 次购买/局</strong>，正好落在 15~30 的中段（全买 40 档能买 31 次、全买 150 档只能买 8 次）。这个价位能同时喂饱"多买几种"和"攒着买强力款"两种玩法。</div>
+  <div class="callout info"><strong>为什么"只用击杀点"更顺：</strong>金币 100% 留给抽卡，<strong>两条经济线互不抢资源</strong> —— 打得快 = 抽得多（金币）也买得多（击杀点），不存在"抽卡还是买 buff"的纠结；而"防守 Boss 击杀后刷怪间隔缩短"会<strong>同时加速两条线</strong>，形成正向循环。</div>
+
+  <h3>⑤ 收入模型：金币<strong>只</strong>养抽卡 + 每种怪的金币重做（定案 2 / 7）</h3>
+  <div class="callout ok"><strong>定案 7：金币<u>去掉</u>阶段系数与时间通胀</strong> ⇒ <code>units.json</code> 的 <code>goldReward</code> <strong>base 就是到账值</strong>，调参不用再反算（上一版要 ×1.44 才到账）。⚠ 注意 <code>currentRewardScale()</code> 现在<strong>同时</strong>管金币和局内经验，要<strong>拆开</strong>：金币直给、局内经验保留阶段/时间缩放。<span class="q n">确认点</span></div>
+  <p>buff 改用击杀点后，<strong>金币的唯一去处就是抽卡</strong>，所以收入目标 = 抽卡支出 <strong>6,120 ~ 7,440 金</strong>（205~249 抽 × <code>20/+2/封顶30</code>）：</p>
+  <table>
+    <thead><tr><th scope="col">类别</th><th scope="col">现状 base</th><th scope="col"><strong>建议 base</strong><br><span style="font-weight:400">(= 到账值)</span></th><th scope="col">数量/局</th><th scope="col">小计</th></tr></thead>
+    <tbody>
+      <tr><td>普通怪（2001~2004，<strong>统一一档</strong>）</td><td>2 / 2 / 3 / 4</td><td><strong>3</strong>（<span class="q r">第四轮上调</span>）</td><td>~1,200</td><td>3,600</td></tr>
+      <tr><td>精英怪（重击者）</td><td>6</td><td><strong>20</strong></td><td>~50</td><td>1,000</td></tr>
+      <tr><td>阶段 Boss（防守 Boss）</td><td>40</td><td><strong>120</strong></td><td>5</td><td>600</td></tr>
+      <tr><td>金币 Boss（黄金魔像）</td><td>250<br><span style="font-weight:400">(带 ×10 倍率 ⇒ 实得 2,500)</span></td><td><strong>1,700</strong></td><td>1</td><td>1,700</td></tr>
+      <tr><td>经验 Boss（经验贤者）</td><td>1</td><td>1（保持）</td><td>—</td><td>—</td></tr>
+      <tr><td colspan="4"><strong>合计</strong></td><td><strong>6,900</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>收支对上了，而且是对得整整齐齐：</strong>6,900 金 ÷ <code>20/+2/封顶30</code> = <strong>正好 231 抽</strong>（<code>30×231 − 30 = 6,900</code>）= 池子 293 件的 <strong>78.8%</strong>，落在 70~85% 区间中段 ⇒ "一局把金币花光"是<strong>设计出来的定值</strong>，不是估出来的。</div>
+  <div class="callout warn"><strong>为什么这次动的是普通怪（第四轮答复）：</strong>上一版把 6,800 金几乎全压在事件型收入上 —— <strong>金币 Boss 一次 2,000 金 = 杀 1,000 只哥布林的价值</strong>，而普通怪（玩家 90% 以上的击杀都在这里）只占 35%，收入结构与玩家的付出结构不匹配，体感就是"普通怪金币太少"。这一版：普通怪 <strong>2 → 3（+50%）</strong>，四只统一一档（巨魔 4 → 3，它的皮厚补偿走<strong>经验</strong> 15 vs 8，不再走金币）；腾出来的量从事件型收入扣 —— 金币 Boss 2,000 → 1,700（占 25%），精英 25 → 20、阶段 Boss 150 → 120。</div>
+  <div class="callout bad"><strong>顺手拆掉一个隐形倍率：</strong><code>battle_constants.rewardBossGoldBonus = 10</code> 会把金币 Boss 的 250 变成 <strong>2,500</strong>（经验 Boss 同理 ×10 = 8,000 局内经验），"base = 到账值"就不成立了。建议<strong>删掉 <code>rewardBossGoldBonus</code> / <code>rewardBossExpBonus</code></strong>，数值直接写进 <code>units.json</code> —— 一张表读完，不再有藏在别的表里的 ×10。</div>
+  <div class="callout warn"><strong>上表唯一的自由变量仍是一局击杀数（取 ~1,200 只普通怪）。</strong>阶段改 4 分钟后供给上限约 2,100 只（刷怪间隔 1.7s × 每波 3 只），取 57%；实际值随 Build 强度浮动，需真机实测校准。</div>
+
+  <h3>⑥ 前期手感：一击必杀 + 开局金币（第四轮定案 1）</h3>
+  <div class="callout ok"><strong>你的判断是对的，而且能量化：</strong>局内 Lv.1 的英雄打第一只哥布林要 <strong>3~4 下</strong>（宙斯 5.6 秒一只），再叠加"底价 50 ÷ 2 金 ⇒ 要杀 25 只"，<strong>现状下首抽要等 1~2.4 分钟</strong>。定案：<strong>前期几波怪改成 1 击必杀</strong>。</div>
+  <table>
+    <thead><tr><th scope="col">英雄（Lv.1）</th><th scope="col">单次伤害</th><th scope="col">普攻间隔</th><th scope="col">哥布林 100 HP<br><span style="font-weight:400">现状：几击 / 耗时</span></th><th scope="col">hp_mul 0.25 后<br><span style="font-weight:400">25 HP：几击 / 耗时</span></th></tr></thead>
+    <tbody>
+      <tr><td>1002 赏金猎人</td><td>200</td><td>0.71s</td><td>1 击 / 0.71s</td><td>1 击 / 0.71s（本来就秒）</td></tr>
+      <tr><td>1001 火枪</td><td>40</td><td>0.83s</td><td>3 击 / 2.50s</td><td><strong>1 击 / 0.83s</strong></td></tr>
+      <tr><td>1004 斧王</td><td>34</td><td>1.25s</td><td>3 击 / 3.75s</td><td><strong>1 击 / 1.25s</strong></td></tr>
+      <tr><td>1003 宙斯</td><td>26</td><td>1.40s</td><td><strong>4 击 / 5.60s</strong></td><td><strong>1 击 / 1.40s</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>口径：</strong>普攻间隔 = <code>units.json.attack_interval ÷ 攻速</code>（攻速是百分比型属性，配置 120 = 1.2，见 <code>AttributeScaling.SCALE</code>）；哥布林护甲 0，按裸血算。<strong>4 个英雄 Lv.1 的单次伤害差 7.7 倍</strong>（26 ~ 200）⇒ "一击必杀"只能<strong>以最低的宙斯（26）为准</strong>，这就是 <code>hp_mul</code> 取 <strong>0.25</strong> 而不是 0.3 的原因。</div>
+  <table>
+    <thead><tr><th scope="col">前期怪（关卡 1~10 池）</th><th scope="col">配置 HP</th><th scope="col">hp_mul 0.25</th><th scope="col">宙斯 26</th><th scope="col">斧王 34</th><th scope="col">火枪 40</th><th scope="col">赏金 200</th><th scope="col">结论</th></tr></thead>
+    <tbody>
+      <tr><td>2001 哥布林（护甲 0）</td><td>100</td><td>25</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td><strong>入池</strong></td></tr>
+      <tr><td>2003 游荡者（护甲 0）</td><td>80</td><td>20</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td><strong>入池</strong></td></tr>
+      <tr><td>2004 环绕魔（护甲 0）</td><td>90</td><td>22.5</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td>1 击 ✓</td><td><strong>入池</strong></td></tr>
+      <tr><td>2002 巨魔（护甲 3）</td><td>240</td><td>60</td><td><span class="q u">3 击</span></td><td>2 击</td><td>2 击</td><td>1 击</td><td><strong>关卡 11+ 才入池</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>巨魔必须排除在前期池外</strong>，否则"一击必杀"这条规则在第 1 关就不成立；让它作为"第一只硬怪"从关卡 11 起入池（真的硬起来是好事）。怪种池<strong>不靠代码写死</strong>，就用 <code>difficulty_levels.monster_pool</code> 逐关给。</div>
+
+  <h4>首抽节奏：一击必杀到底改善了什么</h4>
+  <table>
+    <thead><tr><th scope="col">口径</th><th scope="col">首抽要杀</th><th scope="col">首抽时间（火枪 / 宙斯）</th></tr></thead>
+    <tbody>
+      <tr><td>现状：底价 50 + 2 金 + 3~4 击</td><td>25 只</td><td><span class="q u">63s / 140s</span></td></tr>
+      <tr><td>第三轮：底价 20 + 2 金</td><td>10 只</td><td>25s / 56s</td></tr>
+      <tr><td>第四轮：底价 20 + <strong>3 金</strong></td><td>6.7 只</td><td>17s / 37s</td></tr>
+      <tr><td>第四轮：<strong>再叠加前期一击必杀</strong></td><td>6.7 只</td><td><strong>≈12s</strong>（四个英雄一致）</td></tr>
+      <tr><td>＋ <strong>开局金币</strong>（修下面这个 bug）</td><td><strong>0 只</strong></td><td><strong>0s（开局手上就有 4 抽）</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>说句实话：一击必杀主要改善"手感"，不是"到账速度"。</strong>因为前期<strong>刷怪本身就更慢</strong>（<code>spawnGap = 0/3/3/2/2/1.7…</code>、前 4 波每波 1 只 ⇒ 前 8 秒只有 3 只怪、约 2.7 秒一只）。英雄 DPS 从"刚好跟上"变成"绰绰有余"之后，<strong>瓶颈就从英雄 DPS 换成了刷怪速度</strong>（第 7 只怪 t ≈ 11.7s 才到场）。所以两件事要分开看：<br>· <strong>手感</strong>：3~4 击 → 1 击（怪不再顶着挨打、不再排队）<br>· <strong>到账速度</strong>：靠<strong>普通怪 3 金</strong>（+50%）与<strong>开局金币</strong>（下面这条），不靠一击必杀。</div>
+  <div class="callout bad"><strong>顺带发现一个 bug：开局金币从来没发过。</strong><code>battle_constants.initialGold = 100</code> 有 getter（<code>BattleConstUtil.getInitialGold()</code>）<strong>但全项目没有任何调用方</strong>；英雄实体初始化走 <code>Entity</code> 的 <code>this.gold = def.gold ?? 0</code>，而 <code>units.json</code> 四个英雄的 <code>gold</code> 都是 <code>0</code> ⇒ <strong>开局手上一分钱都没有</strong>，第一次抽卡只能靠击杀硬攒。</div>
+  <div class="callout ok"><strong>建议：开局按 <code>initialGold</code> 发 100 金 = 前 4 抽</strong>（20+22+24+26 = 92，第 5 抽要 120 才够）。不用改任何配置，只是把死配置接上；对 231 抽 的预算只占 1.7%，可忽略，但玩家<strong>一进局就能构筑</strong>，前期体验完全不同。<span class="q n">待确认</span></div>
+  <div class="callout info"><strong>刷怪节奏建议（可选）：</strong><code>spawnCountRampWaves</code> <strong>4 → 2</strong>（第 1~2 波 1 只 → 3~4 波 2 只 → 第 5 波起 3 只），并把 <code>spawnGap</code> 前段 <strong>3 / 3 → 2 / 2</strong>。现状前 4 波是"1 只 / 2.5~3 秒"，场上经常是空的 —— 节奏的真正瓶颈在这里。</div>
+  <div class="callout info"><strong>击杀点（buff）同理：</strong>最低档 40 点 ≈ 40 只怪 ≈ 开局 60~70 秒才买得起第一个 buff。<strong>这是预期内的</strong> —— 抽卡是前期玩法、限时 buff 是中期玩法，两条线不需要同时开张。</div>
+
+  <h3>⑦ 节奏：手动抽 205~249 次意味着什么（第三轮定案 1 / 5）</h3>
+  <div class="grid c3">
+    <div class="card"><h4>每 4.8~5.9 秒一次抽取</h4><p>205~249 抽 ÷ 1,200 秒。手动模式下每次是"点抽卡 → 看 4 个 → 点选 1 个"，约 <strong>2 次点击 / 6 秒</strong>。战斗是自动的，所以操作量勉强可行 —— 但<strong>商店面板不能遮挡战场</strong>（建议常驻侧栏或半透明面板）。<span class="q n">待确认</span></p></div>
+    <div class="card"><h4>一局 205~249 个遗物 → 背包（定案 5）</h4><p>界面上放<strong>背包按钮</strong>，点开可展开、<strong>上下滑动</strong>看所有已获得遗物的 icon，点 icon 弹<strong>详情面板</strong>。⚠ 250 个 item 必须用<strong>虚拟滚动 / 节点复用</strong>（走对象池），否则一次性创建 250 个节点 + 远程图标会明显卡顿。</p></div>
+    <div class="card"><h4>阶段 4 分钟 ≠ 代码现状</h4><p>代码里 <code>GameStageConfig.stageTime = 60</code>（每阶段 <strong>1 分钟</strong>），要改成 <code>240</code>（4 分钟），5 阶段 = 20 分钟一局。上面所有击杀点 / 金币估算都建立在这个时长上。</p></div>
+  </div>
+
+  <h3>⑧ 抽卡循环当前没接通（要先补）</h3>
+  <div class="callout bad"><code>Scene_Game_Stage.openShop()</code> <strong>没有任何调用方</strong>（唯一的调用点在 <code>update</code> 里被注释掉了），<code>shopEvery = 20</code> 的计时器同样全部注释。好消息是：<strong>手动抽卡不需要定时器</strong> —— 只要把"抽卡按钮"接到 <code>openShop()</code> 就行，上一版"每阶段自动开一次商店"的方案作废。</div>
+  <div class="callout info"><strong>"每阶段都有事干"的排布：</strong>随时可<strong>手动抽卡</strong>（金币够就抽，一局 205~249 次）→ 金币来自刷怪 + 阶段 Boss + 金币 Boss → 击杀点另开一条线买<strong>限时 buff</strong>（15~30 次）→ 每阶段末打<strong>防守 Boss</strong>（击杀后刷怪间隔缩短，两条线同时提速）→ 阶段 5 最终 Boss 收尾。</div>
+
+  <h2>四、关卡 / 阶段 / Boss 结构（回复 5）</h2>
+  <div class="callout info"><strong>总原则：要随机的，但 demo 先简化、后续再补。</strong>怪种与 Boss 的具体数值/美术归 <code>docs/monster-design/</code> 与 <code>docs/boss-design/</code>，本页只接与<strong>结算/关卡</strong>相关的接口。</div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 760 200" width="760" height="200" role="img" aria-label="关卡档位驱动的三条曲线">
+      <defs>
+        <marker id="arr6" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+      <rect x="10" y="70" width="150" height="60" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="85" y="96" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="600">关卡 1 ~ 200</text>
+      <text x="85" y="114" text-anchor="middle" fill="#8b98a5" font-size="11">难度模式（跨局选择）</text>
+
+      <rect x="200" y="70" width="150" height="60" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="275" y="96" text-anchor="middle" fill="#bcd8f0" font-size="13" font-weight="600">每 10 关 = 1 档</text>
+      <text x="275" y="114" text-anchor="middle" fill="#8b98a5" font-size="11">共 20 档</text>
+
+      <rect x="400" y="14" width="345" height="42" rx="10" fill="#161c24" stroke="#2a3441"/>
+      <text x="572" y="40" text-anchor="middle" fill="#e6edf3" font-size="12">① 经验阶梯：80 → 689（20 档）</text>
+
+      <rect x="400" y="70" width="345" height="42" rx="10" fill="#161c24" stroke="#2a3441"/>
+      <text x="572" y="96" text-anchor="middle" fill="#e6edf3" font-size="12">② 遗物品质档：低 / 中 / 高 / 满</text>
+
+      <rect x="400" y="126" width="345" height="42" rx="10" fill="#1d3a2e" stroke="#1d5633"/>
+      <text x="572" y="152" text-anchor="middle" fill="#9fe7c0" font-size="12">③ 最终 Boss：#1 → #20（按顺序，不随机）</text>
+
+      <path d="M160 100 H195" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr6)"/>
+      <path d="M350 100 H375 V35 H395" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr6)"/>
+      <path d="M350 100 H395" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr6)"/>
+      <path d="M350 100 H375 V147 H395" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr6)"/>
+      <text x="380" y="190" text-anchor="middle" fill="#8b98a5" font-size="11.5">一个关卡数字驱动三条曲线 ⇒ PlayerInfo 里的"当前关卡"是唯一真源</text>
+    </svg>
+    <div class="cap">20 档经验、4 段品质档、20 个最终 Boss —— 全部由同一个关卡数字派生，不再各配一套。</div>
+  </div>
+
+  <h3>阶段内的刷新规则（目标 vs demo 先怎么做，定案 4）</h3>
+  <table>
+    <thead><tr><th scope="col">元素</th><th scope="col">目标规则（怪种补齐后）</th><th scope="col"><strong>demo 先怎么做</strong></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>普通怪</td>
+        <td>阶段开始时<strong>随机抽 2~3 种</strong>，该阶段<strong>只刷这几种</strong>（不是每波都随机）</td>
+        <td rowspan="2"><strong>恢复 <code>monsterPool</code> 全池随机</strong>（即把 <code>spawnWave()</code> 里写死的 <code>monsterId = 2001</code> 换回池子随机）。怪种不够就先<strong>一直用现有配置的这几只怪</strong>，不做"每阶段固定 2~3 种"那套 —— 等怪种补齐再上。<br>⚠ 池子里现在混着 <code>2006 深渊领主</code>（subtype = boss），<strong>要把它挪出普通怪池</strong>，否则路上会刷出 Boss。</td>
+      </tr>
+      <tr><td>精英怪</td><td>同样每阶段固定 2~3 种；<strong>每 1 分钟刷 2~3 只</strong>（20 分钟一局 ⇒ 约 40~60 只）</td></tr>
+      <tr><td>阶段 Boss（防守 Boss）</td><td>每阶段<strong>随机刷 1 个</strong>；<strong>被击杀后刷怪间隔缩短</strong> ⇒ 后续两条收入线同时提速</td><td>已有（<code>stageBossUnitId</code>）；先只用现有的 2006</td></tr>
+      <tr><td>最终 Boss</td><td><strong>不随机、按配置顺序</strong>：关卡档 1~20 ↔ Boss #1~#20</td><td>先只用 2006 顶替，20 个待设计</td></tr>
+      <tr><td>金币 / 经验 Boss</td><td>经济节点（金币 Boss 一局 2,000 金 = 29% 收入）</td><td>已有 2007 / 2008，<b>要接进刷怪计划</b></td></tr>
+      <tr><td>种类目标</td><td>普通怪 / 精英怪 / 阶段 Boss <strong>每种至少 5 种</strong>；最终 Boss <strong>20 种</strong></td><td>见下方缺口表</td></tr>
+      <tr><td><strong>怪物数值</strong></td><td>按 <code>difficulty_levels.hp_mul / atk_mul</code> 随关卡成长（关卡越高血越厚）</td><td>⚠ 现状<strong>完全没有实现</strong>（刷怪直接 <code>monsterPool.acquire(def)</code>，怪物<strong>永远 100 HP</strong>）。第四轮先上：<strong>关卡 1~10 <code>hp_mul = 0.25</code></strong>（前期一击必杀，见 §三⑥）＋前期池<strong>排除 2002 巨魔</strong>；<code>atk_mul</code> 暂不动</td></tr>
+      <tr><td>阶段时长</td><td><strong>4 分钟</strong>（5 阶段 = 20 分钟一局）</td><td>⚠ 代码现状 <code>stageTime = 60</code>，要改成 <code>240</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>关卡配置表 <code>difficulty_levels</code>（定案 8：现在就建）</h3>
+  <div class="callout ok"><strong>现在建表的理由：</strong>关卡档位同时驱动<strong>经验阶梯 / 遗物品质档 / 最终 Boss</strong>三条曲线，再往后还会加"每关的怪物池与数值倍率"—— 与其把这些散在 <code>battle_constants</code> 里用数组硬编码，不如一次建好 200 行的表。</div>
+  <table>
+    <thead><tr><th scope="col">字段</th><th scope="col">类型</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>int</td><td><strong>关卡号 1~200</strong>（主键）</td></tr>
+      <tr><td><code>tier</code></td><td>int</td><td>档位 1~20（= <code>ceil(id/10)</code>）。经验阶梯、品质档、最终 Boss 都跟它走</td></tr>
+      <tr><td><code>exp_reward</code></td><td>int</td><td>胜利英雄经验（可由 <code>80 × 1.12^(tier-1)</code> 生成，留列是为了能逐关手调）</td></tr>
+      <tr><td><code>rarity_tier</code></td><td>int</td><td>遗物品质档 1~4（低/中/高/满）</td></tr>
+      <tr><td><code>final_boss</code></td><td>int</td><td>该档对应的最终 Boss 单位 id（<strong>按顺序</strong>，#1~#20）</td></tr>
+      <tr><td><code>monster_pool</code></td><td>json</td><td>该关可用的普通/精英怪 id 列表 <span class="q n">可留空先用全局池</span></td></tr>
+      <tr><td><code>hp_mul</code> / <code>atk_mul</code></td><td>number</td><td>怪物数值倍率（关卡难度曲线）。<strong>前期已定：关卡 1~10 的 <code>hp_mul = 0.25</code></strong>（前期一击必杀）；11 关起再爬 <span class="q n">随怪物设计定</span></td></tr>
+      <tr><td><code>unlock</code></td><td>string</td><td>解锁条件（如"通关上一关"）<span class="q n">待定</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong><code>tier</code> 是本表的核心：</strong>结算管线只读 <code>level</code> → 查这张表拿到 <code>tier / exp_reward / rarity_tier</code>，不再自己算 <code>ceil(level/10)</code>。这样"200 关每档步长要不要都是 10"这种调整就变成改表，而不是改代码。</div>
+  <div class="callout info"><strong>建议的 <code>hp_mul</code> 爬法</strong>（前 10 关已定，后面待怪物设计 + 实测校准）：关卡越高血越厚，但<strong>爬升速度要慢于英雄局内攻击力的成长</strong>（<code>growthValues</code> 每级 +1.5~3 攻击），否则"前期一击必杀"会在几关内失效。</div>
+  <table>
+    <thead><tr><th scope="col">关卡</th><th scope="col">1~10</th><th scope="col">11~20</th><th scope="col">21~40</th><th scope="col">41~80</th><th scope="col">81~120</th><th scope="col">121~160</th><th scope="col">161~200</th></tr></thead>
+    <tbody>
+      <tr><td><code>hp_mul</code></td><td><strong>0.25</strong>（定案）</td><td>0.4</td><td>0.6</td><td>0.8</td><td>1.0</td><td>1.2</td><td>1.5</td></tr>
+      <tr><td>哥布林实血</td><td><strong>25</strong></td><td>40</td><td>60</td><td>80</td><td>100</td><td>120</td><td>150</td></tr>
+      <tr><td>宙斯能否一击</td><td colspan="7">Lv.1（攻 26）就能一击杀 25 HP 的哥布林；到 11 关要 <strong>局内 Lv.7</strong>（攻 26+2.5×6 = 41）才能继续一击杀 40 HP —— 而一局打到阶段 1 结束时通常已在 <strong>Lv.13 上下</strong>（局内经验 <code>60×1.18^(L-1)</code>，哥布林 8 点/只）⇒ 难度是<strong>逐步</strong>出现的，不是突然断层</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>"前期"的口径要说清：</strong>本页按 <strong>关卡 1~10（第一档）</strong> 落地 —— 也就是新玩家从第 1 关开始的那段体验（<code>hp_mul</code> 是"按关卡"的字段）。<span class="q n">如果你指的是"每一局的前几波"</span>（任何关卡都生效），那是另一条规则：要么给 <code>hp_mul</code> 再加一个"按波次/按开局秒数"的字段，要么前 2 波独立配一套怪 —— 但<strong>不建议</strong>用"开局 N 秒强制 1 血"，那会在第 3~4 波突然从 1 击变成 3 击，断层比现在还难受。</div>
+  <div class="callout warn"><strong>最终 Boss 的强度曲线 <span class="q n">待确认</span>：</strong>20 个 Boss 应该随 <code>tier</code> 递增（建议 HP/攻击按 <code>×(1 + 0.35×(tier-1))</code> 线性拉，而不是指数 —— 避免第 20 档变成数值墙）；局外「模式 Boss 挑战」按同样顺序开放。</div>
+
+  <h3>怪种缺口（要补的清单）</h3>
+  <table>
+    <thead><tr><th scope="col">类别</th><th scope="col">现状</th><th scope="col">目标</th><th scope="col">缺口</th></tr></thead>
+    <tbody>
+      <tr><td>普通怪</td><td>4 种（2001 哥布林 / 2002 巨魔 / 2003 游荡者 / 2004 环绕魔）</td><td>≥ 5 种</td><td><strong>1 种</strong></td></tr>
+      <tr><td>精英怪</td><td>1 种（2005 重击者）</td><td>≥ 5 种</td><td><strong>4 种</strong></td></tr>
+      <tr><td>阶段 Boss（防守）</td><td>1 种（2006 深渊领主，兼最终 Boss）</td><td>≥ 5 种</td><td><strong>4 种</strong></td></tr>
+      <tr><td>最终 Boss</td><td>1 种（复用 2006）</td><td><strong>20 种</strong>（每档一个）</td><td><span class="q u">19 种</span></td></tr>
+      <tr><td>金币 Boss</td><td>1 种（2007 黄金魔像）</td><td>—</td><td>—</td></tr>
+      <tr><td>经验 Boss</td><td>1 种（2008 经验贤者）</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h3>局外「模式 Boss 挑战」（回复 5 的延伸）</h3>
+  <div class="grid c2">
+    <div class="card"><h4>列表</h4><p>按 <strong>#1 → #20 顺序</strong>列出全部最终 Boss，玩家<strong>依次挑战</strong>（与关卡档一一对应）。</p></div>
+    <div class="card"><h4>次数限制</h4><p>每个 Boss <strong>每天可挑战成功 3 次</strong>；超出的挑战不计奖励（"挑战成功"才算次数）。</p></div>
+  </div>
+  <div class="callout ok"><strong>与结算的关系：</strong>Boss 挑战是<strong>局外玩法</strong>，但走同一套结算管线 —— 它的 <code>level</code> 就是该 Boss 对应的关卡档位，所以经验/遗物照发，不需要为它单独写一套奖励逻辑（这正是"奖励源可插拔"接口的价值）。</div>
+
+  <h2>五、扩展奖励接口（预留）</h2>
+  <p>结算不止经验与遗物（以后可能有货币、碎片、解锁、体力…），所以奖励一律走<strong>统一结构与来源注册表</strong>，新增奖励类型<strong>不改结算流程、不改面板</strong>。</p>
+  <table>
+    <thead><tr><th scope="col">字段</th><th scope="col">类型</th><th scope="col">说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>kind</code></td><td>string</td><td>奖励类型：<code>hero_exp</code> / <code>relic</code> / <code>currency</code> / <code>item</code> / <code>hero_shard</code> / <code>unlock</code> …（开放集合）。<code>player_exp</code> <strong>已不参与结算</strong>（改由任务系统发）</td></tr>
+      <tr><td><code>id</code></td><td>number</td><td>类型内的实体 id（遗物 = relics id；货币 = CurrencyType）</td></tr>
+      <tr><td><code>count</code></td><td>number</td><td>数量（经验 = 经验值；遗物 = 份数）</td></tr>
+      <tr><td><code>quality</code></td><td>number?</td><td>仅用于展示（描边/底色），与落库解耦</td></tr>
+      <tr><td><code>icon</code> / <code>name</code></td><td>string?</td><td><strong>展示缓存</strong>，由 kind 解析器补齐；缺失时用兜底图标</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th scope="col">扩展点</th><th scope="col">契约</th><th scope="col">新增一类奖励要做的事</th></tr></thead>
+    <tbody>
+      <tr><td>奖励来源</td><td><code>roll(ctx) → RewardItem[]</code>，<code>ctx = { result, level, stage, heroId, elapsed, kills }</code></td><td>写一个 source 并注册，结算管线按顺序跑全部 source</td></tr>
+      <tr><td>展示解析器</td><td><code>resolve(kind) → { icon, name, order, tint }</code></td><td>注册一行；不注册也能显示（兜底）</td></tr>
+      <tr><td>排序</td><td>固定 <code>kind</code> 优先级 → 品质降序 → id 升序</td><td>给新 kind 在优先级表里分配位置</td></tr>
+      <tr><td>落库</td><td>每个 source 自带 <code>commit(items)</code>（写 DataCenter 对应模块）</td><td>写自己的 commit，结算管线统一在展示前调用</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、结算面板展示规范</h2>
+  <div class="grid c2">
+    <div class="card"><h4>版式</h4><p>标题（现有 <code>end/title</code>，胜利/失败文案）→ <strong>奖励列表</strong> → 「确定」按钮。列表按规范排序，<strong>每个奖励一格：icon + <code>×N</code></strong>。</p></div>
+    <div class="card"><h4>数量写法</h4><p>始终显示 <code>×N</code>（含 <code>×1</code>）—— 统一写法避免"这个到底发没发"的歧义；数量为 0 的<strong>不出现</strong>在列表里。</p></div>
+    <div class="card"><h4>icon：本期先用占位（回复 11）</h4><p>遗物 icon 是<strong>远程 CDN 链接</strong>、且全项目<strong>没有一处消费过</strong> <code>option.icon</code>（商店 item 的 <code>setItemInfo()</code> 还是 TODO）。本期<strong>先按品质色画占位格</strong>，<code>meta.icon</code> 字段照读照留，等 icon 方案定了直接替换，<strong>不改面板结构</strong>。</p></div>
+    <div class="card"><h4>icon 来源（将来）</h4><p>遗物走 <code>ezgame.res.loadRemoteFrame(url)</code>（<code>ResMgr</code> 已有）或改为打进包；经验/货币走 <code>resources</code> 内置路径 <code>&lt;path&gt;/spriteFrame</code>（与 HUD 头像同一套约定）。</p></div>
+  </div>
+  <h3>局内背包（定案 5）</h3>
+  <div class="callout ok"><strong>方案：</strong>战斗界面上放一个<strong>背包按钮</strong> → 点击<strong>展开面板</strong> → 里面是<strong>可上下滑动</strong>的列表，展示本局已获得的<strong>全部遗物 icon</strong> → <strong>点某个 icon 弹出详情面板</strong>（属性/效果文案）。结算面板的 icon 规格直接复用这套，两边不用各做一个。</div>
+  <table>
+    <thead><tr><th scope="col">关注点</th><th scope="col">结论 / 做法</th></tr></thead>
+    <tbody>
+      <tr><td>容量</td><td>一局 205~249 件 ⇒ 列表要按 <strong>250 格</strong>设计，且必须用 <strong>虚拟滚动 / 节点复用</strong>（对象池）。一次性 new 250 个节点 + 加载 250 张图会明显卡顿</td></tr>
+      <tr><td>icon 是硬依赖</td><td>背包"展示 icon"这件事<strong>直接依赖遗物图标</strong> —— 之前定的"icon 先不管"（回复 11）<strong>在背包这里绕不过去</strong>了。要么先用品质色占位方块（可玩但很丑、也认不出道具），要么把远程图标加载提前做掉</td></tr>
+      <tr><td>排序</td><td>建议 品质降序 → id 升序（与结算面板同一规则），保证玩家能预期位置</td></tr>
+      <tr><td>属性合并</td><td>250 件同时生效 ⇒ <code>ModifierSystem</code> 每帧 Tick 会遍历 250 条。建议<strong>同属性的 <code>percent</code> 先合并成一条</strong>再施加，而不是 250 条各算一遍</td></tr>
+    </tbody>
+  </table>
+  <h4>品质配色（定案：白 / 蓝 / 紫 / 红）</h4>
+  <table>
+    <thead><tr><th scope="col">品质</th><th scope="col">色值</th><th scope="col">用途</th></tr></thead>
+    <tbody>
+      <tr><td><span class="q n">common 白</span></td><td><code>#DDDDDD</code></td><td>格子描边 / 占位底色</td></tr>
+      <tr><td><span class="q r">rare 蓝</span></td><td><code>#5096FF</code></td><td>同上</td></tr>
+      <tr><td><span class="q e">epic 紫</span></td><td><code>#CF68FF</code></td><td>同上（<strong>已定案为紫</strong>）</td></tr>
+      <tr><td><span class="q l">legendary 红</span></td><td><code>#FF6464</code></td><td>同上</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><strong>展示顺序建议：</strong>英雄经验 → 遗物 → 其他；遗物内部按品质降序（先红后白），同品质按 id 升序。<strong>稳定性</strong>比"稀有度惊喜感"更重要 —— 同一份结算数据每次进来顺序都应一致。</div>
+
+  <h2>七、局外英雄成长（最高 1000 级）</h2>
+  <div class="callout ok"><strong>口径定案：</strong>局外英雄成长出来的属性<strong>作为局内基础属性</strong>（进 base 层，与 <code>units.json</code> 的 <code>base_attributes</code> 直接相加），<strong>不是</strong>走 <code>OuterAttributeCalculator</code> 的 percent/flat 通道。</div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 780 160" width="780" height="160" role="img" aria-label="属性结算层级">
+      <defs>
+        <marker id="arr5" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#3fa7ff"/></marker>
+      </defs>
+      <rect x="10" y="25" width="270" height="110" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="145" y="48" text-anchor="middle" fill="#bcd8f0" font-size="12.5" font-weight="600">base 层 · 基础属性</text>
+      <text x="145" y="72" text-anchor="middle" fill="#e6edf3" font-size="11">units.json base_attributes</text>
+      <text x="145" y="92" text-anchor="middle" fill="#9fe7c0" font-size="11">+ 局外英雄成长（HeroData.level）</text>
+      <text x="145" y="112" text-anchor="middle" fill="#e6edf3" font-size="11">+ 局内等级成长（growthValues）</text>
+      <text x="145" y="129" text-anchor="middle" fill="#8b98a5" font-size="10.5">三条都是"加法进 base"</text>
+
+      <rect x="335" y="25" width="185" height="48" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="427" y="45" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="600">× (1 + Σpercent)</text>
+      <text x="427" y="62" text-anchor="middle" fill="#8b98a5" font-size="10.5">局外遗物 · 局内 Modifier</text>
+
+      <rect x="335" y="92" width="185" height="48" rx="12" fill="#161c24" stroke="#2a3441"/>
+      <text x="427" y="112" text-anchor="middle" fill="#e6edf3" font-size="12" font-weight="600">＋ Σflat</text>
+      <text x="427" y="129" text-anchor="middle" fill="#8b98a5" font-size="10.5">固定值加成</text>
+
+      <rect x="575" y="25" width="195" height="115" rx="12" fill="#0e2233" stroke="#1d4a72"/>
+      <text x="672" y="55" text-anchor="middle" fill="#bcd8f0" font-size="12.5" font-weight="600">final 属性</text>
+      <text x="672" y="85" text-anchor="middle" fill="#e6edf3" font-size="11" font-family="ui-monospace,Consolas,monospace">base × (1+Σpercent)</text>
+      <text x="672" y="105" text-anchor="middle" fill="#e6edf3" font-size="11" font-family="ui-monospace,Consolas,monospace">+ Σflat</text>
+
+      <path d="M280 80 H305 V49 H330" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr5)"/>
+      <path d="M280 80 H305 V116 H330" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr5)"/>
+      <path d="M520 49 H570" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr5)"/>
+      <path d="M520 116 H570" fill="none" stroke="#3fa7ff" stroke-width="2" marker-end="url(#arr5)"/>
+    </svg>
+    <div class="cap">局外成长进 base ⇒ 它会<strong>被局内的 percent 放大</strong>（遗物/道具的百分比乘在这条 base 上）。这正是"越肝越强"的复利来源。</div>
+  </div>
+
+  <h3>成长维度收敛（回复 9：只成长攻击 / 生命 / 防御）</h3>
+  <table>
+    <thead><tr><th scope="col">属性</th><th scope="col">id</th><th scope="col">是否成长</th><th scope="col">理由</th></tr></thead>
+    <tbody>
+      <tr><td>攻击力</td><td>3</td><td><span class="q r">成长</span></td><td>DPS 主维度，唯一需要长期放大的输出属性</td></tr>
+      <tr><td>最大生命</td><td>1</td><td><span class="q r">成长</span></td><td>容错主维度</td></tr>
+      <tr><td>护甲</td><td>6</td><td><span class="q r">成长</span></td><td>"防御"</td></tr>
+      <tr><td>魔法抗性</td><td>7</td><td><span class="q r">成长</span></td><td>与护甲配对的另一条减伤轴 <span class="q n">可去掉</span></td></tr>
+      <tr><td>攻击速度</td><td>4</td><td><span class="q u">不成长</span></td><td>与攻击力<strong>相乘</strong>会造成 DPS 双重复利；局内已有 <code>atkSpeedCap = 3</code> 硬顶</td></tr>
+      <tr><td>闪避</td><td>8</td><td><span class="q u">不成长</span></td><td>回复 9：明确移除 —— 概率型防御会把"被秒"变成随机事件，长线成长极难平衡</td></tr>
+      <tr><td>暴击率</td><td>14</td><td><span class="q u">不成长</span></td><td>回复 9：明确移除 —— 与暴伤、攻速叠乘，收益曲线不线性</td></tr>
+      <tr><td>暴击伤害</td><td>15</td><td><span class="q u">不成长</span></td><td>随暴击率一起移除（暴击维度整体不进局外成长）</td></tr>
+      <tr><td>移动速度</td><td>5</td><td><span class="q u">不成长</span></td><td>英雄站桩不移动，加了无效</td></tr>
+      <tr><td>攻击距离</td><td>16</td><td><span class="q u">不成长</span></td><td>已有 <code>atkRangeCap</code>；且会破坏塔防站位</td></tr>
+      <tr><td>生命回复</td><td>9</td><td><span class="q u">不成长</span></td><td>回复 9：不在"攻击/生命/防御"三类里</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><strong>收敛到 4 维（攻击 / 生命 / 护甲 / 魔抗）的好处：</strong>① 面板干净，玩家一眼看懂成长；② 不会出现"攻速+暴击"这类乘算溢出，数值区间可控；③ 局外只放大"体量"，<strong>手感与构筑留给局内</strong>（遗物/技能才是 build 的表达）。</div>
+  <div class="callout warn"><strong>配置口径别踩坑：</strong>百分比型属性在 <code>base_attributes</code> 里是 <strong>int = 值×100</strong>（见 <code>AttributeScaling.SCALE</code>）；而 <code>units.json</code> 英雄的 <code>growthValues</code> 是 <strong>float 语义</strong>（0.005 = 0.5%/级）由代码换算。收敛后成长表只剩普通属性（生命/攻击/护甲/魔抗），<strong>这个坑自然绕开了</strong> —— 但注释仍要写清单位。</div>
+
+  <h3>升到 1000 级的曲线（回复 10：k = 1.0 定案）</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 780 122" width="780" height="122" role="img" aria-label="推荐升级经验公式">
+      <text x="10" y="30" fill="#e6edf3" font-size="13" font-family="ui-monospace,Consolas,monospace">expToNext(L) = round( heroExpFormulaBase × (1 + k × (L - 1)) )</text>
+      <text x="10" y="58" fill="#8b98a5" font-size="13" font-family="ui-monospace,Consolas,monospace">base = 100 , k = 1.0 , MAX_HERO_LEVEL = 1000</text>
+      <text x="10" y="86" fill="#8b98a5" font-size="13" font-family="ui-monospace,Consolas,monospace">L1=100  →  L100=199  →  L500=599  →  L1000=1099   （跨度 11 倍）</text>
+      <text x="10" y="110" fill="#8b98a5" font-size="12" font-family="ui-monospace,Consolas,monospace">k 是唯一肝度旋钮：k 越大满级越晚（末档 507 ~ 1,594 场）</text>
+    </svg>
+    <div class="cap">线性主导：严格单调递增（满足"等级越高、升级所需经验越高"），满级累计 598,401 经验。</div>
+  </div>
+  <table>
+    <thead><tr><th scope="col">曲线</th><th scope="col">累计到 L1000</th><th scope="col">场次 @关卡1-10<br><span style="font-weight:400">(80/场)</span></th><th scope="col">场次 @关卡91-100<br><span style="font-weight:400">(222/场)</span></th><th scope="col">场次 @关卡191-200<br><span style="font-weight:400">(689/场)</span></th></tr></thead>
+    <tbody>
+      <tr><td>现状 <code>100×1.12^(L-1)</code></td><td><span class="q u">不可达</span>（到 L54 累计 35 万）</td><td>—</td><td>—</td><td>509（仅到 L54）</td></tr>
+      <tr><td><strong>线性 <code>100 + 1.0(L-1)</code>（定案）</strong></td><td><strong>598,401</strong></td><td>7,480</td><td>2,696</td><td><strong>870</strong></td></tr>
+      <tr><td>（备选）线性 <code>100 + 0.5(L-1)</code></td><td>349,151</td><td>4,364</td><td>1,573</td><td>507</td></tr>
+      <tr><td>（备选）线性 <code>100 + 2.0(L-1)</code></td><td>1,096,902</td><td>13,711</td><td>4,941</td><td>1,594</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><strong>代价：早期节奏会明显变快。</strong>现状 1.12 曲线到 30 级要累计 21,458 经验（首档约 268 场），线性 k=1.0 到 30 级只累计 3,712（约 46 场）。这是"1000 级"的必然代价 —— 已按回复 10 定案接受。<strong>k 是唯一旋钮</strong>，后续觉得太肝/太轻松直接调 <code>battle_constants</code> 里的 k 即可（不用改公式）。</div>
+  <div class="callout info"><strong>为什么不能用 1.12：</strong><code>1.12^999</code> 单级就要 1.5e45 经验 —— 不是"太肝"，是<strong>数学上不可能</strong>。上一版已算过：1.12 曲线在固定预算下只能到 54 级，所以"1000 级"与"1.12 指数"二选一，已选 1000 级。</div>
+
+  <h3>落地必须补的两件事</h3>
+  <div class="grid c2">
+    <div class="card"><h4>① 等级上限守卫（现在没有）</h4><p><code>HeroData.addHeroExp()</code> 的 <code>while</code> 循环<strong>无上限</strong>，经验够就无限升。加 <code>MAX_HERO_LEVEL = 1000</code>：满级后<strong>停止累积</strong>。</p></div>
+    <div class="card"><h4>② 成长表 → base 的接线（本次新增）</h4><p>局外等级属性要在<strong>英雄实体创建时</strong>并入 <code>base_attributes</code>（<code>Scene_Game_Stage</code> 创建英雄 / 重选英雄两条路径都要走，否则重选后加成丢失）。</p></div>
+  </div>
+
+  <h2>八、与现状实现的差异清单</h2>
+  <table>
+    <thead><tr><th scope="col">文件 / 配置</th><th scope="col">现状</th><th scope="col">本次目标</th></tr></thead>
+    <tbody>
+      <tr><td><code>Scene_Game_Stage.endRun()</code></td><td>入参 <code>(result, reason)</code>，没有关卡概念</td><td>增加 <code>level</code> 来源（读 <code>PlayerInfo.difficultyByMode</code>，缺省 1）并透传给结算管线</td></tr>
+      <tr><td><code>Scene_Game_Stage.settleMetaRewards()</code></td><td>胜利 ×1.0 / 失败<strong>固定 ×0.3</strong>；还发玩家经验</td><td>胜利 = 关卡阶梯值；失败 = 阶梯值 × 阶段系数；<strong>删掉玩家经验</strong></td></tr>
+      <tr><td><code>Scene_Game_Stage.firstHeroId()</code></td><td>恒返回 <code>null</code>（循环被注释）⇒ 英雄没拿到过经验</td><td>改用 <code>this.hero.id</code>（局内最后选择的英雄），未解锁先 <code>unlockHero()</code></td></tr>
+      <tr><td><code>Scene_Game_Stage.openShop()</code></td><td><strong>无调用方</strong>（唯一调用点被注释）⇒ 抽卡跑不起来</td><td>接<strong>抽卡按钮</strong>（手动触发，第三轮定案 1）；<code>drawCostResetEachPhase</code> 保持 <code>0</code>（205 抽的规模下费用第 6 抽就进同一档，重置无意义）</td></tr>
+      <tr><td>刷怪时的怪物数值</td><td>没有任何关卡倍率：<code>monsterPool.acquire(def)</code> 直接用 <code>units.json.base_attributes</code> ⇒ <strong>200 关的怪都是同一份 100 HP</strong>，难度只靠阶段时长与 Boss</td><td>刷怪时按 <code>difficulty_levels</code> 施加 <code>hp_mul / atk_mul</code>；<strong>关卡 1~10 先上 <code>hp_mul = 0.25</code></strong>（前期一击必杀，见 §三⑥）</td></tr>
+      <tr><td>局内遗物池</td><td>已拥有的不再出现（本局内不放回）；<strong>池子跨局不重置</strong></td><td>明确"<strong>只有被选中的离开池子</strong>"（候选不消耗）；<strong>每局重置</strong>池子</td></tr>
+      <tr><td>英雄实体创建</td><td>base 只来自 <code>units.json</code> + 局内 <code>growthValues</code></td><td>并入<strong>局外英雄成长</strong>（两条创建路径都要）</td></tr>
+      <tr><td><code>View_Game_Stage.showEnd()</code></td><td>只写一个标题 Label</td><td>增加奖励列表（icon + 数量，本期用品质色占位）+ 排序</td></tr>
+      <tr><td><code>relics.xlsx</code> / <code>schema.ts</code> / <code>relics.json</code></td><td>扁平 <code>description</code> / <code>modifiers</code> / <code>script_id</code></td><td>拆 <code>battle{}</code> / <code>meta{}</code> 两部分（列改名 + 导出组装）</td></tr>
+      <tr><td><code>Tb_RelicConfig.ts</code> + 3 处消费方</td><td>顶层字段直读</td><td>改成 <code>def.battle.*</code>（<code>BattleEquipSystem</code> / <code>ShopConfig.getRelicDesc</code> / <code>ShopSystem</code>）</td></tr>
+      <tr><td><code>equipments.*</code> / <code>EquipmentConfig.ts</code> / <code>EquipmentCollectionModule</code></td><td>独立的"局外装备收集"（<code>quality 1~2.5</code>、<code>flat/percent</code>）</td><td><strong>统一为「局外遗物」</strong>：数据并入 <code>relics.meta</code>，模块改名 <code>RelicCollectionModule</code>，feature 名 <code>'equipment'</code> → <code>'relic'</code></td></tr>
+      <tr><td><code>PlayerInfo</code></td><td>无难度字段</td><td>新增按玩法分的难度字段（如 <code>difficultyByMode</code>）</td></tr>
+      <tr><td><code>HeroData</code></td><td>无等级上限；指数曲线</td><td><code>MAX_HERO_LEVEL = 1000</code> + 线性曲线 <code>100 + 1.0(L-1)</code></td></tr>
+      <tr><td><code>battle_constants.xlsx</code></td><td><code>clearRewardHeroExpBase=80</code> 等</td><td>新增：阶梯系数 1.12 / 档上限 20、失败阶段系数数组、线性曲线 k=1.0。<code>clearRewardPlayerExpBase</code> 保留（给任务系统用，结算不再读）</td></tr>
+      <tr><td><code>shop_constants.xlsx</code></td><td><code>drawCostBase=50 / step=50 / cap=200</code>（按"一局 9 抽"设计）</td><td>改为 <code>20 / +2 / 封顶 30</code>（205~249 抽才花得起）；<code>drawCostResetEachPhase</code> 保持 <code>0</code></td></tr>
+      <tr><td><code>units.json</code> 金币重做</td><td>哥布林 2 / 巨魔 4 / 环绕魔 3 / 重击者 6 / 深渊领主 40 / 黄金魔像 250（×10 倍率）</td><td>普通怪<strong>统一 3</strong>（哥布林·游荡者 2→3、巨魔 4→3）；精英 <strong>6→20</strong>、阶段 Boss <strong>40→120</strong>、金币 Boss <strong>250→1,700</strong>（目标：一局 <strong>6,900 金 = 正好 231 抽 = 池子 78.8%</strong>）</td></tr>
+      <tr><td><code>battle_constants.rewardBossGoldBonus / rewardBossExpBonus</code></td><td>都 = <code>10</code>：金币 Boss 实得 <code>250×10 = 2,500</code>、经验 Boss 实得 <code>200×10 = 2,000</code> 局内经验 —— <strong>base ≠ 到账值</strong>，与定案 7 冲突</td><td><strong>删除两个倍率</strong>，数值直接写进 <code>units.json</code>（<code>goldReward = 1,700</code> / <code>expReward = 2,000</code>）—— 一张表读完，不再有藏在别的表里的 ×10</td></tr>
+      <tr><td>开局金币</td><td><strong>从来没发过</strong>：<code>BattleConstUtil.getInitialGold()</code> 无调用方，<code>Entity</code> 走 <code>def.gold ?? 0</code>，而英雄 <code>units.json.gold = 0</code> ⇒ 开局 0 金</td><td>开局按 <code>initialGold</code>（100）发放 = <strong>前 4 抽</strong>（20+22+24+26 = 92）；进英雄实体创建的两条路径</td></tr>
+      <tr><td><code>kill_buffs.json</code> / <code>Tb_KillBuffConfig</code></td><td><code>price</code> 12~45 击杀点；带 <code>price_growth</code> 1.3~1.55 与 <code>max_stack</code>；<strong>没有 <code>duration</code></strong></td><td><code>price</code> 上调到 <strong>40~150 击杀点</strong>（分 4 档）；<strong>删 <code>price_growth</code> / <code>max_stack</code></strong>（只覆盖不叠加）；<strong>新增 <code>duration</code></strong>（限时）；<code>getPriceAt()</code> 简化为固定价</td></tr>
+      <tr><td><code>currentRewardScale()</code></td><td>金币与局内经验<strong>共用</strong>一套阶段系数 × 时间通胀</td><td><strong>拆开</strong>：金币直给（base = 到账），局内经验保留缩放</td></tr>
+      <tr><td><code>spawnWave()</code> 怪池</td><td><code>monsterId = 2001</code> 写死；<code>monsterPool</code> 含 <code>2006</code>（boss）</td><td>恢复池子随机；<strong>把 2006 挪出普通怪池</strong>（Boss 只走 <code>stageBossUnitId</code>/<code>finalBossUnitId</code>）</td></tr>
+      <tr><td>抽卡第 4 格</td><td>4 个候选<strong>同权重</strong>；广告只用于"<strong>额外多选 1 个</strong>"（<code>adExtraPickCount = 1</code>，与"选后其余置灰、必须重新抽"直接冲突）</td><td>第 4 格 = <strong>广告位</strong>：先掷 <code>adSlotHighQualityChance</code>（建议 25%）→ <strong>中了</strong>用高品权重（白 0 / 蓝 30 / 紫 45 / 红 25）、<strong>没中就和其余 3 格同权重</strong>；需看广告才能拿。<code>adFreeDrawPerRun</code> <strong>3 → 0</strong>（免费抽次数改由局外成就发）；<code>adExtraPickCount</code> 归零</td></tr>
+      <tr><td>局内背包 UI</td><td>不存在</td><td>背包按钮 + 可滚动列表 + 点 icon 弹详情；<strong>虚拟滚动 / 节点复用</strong>（250 格）</td></tr>
+      <tr><td><code>difficulty_levels.xlsx</code>（新建）</td><td>不存在，档位靠代码 <code>ceil(level/10)</code> 硬算</td><td><strong>现在就建</strong>：200 行，主键 = 关卡，含 <code>tier / exp_reward / rarity_tier / final_boss / monster_pool / hp_mul / atk_mul / unlock</code></td></tr>
+      <tr><td><code>GameStageConfig</code></td><td><code>stageTime = 60</code> / <code>bossTime = 60</code>（每阶段 1 分钟）</td><td><code>stageTime = 240</code>（每阶段 <strong>4 分钟</strong>，5 阶段 = 20 分钟一局）</td></tr>
+      <tr><td><code>units.json</code> 怪种补齐</td><td>普通 4 / 精英 1 / 阶段 Boss 1 / 最终 Boss 1</td><td>普通 ≥5、精英 ≥5、阶段 Boss ≥5、<strong>最终 Boss 20</strong>（按关卡档顺序）—— 数值归 <code>monster-design</code>/<code>boss-design</code></td></tr>
+      <tr><td>局内遗物池（每局重置）</td><td>跨局累计消耗</td><td>局终清空池子；跨局进度由局外收集承担</td></tr>
+      <tr><td><del><code>meta_relic_effects.xlsx</code></del></td><td>曾计划单独建表</td><td><strong>取消</strong> —— 特殊效果并进 <code>relics.meta.effects</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>九、决策记录与剩余待确认</h2>
+  <h3>已定案（第一轮 12 条）</h3>
+  <table>
+    <thead><tr><th scope="col">#</th><th scope="col">决策</th><th scope="col">落地位置</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>失败阶段系数 <strong>10/20/30/40/50%</strong></td><td><code>battle_constants</code> 新增数组 + 结算管线</td></tr>
+      <tr><td>2</td><td>阶梯 <strong>80 × 1.12^(档-1)</strong>、20 档（每 10 关一档，最高 200 关）</td><td><code>battle_constants</code> 三个常量 + 公式</td></tr>
+      <tr><td>3</td><td>玩家账号经验<strong>不由结算发</strong>，改由<strong>局外任务系统</strong>（后续设计）</td><td>结算删 <code>playerInfo.addExp</code>；保留 <code>recordGameEnd</code> 统计</td></tr>
+      <tr><td>4</td><td>局内击杀奖励<strong>不随关卡缩放</strong>；局内遗物<strong>抽后不放回</strong></td><td><code>currentRewardScale</code> 不动；池子逻辑 + 每局重置</td></tr>
+      <tr><td>5</td><td>失败掉落数量权重 = 胜利的<strong>一半</strong>（EV 1.60 → 0.80）</td><td>数量权重表（5/45/35/15 与 35/50/15/0）</td></tr>
+      <tr><td>6</td><td>品质权重<strong>随关卡微调</strong>（红 3%→8%、白 55%→42%）</td><td>品质档位表（4 档）</td></tr>
+      <tr><td>7</td><td><code>epic</code> = 第三档品质（<strong>紫</strong>，第二轮已定案颜色）</td><td>品质对照表</td></tr>
+      <tr><td>8</td><td><code>equipments</code> <strong>就是</strong>局外遗物系统 → 统一命名</td><td>并入 <code>relics.meta</code>，模块/feature 改名</td></tr>
+      <tr><td>9</td><td>成长维度收敛为<strong>攻击 / 生命 / 防御</strong>；闪避、暴击率等移除</td><td>4 维成长表（攻击/生命/护甲/魔抗）</td></tr>
+      <tr><td>10</td><td>曲线 <strong>k = 1.0</strong>（线性）</td><td><code>HeroData._expForNextLevel</code> 改写 + k 进常量</td></tr>
+      <tr><td>11</td><td>遗物 icon <strong>先不管</strong>，后续单独处理</td><td>面板先用品质色占位，字段留着</td></tr>
+      <tr><td>12</td><td>当前难度存 <code>PlayerInfo</code>；每关单独配置再另建表</td><td><code>PlayerInfo.difficultyByMode</code>（+ 按需 <code>difficulty_levels</code>）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>已定案（第二轮 6 条）</h3>
+  <table>
+    <thead><tr><th scope="col">#</th><th scope="col">决策</th><th scope="col">落地位置</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>品质颜色 <strong>白 / 蓝 / 紫 / 红</strong>（epic = <strong>紫</strong> <code>#CF68FF</code>）</td><td><code>schema.ts</code> 的 epic 说明改「紫（史诗）」；商店/面板/图鉴统一</td></tr>
+      <tr><td>2</td><td>一局金币花光要能抽到<strong>总遗物的 70~85%</strong>（<strong>205~249 抽</strong>）、buff 买 <strong>15~30 个</strong>；据此<strong>重做每种怪的金币</strong></td><td><code>shop_constants</code> 费用改 <code>20/+2/封顶30</code>；<code>units.json</code> 普通怪统一 3、精英 6→20、阶段 Boss 40→120、金币 Boss 250→1,700（<strong>第四轮口径</strong>）</td></tr>
+      <tr><td>4</td><td>局内遗物池<strong>每局重置</strong></td><td>池子状态随局重置；跨局进度交给局外收集</td></tr>
+      <tr><td>5</td><td>每阶段固定刷 2~3 种怪（普通/精英各随机选）、精英每 1 分钟 2~3 只、阶段 Boss 随机 1 个、<strong>20 个最终 Boss 按顺序</strong>、每种怪 ≥5 种</td><td>怪物/Boss 表（<code>monster-design</code>/<code>boss-design</code>）；<code>stageTime</code> 60→240；<code>spawnWave</code> 接怪池</td></tr>
+      <tr><td>7</td><td>次数型效果（<code>reviveOnce</code>）<strong>取最大值</strong>，数值型按份数叠加</td><td><code>meta.effects</code> 加 <code>stack: sum | max</code> 字段</td></tr>
+      <tr><td>8</td><td>失败局的品质档<strong>再降一档</strong></td><td>取档函数：<code>clamp(关卡档-1, 低档)</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>已定案（第三轮 7 条）</h3>
+  <table>
+    <thead><tr><th scope="col">#</th><th scope="col">决策</th><th scope="col">落地位置</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>抽卡<strong>手动</strong>触发；每次 4 选 1；<strong>第 4 格是广告位</strong>（概率出高品质，看广告才能拿）；选后其余 3 个隐藏/置灰，<strong>必须重新抽</strong>才能继续选</td><td>抽卡按钮接 <code>openShop()</code>；第 4 格独立品质权重 + 广告门槛</td></tr>
+      <tr><td>2</td><td>buff <strong>只覆盖不叠加</strong>（都是限时 + 百分比 / 特殊效果）</td><td>删 <code>price_growth</code> / <code>max_stack</code>；补 <code>duration</code>；重复购买 = 重新计时</td></tr>
+      <tr><td>3</td><td>击杀数不设上限；<strong>精英与 Boss 也算击杀</strong>；<strong>buff 用击杀点购买</strong>（不是金币）</td><td><code>kill_buffs.price</code> 语义 = 击杀点，上调到 40~150；金币 <strong>100% 留给抽卡</strong></td></tr>
+      <tr><td>4</td><td>恢复 <code>monsterPool</code> 池子随机；怪种不足就<strong>先一直用现有配置的怪</strong></td><td><code>spawnWave()</code> 换回池子随机；2006 挪出普通池；"每阶段固定 2~3 种"延后</td></tr>
+      <tr><td>5</td><td>遗物展示 = <strong>背包按钮 + 可滚动列表 + 点 icon 弹详情</strong></td><td>新增背包 UI（虚拟滚动、250 格）；结算面板复用同一套 icon 规格</td></tr>
+      <tr><td>7</td><td>金币<strong>去掉</strong>阶段系数与时间通胀（base = 到账值）</td><td>拆 <code>currentRewardScale()</code>；<code>units.json</code> base 直接按 6,800 金/局定</td></tr>
+      <tr><td>8</td><td><code>difficulty_levels</code> 表<strong>现在就建</strong></td><td>200 行，主键 = 关卡 1~200，<code>tier</code> 为核心字段</td></tr>
+    </tbody>
+  </table>
+
+  <h3>已定案（第四轮 3 条）</h3>
+  <table>
+    <thead><tr><th scope="col">#</th><th scope="col">决策</th><th scope="col">落地位置</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>普通怪金币<strong>太少</strong> ⇒ <strong>2 → 3</strong>；并把<strong>前期几波怪改成 1 击必杀</strong>（关卡 1~10 <code>hp_mul = 0.25</code>，四个英雄全部 1 击；前期池<strong>排除巨魔</strong>）</td><td><code>units.json</code> 普通怪金币；<code>difficulty_levels.hp_mul / monster_pool</code> + 刷怪时施加倍率（当前没实现）</td></tr>
+      <tr><td>2</td><td>第 4 格广告位<strong>两次判定</strong>：先掷"是否走高品权重"（<code>adSlotHighQualityChance</code>，建议 <strong>25%</strong>），<strong>中了</strong>用白 0 / 蓝 30 / 紫 45 / 红 25；<strong>没中就和其余 3 格完全同权重</strong></td><td><code>shop_constants</code> 新增 <code>adSlotHighQualityChance</code> + <code>adSlotHighQualityWeights</code>；抽卡时第 4 格单独走一遍</td></tr>
+      <tr><td>3</td><td>每局免费抽<strong>机制保留、默认 0 次</strong>（<code>adFreeDrawPerRun = 0</code>），次数改由<strong>局外成就系统</strong>发放</td><td><code>shop_constants.adFreeDrawPerRun: 3 → 0</code>；<code>PlayerInfo</code> 存免费抽次数；成就系统（后续设计）是发放方</td></tr>
+    </tbody>
+  </table>
+
+  <h3>剩余待确认</h3>
+  <table>
+    <thead><tr><th scope="col">#</th><th scope="col">决策点</th><th scope="col">影响</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>第 4 格<strong>未命中高品时还要不要看广告</strong>（建议：不要）</td><td>不做的话约 3/4 的广告是白看的，玩家会永远跳过第 4 格</td></tr>
+      <tr><td>2</td><td><strong>广告位每局的次数上限</strong>（免费抽已有"基础 0 次"，广告位本身要不要限）</td><td>广告收益节奏与"看广告值不值"</td></tr>
+      <tr><td>3</td><td>抽卡面板的呈现方式（常驻侧栏 / 半透明浮层）</td><td>手动抽 231 次不能挡住战场</td></tr>
+      <tr><td>4</td><td>一局击杀数（表中取 ~1,200 只普通怪）</td><td>整张金币表<strong>唯一的自由变量</strong>，需真机实测校准</td></tr>
+      <tr><td>5</td><td><strong>关卡 11+ 的 <code>hp_mul</code> / <code>atk_mul</code> 曲线</strong>（前期 0.25 已定，建议 0.4/0.6/0.8/1.0…）</td><td>"前期一击必杀"能保持多久、后期难度会不会断层</td></tr>
+      <tr><td>6</td><td><strong>开局金币</strong> = <code>initialGold</code> 100（= 4 抽）是否过高</td><td>前期强度；与 <code>meta.effects</code> 的 <code>startGold</code>（+10/+25）叠加后的开局滚雪球</td></tr>
+      <tr><td>7</td><td>局内经验是否也去掉阶段/时间通胀（本次只去掉了金币）</td><td>两条曲线若不一致，调参容易混</td></tr>
+      <tr><td>8</td><td>各个限时 buff 的 <code>duration</code> 具体值（建议 60s / 特殊 30~60s）</td><td>覆盖式购买的实际强度</td></tr>
+      <tr><td>9</td><td>局外<strong>任务系统</strong> / <strong>成就系统</strong>设计（发账号经验、发免费抽次数）</td><td><code>PlayerInfo</code> 的 <code>totalGames/totalKills</code> 是数据源；免费抽次数的发放方</td></tr>
+      <tr><td>10</td><td>20 个最终 Boss 是否按 <code>tier</code> 线性拉强度（建议 <code>×(1+0.35×(tier-1))</code>）</td><td>第 20 档会不会变成数值墙</td></tr>
+      <tr><td>11</td><td>遗物 icon 的落地方式（背包已经绕不过去了）</td><td>远程 CDN vs 打进包；占位能否先撑住 demo</td></tr>
+    </tbody>
+  </table>
+</article>
+</body>
+</html>

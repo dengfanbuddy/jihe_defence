@@ -1,0 +1,4 @@
+# 工具自身的临时/生成目录
+.tmp/
+
+# npm 依赖由根 .gitignore 的 node_modules/ 覆盖

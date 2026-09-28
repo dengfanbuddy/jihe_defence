@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "band": "英雄 Lv.1-9",
+    "level_min": 1,
+    "level_max": 9,
+    "common": 55,
+    "rare": 30,
+    "epic": 12,
+    "legendary": 3,
+    "upgrade_chance": 15
+  },
+  {
+    "id": 2,
+    "band": "英雄 Lv.10-19",
+    "level_min": 10,
+    "level_max": 19,
+    "common": 40,
+    "rare": 32,
+    "epic": 20,
+    "legendary": 8,
+    "upgrade_chance": 15
+  },
+  {
+    "id": 3,
+    "band": "英雄 Lv.20-29",
+    "level_min": 20,
+    "level_max": 29,
+    "common": 28,
+    "rare": 34,
+    "epic": 24,
+    "legendary": 14,
+    "upgrade_chance": 15
+  },
+  {
+    "id": 4,
+    "band": "英雄 Lv.30",
+    "level_min": 30,
+    "level_max": 30,
+    "common": 20,
+    "rare": 30,
+    "epic": 26,
+    "legendary": 24,
+    "upgrade_chance": 15
+  }
+]

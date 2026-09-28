@@ -1,5 +1,6 @@
 import { Entity } from './Entity';
 import { AIRegistry } from './ai/AIRegistry';
+import { UnitKind } from '../common/EntityVisualConfig';
 import type { BattleContext } from './BattleContext';
 import type { UnitCfg } from '../excel_table/Tb_UnitConfig';
 
@@ -36,15 +37,15 @@ export class EntityPool {
     }
 
     /** 从池中取出一个实体（没有空闲则新建） */
-    acquire(def: UnitCfg): Entity {
+    acquire(def: UnitCfg, kind?: UnitKind): Entity {
         const list = this.pools.get(def.id);
         let entity = list?.pop();
         if (!entity) {
             // 池空 → 新建（uid 由 BattleContext 分配，保证唯一）
-            entity = this.ctx.CreateEntityFromDef(def);
+            entity = this.ctx.CreateEntityFromDef(def, kind);
         } else {
             // 复用：重新按配置初始化 + 注册到上下文（AddEntity 自动清除回收标记）
-            entity.Reinit(def);
+            entity.Reinit(def, kind);
             this.ctx.AddEntity(entity);
         }
         return entity;

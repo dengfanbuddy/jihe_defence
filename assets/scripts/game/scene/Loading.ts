@@ -1,5 +1,4 @@
 import { _decorator, assetManager, Component, director, Node, UITransform } from 'cc';
-import UIMgr from '../../platform/ui/UIMgr';
 import { DataCenter } from '../data';
 import { TbRoot } from '../../platform/excel_table/TbRoot';
 const { ccclass, property } = _decorator;

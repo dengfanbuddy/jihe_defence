@@ -10,12 +10,17 @@
  * @example
  * ```ts
  * // 局内结束掉落装备
- * DataCenter.ins.equipCollection.addCollected(9);   // d2_iron_branch (id=9)
- * DataCenter.ins.equipCollection.addCollected(27);  // d2_battlefury (id=27)
+ * DataCenter.ins.equipCollection.addCollected(1068);   // 铁树枝干（relics.json，有局外版）
+ * DataCenter.ins.equipCollection.addCollected(1167);   // 狂战斧（relics.json，有局外版）
  *
  * // 查看收集情况
- * const count = DataCenter.ins.equipCollection.getCollectedCount(9);
+ * const count = DataCenter.ins.equipCollection.getCollectedCount(1068);
  * ```
+ *
+ * ⚠ 2026-07：遗物表改成「一件遗物一行」，局内版 / 局外版**共用同一个 id**，本模块存的 id 即 relic id。
+ * 有局外版的遗物用它的局内 id（1001~1293 段），只有局外版的遗物是 1294~1302。
+ * （更早的两次数值/结构迁移：装备 id 1~45 → +2000 → 再并入遗物并用局内 id，见
+ *  `tools/excel_export/reports/equipments-into-relics.md` 与 `reports/relics-scope-restructure.md`）
  */
 
 import { DataModule } from '../DataModule';
@@ -41,7 +46,7 @@ export class EquipmentCollectionModule extends DataModule<IEquipmentCollection> 
 
     /**
      * 添加收集一次装备
-     * @param equipId 装备配置 ID（数字 ID，对应 equipments.json 中的 id）
+     * @param equipId 装备配置 ID（= relics.json 里**有局外版**的遗物 id：两侧都有的用局内 id，只有局外版的是 1294~1302）
      * @param count   收集次数（默认 1，装备掉落可指定数量）
      */
     addCollected(equipId: number, count: number = 1): void {

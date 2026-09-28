@@ -823,7 +823,7 @@ export enum GameStateType {
 
 ```typescript
 // Scene_Game_Stage.ts 节选
-export class Scene_Game_Stage extends BaseView<null, null> {
+export class Scene_Game_Stage extends BaseView {
     fsm: StateMachine<any>;
 
     onLoad(): void {

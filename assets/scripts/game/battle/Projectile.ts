@@ -151,7 +151,11 @@ export class Projectile {
         const dmg = this.ctx.damagePipeline.ApplyDamage(t, this.source, this.rawDamage, this.damageType, { ability: this.ability });
         if (this.hitEffects?.length) {
             for (const fx of this.hitEffects) {
-                this.ctx.effects.execute(fx, { actor: this.source, target: t });
+                this.ctx.effects.execute(fx, {
+                    actor: this.source,
+                    target: t,
+                    origin: this.ability ? `ability:${this.ability.def?.id}` : undefined,
+                });
             }
         }
         this.ctx.bus.publish(BattleEvents.OnProjectileHit, { projectile: this, target: t, damage: dmg });

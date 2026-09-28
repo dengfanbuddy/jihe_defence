@@ -8,6 +8,7 @@ import { BattleEvents, DamageType } from './types';
 import { AttributeType } from './core/Types';
 import type { AttributeArray } from './core/Types';
 import { BattleConstUtil } from './core/BattleConstUtil';
+import { UnitKind, getUnitScale, resolveUnitKind } from '../common/EntityVisualConfig';
 import type { MonsterAI } from './ai/MonsterAI';
 import type { BattleContext } from './BattleContext';
 
@@ -45,6 +46,21 @@ export class Entity {
     /** 普攻冷却计时器（= 普攻间隔） */
     private attackTimer = 0;
 
+    /**
+     * 强制索敌目标（嘲讽）——非空时**压过一切常规索敌**（按策略重新挑 / 粘性锁定）。
+     *
+     * 与「粘性锁定」的关系：常规规则是"锁住一个目标直到它死亡才换"，
+     * 嘲讽是唯一的例外——被嘲讽时立刻改打嘲讽者，嘲讽结束后再按常规规则重新锁。
+     *
+     * 消费方（都是本字段的读取者，不自己发明第二套规则）：
+     *   - 英雄普攻：Scene_Game_Stage.resolveAttackTarget
+     *   - 怪物 AI：MonsterAI.findTarget（斧王战吼"强制敌人攻击自己"就走这里）
+     * 写入方：嘲讽类效果调用 SetForcedTarget；目标死亡/被回收/倒计时到点自动解除。
+     */
+    forcedTarget: Entity | null = null;
+    /** 强制索敌剩余时间（秒）；<= 0 = 不限期（直到目标失效或显式清除） */
+    private forcedTargetRemain = 0;
+
     /** 自定义数据槽（可挂任意业务数据） */
     readonly custom: Record<string, any> = {};
 
@@ -57,8 +73,16 @@ export class Entity {
     /** 世界坐标（Cocos 层设置；纯逻辑可忽略） */
     position: { x: number; y: number } = { x: 0, y: 0 };
 
-    /** 碰撞半径（像素）——用于实体间分离/防重叠；默认取战斗常量 collisionRadiusDefault */
+    /** 碰撞半径（像素，已乘表现缩放）——用于实体间分离/防重叠 */
     collisionRadius = BattleConstUtil.getCollisionRadiusDefault();
+    /** 配置里的基础碰撞半径（像素，未乘缩放）；表现类别切换时据此重算 collisionRadius */
+    baseCollisionRadius = BattleConstUtil.getCollisionRadiusDefault();
+    /**
+     * 单位表现类别（英雄/普通/精英/各类 Boss）——决定配色、节点缩放与碰撞半径倍率。
+     * 表现层（EntityView）读它取颜色/缩放；逻辑层（entity 分离）读它算半径，
+     * 两者共用 game/common/EntityVisualConfig 同一份 scale，因此"推开的距离"与体型一致。
+     */
+    unitKind: UnitKind = UnitKind.Normal;
     /** 是否作为锚点（英雄/防守点）——实体分离时不被推开，只承担推开别人 */
     immovable = false;
 
@@ -88,12 +112,13 @@ export class Entity {
     /**
      * 按 UnitCfg 重新初始化（对象池复用前调用，等价于重新创建）
      * 覆盖基础属性/技能/AI，重置运行状态。
+     * @param kind 表现类别（可选）：缺省由配置解析；阶段/最终 Boss 等"同一配置不同身份"由刷新方显式传入
      */
     Reinit(def: { name?: string; team?: number; base_attributes?: AttributeArray; hp?: number; mana?: number;
                   move_speed?: number; attack_damage?: number; attack_speed?: number; armor?: number; magic_resist?: number;
                   attack_range?: number; gold?: number; attack_interval?: number; attack_projectile?: string;
                   attack_projectile_speed?: number; abilities?: number[]; ai?: any;
-                  collision_radius?: number }): void {
+                  collision_radius?: number; category?: string; subtype?: string; rewardType?: string }, kind?: UnitKind): void {
         // 清空上一轮运行状态
         this.ResetForPool();
         // 复位视图层回收标记（下次 acquire 时 ViewPool 可正常创建视图）
@@ -114,10 +139,12 @@ export class Entity {
         this.mana = this.getMaxMana();
         this.gold = def.gold ?? 0;
         // 非属性行为参数（不在 base_attributes 中）
-        // 碰撞半径：可配置覆盖，否则用常量默认值
-        this.collisionRadius = def.collision_radius !== undefined
+        // 碰撞半径：可配置覆盖，否则用常量默认值（存"基础值"，实际半径 = 基础值 × 表现缩放）
+        this.baseCollisionRadius = def.collision_radius !== undefined
             ? def.collision_radius
             : BattleConstUtil.getCollisionRadiusDefault();
+        // 表现类别 → 同步碰撞半径倍率（表现层节点缩放读同一份表，保证推距与体型一致）
+        this.SetUnitKind(kind ?? resolveUnitKind(def));
         if (def.attack_interval !== undefined) this.attackBaseInterval = def.attack_interval;
         if (def.attack_projectile) this.attackProjectile = def.attack_projectile;
         if (def.attack_projectile_speed !== undefined) this.attackProjectileSpeed = def.attack_projectile_speed;
@@ -142,9 +169,12 @@ export class Entity {
         this.attackProjectile = undefined;
         this.attackProjectileSpeed = 1200;
         this.position = { x: 0, y: 0 };
+        this.baseCollisionRadius = BattleConstUtil.getCollisionRadiusDefault();
         this.collisionRadius = BattleConstUtil.getCollisionRadiusDefault();
+        this.unitKind = UnitKind.Normal;
         this.immovable = false;
         this.view = null;
+        this.ClearForcedTarget();
         for (const k of Object.keys(this.custom)) delete this.custom[k];
         // 注意：不清 _viewRecycled —— 异步视图回调需要它判断放弃；
         // 复位放在 Reinit（下次复用）时
@@ -152,6 +182,23 @@ export class Entity {
         this.abilities.Clear();
         this.status.Clear();
         this.ai = null;
+    }
+
+    // ============ 表现类别 / 体型 ============
+
+    /**
+     * 设置表现类别（英雄/普通/精英/各类 Boss），并同步碰撞半径 = 基础半径 × 该类别缩放。
+     *
+     * 为什么半径要跟缩放走：实体分离（BattleContext.separateEntities）的判定是
+     * `minDist = e.collisionRadius + other.collisionRadius`，两只单位被推开的距离就是 minDist。
+     * 若半径不乘缩放，2 倍大的最终 Boss 会与普通怪"视觉重叠"却判定为不重叠；
+     * 乘了之后，屏幕上看到的间距 == 逻辑上的推距。
+     *
+     * 表现层（EntityView.bind → HitFlash.apply）用同一份 scale 设置节点缩放。
+     */
+    SetUnitKind(kind: UnitKind): void {
+        this.unitKind = kind;
+        this.collisionRadius = this.baseCollisionRadius * getUnitScale(kind);
     }
 
     // ============ 属性快捷 ============
@@ -179,6 +226,41 @@ export class Entity {
     }
 
     // ============ 生命/魔法管理 ============
+
+    /**
+     * 施加「会改变最大生命」的效果（遗物 / 击杀商店 Buff / 升级…），并按**满血口径**结算当前生命：
+     *   · 施放前是**满血** → 上限涨多少，当前生命也涨多少（ΔmaxHp），加完仍然是满血
+     *   · 施放前**不是满血** → 只抬上限，当前生命不动（保留原有的缺口）
+     *
+     * 为什么需要它：属性加成的写入是「贡献 → 下次读取时重算」，`hp` 是独立字段、不会跟着涨，
+     * 于是"满血买 +生命遗物"会凭空出现一道缺口（1000/1000 → 1000/1140），看起来像没加上。
+     *
+     * ⚠ 只给**永久**的上限变化用（遗物 / 击杀 Buff 的 `duration = -1` 条目）。
+     *   临时上限（技能 buff 到期会掉回来）**不要**走这个口 —— 到期后上限回落而当前生命不回落，
+     *   会出现 `hp > maxHp` 的脏数据（HUD 显示 1200/1000），要等到下次 `ChangeHp` 才被钳回。
+     *
+     * @param fn 真正写入上限变化的动作（内部一般是一段 `AddModifier` / `addBase`）
+     * @returns `fn` 的返回值
+     *
+     * @example
+     * ```ts
+     * // 遗物：一组永久 Modifier，其中可能含最大生命
+     * owner.ApplyWithMaxHpCarry(() => {
+     *     for (const e of entries) owner.modifiers.AddModifier(e.modifier, owner, e.duration ?? -1, e.kv, origin);
+     * });
+     * ```
+     */
+    ApplyWithMaxHpCarry<T>(fn: () => T): T {
+        const beforeMax = this.getMaxHp();
+        const wasFull = this.hp >= beforeMax;
+        const result = fn();
+        const afterMax = this.getMaxHp();
+        // 满血才补：非满血刻意不补（否则"残血买血"等于白送一次治疗）
+        if (wasFull && afterMax > beforeMax) {
+            this.hp = Math.min(afterMax, this.hp + (afterMax - beforeMax));
+        }
+        return result;
+    }
 
     /** 改变生命（负数为受伤，正数为治疗）。死亡判定由管线负责。 */
     ChangeHp(delta: number, source?: any): void {
@@ -219,6 +301,32 @@ export class Entity {
         this.mana = this.getMaxMana();
     }
 
+    // ============ 强制索敌（嘲讽） ============
+
+    /**
+     * 设置强制索敌目标（嘲讽）
+     * @param target 被强制攻击的目标（null = 等价于 ClearForcedTarget）
+     * @param duration 持续秒数；<= 0 = 一直有效（直到目标死亡/被回收或显式清除）
+     *
+     * 用法（嘲讽类效果）：
+     *   enemies.forEach(e => e.SetForcedTarget(this.hero, 2)); // 斧王战吼：2 秒内强制打自己
+     */
+    SetForcedTarget(target: Entity | null, duration = 0): void {
+        this.forcedTarget = target;
+        this.forcedTargetRemain = duration;
+    }
+
+    /** 解除强制索敌（嘲讽结束 / 目标失效） */
+    ClearForcedTarget(): void {
+        this.forcedTarget = null;
+        this.forcedTargetRemain = 0;
+    }
+
+    /** 当前是否处于被嘲讽状态（存在有效的强制目标） */
+    hasForcedTarget(): boolean {
+        return !!this.forcedTarget && !this.forcedTarget.IsDead();
+    }
+
     // ============ 战斗行为 ============
 
     /** 普通攻击（两阶段：发射弹道 or 即时命中）。冷却 = 普攻间隔（由攻速决定） */
@@ -244,12 +352,6 @@ export class Entity {
                 damageType: DamageType.Physical,
                 projectile: this.attackProjectile ?? 'shuriken',
             });
-        }
-
-        // 普攻技能（behavior=attack）：伤害由技能 effects 决定（可配弹道）
-        const attackAbility = this.abilities.getAttackAbility();
-        if (attackAbility) {
-            return attackAbility.OnAttack(target);
         }
 
         // 默认普攻：远程 → 发射弹道（延迟结算）；近战 → 即时命中
@@ -306,6 +408,15 @@ export class Entity {
         }
         // 普攻冷却恢复
         if (this.attackTimer > 0) this.attackTimer = Math.max(0, this.attackTimer - dt);
+        // 强制索敌（嘲讽）倒计时：目标已死/已回收，或时间到 → 自动解除，回到常规索敌
+        if (this.forcedTarget) {
+            if (this.forcedTarget.IsDead() || this.ctx.IsRecycled(this.forcedTarget)) {
+                this.ClearForcedTarget();
+            } else if (this.forcedTargetRemain > 0) {
+                this.forcedTargetRemain -= dt;
+                if (this.forcedTargetRemain <= 0) this.ClearForcedTarget();
+            }
+        }
         this.modifiers.Tick(dt);
         this.abilities.Tick(dt);
         // AI 脚本驱动（移动/攻击行为）

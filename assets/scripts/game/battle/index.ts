@@ -32,6 +32,7 @@ export {
     ModifierStackMode,
     DispelLevel,
     BattleEvents,
+    MODIFY_ATTR_TEMPLATE_ID,
 } from './types';
 export type {
     AttackEventData,
@@ -50,10 +51,17 @@ export type {
 } from '../excel_table/Tb_AttributeConfig';
 export type {
     ModifierCfg,
-    ModifierPropertyEntry,
-    ModifierTickCfg,
     ModifierEventAction,
 } from '../excel_table/Tb_ModifierConfig';
+export type {
+    AttrEntry,
+    AttrEffectEntry,
+    ModifierEffect,
+    ModifierTickEffect,
+    ModifyAttrEffect,
+    ApplyStateEffect,
+} from '../excel_table/EffectTypes';
+export { resolveAttrEntries, normalizeAttrEntry, isTickEffect } from '../excel_table/EffectTypes';
 export type {
     ConfigAction,
     AbilityCfg,
@@ -62,15 +70,41 @@ export type {
 export type {
     RelicCfg,
     RelicModifierEntry,
+    RelicRarity,
 } from '../excel_table/Tb_RelicConfig';
 export type {
     UnitCfg,
 } from '../excel_table/Tb_UnitConfig';
+export type {
+    ShopSkillCfg,
+} from '../excel_table/Tb_ShopSkillConfig';
+export type {
+    KillBuffCfg,
+    KillBuffStat,
+} from '../excel_table/Tb_KillBuffConfig';
+export type {
+    ShopDrawCfg,
+} from '../excel_table/Tb_ShopDrawConfig';
 
-// ============ 肉鸽 / 商店 ============
+// ============ 肉鸽 / 局内商店（每个功能一个类，规则与流程分开） ============
+//
+// 分层：UI（面板/item，只渲染与上报）→ 功能类（本层，只管流程与状态）→ 规则/系统（下方）
+//   · RelicShop   遗物商店：抽什么 / 花多少 / 能不能选 / 要不要广告 / 选中后入背包
+//   · RelicDraw   遗物抽取规则（纯函数；品质权重 / 阶段门槛 / 越阶 / 去重 / 费用与广告额度）
+//   · HeroSelect  选英雄：候选池 / 刷新（金币或广告）/ 选中 → 回调宿主创建英雄
+//   · BuffShop    击杀商店 Buff：摊位抽取 / 价格与层数 / 购买 → 属性当场生效
+//   · RelicSystem 遗物背包 + 属性（BattleEquipSystem，一件遗物 = 一组永久 Modifier）
 
-export { ShopSystem } from './ShopSystem';
-export type { ShopOption, EquipResult } from './ShopSystem';
+export { RelicShop } from './RelicShop';
+export type { RelicShopDeps } from './RelicShop';
+export { RelicDraw } from './RelicDraw';
+export type { RelicOption } from './RelicDraw';
+export { HeroSelect } from './HeroSelect';
+export type { HeroSelectDeps } from './HeroSelect';
+export { BuffShop } from './BuffShop';
+export type { BuffShopDeps } from './BuffShop';
+export { ShopConfig, SHOP_RARITY_ORDER, SHOP_RELIC_ID_MIN, SHOP_RELIC_ID_MAX } from '../data/configs/ShopConfig';
+export type { ShopRarity } from '../data/configs/ShopConfig';
 export { BattleEquip, RelicSystem } from './BattleEquipSystem';
 export { Ability_LightningChain } from './ScriptedAbilities';
 

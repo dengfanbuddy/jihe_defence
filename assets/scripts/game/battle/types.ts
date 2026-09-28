@@ -25,9 +25,11 @@ export enum StateType {
     Untargetable = 'untargetable', // 不可选中
 }
 
-/** 属性叠加方式 —— 借鉴 Dota 2 的四种叠加规则 */
+/** 属性叠加方式 —— 借鉴 Dota 2 的四种叠加规则，外加本项目新增的「百分比」 */
 export enum AttributeStackMode {
-    Add = 'add',            // 加法叠加：final = base + Σ v
+    Add = 'add',            // 加法叠加（固定值）：final = base + Σ v
+    Percent = 'percent',    // 百分比叠加：final = base × (1 + Σ v)。同类加法叠加、只对基础值乘算一次；
+                            // 与 Multiply 的区别：Multiply 是 Π(1+v)（多来源复利），Percent 是 1+Σv（多来源相加）
     Multiply = 'multiply',  // 乘法叠加：final = base × Π(1 + v)
     Complement = 'complement', // 补数乘法：final = 1 - (1-base) × Π(1 - v)  (用于魔抗/闪避等)
     Best = 'best',          // 优者生效：final = max(base, v...)
@@ -121,3 +123,17 @@ export interface AttributeContribution {
     mode?: AttributeStackMode; // 不填则取属性定义的默认叠加方式
     order: number;             // 计算顺序（同模式下按 order 排序）
 }
+
+/**
+ * 「属性修改」共享 Modifier 模板 id（modifiers.json 中 id = 1000 的那一条）
+ *
+ * 该模板的效果只有一条 `{ type:'modify_attr', attrs_var:'attrs' }`：
+ * **属性类型、数值、叠加方式全部由施加方传入**（kv.attrs = [[属性id, 值, 叠加方式], ...]）。
+ *
+ * 用途 —— 所有「纯属性加成」共用这一条，不再为每个数值组合单独生成 Modifier：
+ *   · 肉鸽遗物/道具：`relics.modifiers: [{ modifier: 1000, kv: { attrs: [...] } }]`
+ *   · 技能临时改属性：`EffectExecutor` 的 `modify_attr` 动作也转成它
+ * 好处：percent/add 语义只有一处实现，叠层/刷新/驱散/按 origin 隔离全部复用 ModifierSystem；
+ * 实例身份 = (模板 id, origin)，遗物间互不干扰（origin = `relic:<遗物id>`）。
+ */
+export const MODIFY_ATTR_TEMPLATE_ID = 1000;

@@ -1,7 +1,7 @@
 import { tb_config } from '../../platform/excel_table/TbConfigDecorator';
 import { TbContainer } from '../../platform/excel_table/TbContainer';
-import { DamageType, AttributeStackMode } from '../battle/types';
-import type { AttributeType } from '../battle/core/Types';
+import { DamageType } from '../battle/types';
+import type { AttrEffectEntry } from './EffectTypes';
 
 /**
  * 战斗技能配置表（abilities.json）
@@ -15,7 +15,7 @@ export type TargetingStrategy = 'nearest' | 'lowest_hp' | 'farthest' | 'random' 
 /** 技能行为类型 */
 export type AbilityBehavior =
     | 'passive'     // 被动
-    | 'attack'      // 普攻（由 Entity.Attack 驱动，无蓝耗，冷却 = 普攻间隔）
+    | 'attack'      // 普攻（遗留标记：仅用于把普攻形态排除出技能枚举；普攻实际由 Entity.Attack 按攻击力属性驱动，不执行本 effects）
     | 'no_target'   // 无目标，按下即触发
     | 'unit_target' // 指定单位
     | 'point'       // 指定地面
@@ -27,9 +27,15 @@ export type ConfigAction =
     | { type: 'damage'; value: number; damage_type?: DamageType; chance?: number; projectile_speed?: number }
     | { type: 'aoe_damage'; value: number; radius: number; damage_type?: DamageType }
     | { type: 'heal'; value: number; chance?: number }
-    | { type: 'apply_modifier'; modifier: number; duration?: number; chance?: number }
+    | { type: 'apply_modifier'; modifier: number; duration?: number; chance?: number; kv?: Record<string, any> }
     | { type: 'remove_modifier'; modifier: number }
-    | { type: 'modify_attr'; attribute: AttributeType; value: number; mode?: AttributeStackMode; duration?: number }
+    /**
+     * 属性修改（**命令式**一次）：内部转成「属性修改」共享 Modifier 模板
+     * （id 见 battle/types.ts 的 MODIFY_ATTR_TEMPLATE_ID），走 ModifierSystem 的贡献通道，
+     * percent/add 语义与肉鸽遗物完全一致；`duration` 缺省 = 永久。
+     * 条目写法见 EffectTypes.AttrEffectEntry（值语义：percent 是百分数、add 是固定值）。
+     */
+    | { type: 'modify_attr'; attrs: AttrEffectEntry[]; duration?: number }
     | { type: 'lifesteal'; ratio: number }   // 按本次伤害吸血
     | { type: 'reflect'; ratio: number }     // 反弹伤害
     | { type: 'steal_gold'; value: number }  // 偷取目标金币（赏金猎人）
@@ -60,7 +66,7 @@ export interface AbilityCfg {
     script_id?: string;           // 复杂技能对应代码类名（逃逸口）
     level?: number;               // 当前等级（可选，用于成长）
     level_damage?: number[];      // 每级伤害 [20, 40, 60]（可选）
-    /** 目标选择策略（缺省 nearest）。普攻和自动施放的技能都用它索敌 */
+    /** 目标选择策略（缺省 nearest）。自动施放的主动技能用它索敌（普攻索敌见 units.json attack_targeting） */
     targeting?: TargetingStrategy;
     /** 升级形态 id：抽到重复技能时整体替换（升级 = 换形态） */
     upgrades_to?: number;

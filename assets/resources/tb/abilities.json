@@ -216,5 +216,243 @@
       }
     ],
     "projectile_prefab": "prefabs/projectiles/ability_11"
+  },
+  {
+    "id": 12,
+    "name": "鹰眼瞄准·一阶",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 30,
+    "cast_range": 700,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 20,
+        "duration": 4
+      }
+    ],
+    "upgrades_to": 13
+  },
+  {
+    "id": 13,
+    "name": "鹰眼瞄准·二阶",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 30,
+    "cast_range": 700,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 21,
+        "duration": 6
+      }
+    ],
+    "upgrades_to": 14
+  },
+  {
+    "id": 14,
+    "name": "鹰眼瞄准·三阶",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 30,
+    "cast_range": 700,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 21,
+        "duration": 6
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 22,
+        "duration": 6
+      }
+    ],
+    "upgrades_to": 15
+  },
+  {
+    "id": 15,
+    "name": "鹰眼瞄准·四阶",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 30,
+    "cast_range": 700,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 21,
+        "duration": 6,
+        "kv": {
+          "finisher": true
+        }
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 22,
+        "duration": 6
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "name": "爆头冲击(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 23,
+        "duration": -1
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "name": "反击风暴(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 24,
+        "duration": -1,
+        "kv": {
+          "need": 5,
+          "radiusFactor": 0.5
+        }
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "name": "钢铁战吼",
+    "behavior": "no_target",
+    "cooldown": 12,
+    "mana_cost": 25,
+    "cast_range": 300,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 25,
+        "duration": 8
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "name": "雷霆之核·一阶(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 26,
+        "duration": -1,
+        "kv": {
+          "chain": 1,
+          "decay": 0.6,
+          "pct": 0.035,
+          "autoT": 0,
+          "autoPct": 0
+        }
+      }
+    ],
+    "upgrades_to": 20
+  },
+  {
+    "id": 20,
+    "name": "雷霆之核·二阶(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 26,
+        "duration": -1,
+        "kv": {
+          "chain": 2,
+          "decay": 0.6,
+          "pct": 0.05,
+          "autoT": 0,
+          "autoPct": 0
+        }
+      }
+    ],
+    "upgrades_to": 21
+  },
+  {
+    "id": 21,
+    "name": "雷霆之核·三阶(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 26,
+        "duration": -1,
+        "kv": {
+          "chain": 3,
+          "decay": 0.6,
+          "pct": 0.065,
+          "autoT": 0,
+          "autoPct": 0
+        }
+      }
+    ],
+    "upgrades_to": 22
+  },
+  {
+    "id": 22,
+    "name": "雷霆之核·四阶(被动)",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 26,
+        "duration": -1,
+        "kv": {
+          "chain": 4,
+          "decay": 0.6,
+          "pct": 0.08,
+          "autoT": 6,
+          "autoPct": 1.5
+        }
+      }
+    ]
   }
 ]

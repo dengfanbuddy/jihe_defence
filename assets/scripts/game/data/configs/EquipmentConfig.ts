@@ -1,201 +1,230 @@
 /**
- * EquipmentConfig.ts — 局外装备配置数据（从 JSON 配置表加载）
+ * EquipmentConfig.ts — 局外装备配置门面（数据源：`relics.json` 里**有局外版**的遗物，`scope` = `outer` / `both`）
  *
- * 数据源：assets/resources/tb/equipments.json
- * 通过 ConfigLoader 在 Main.ts 启动时加载
+ * ## 2026-07 变更：遗物表改成「一件遗物一行」
  *
- * 新功能：装备不再有孔位，改为局外收集属性加成系统。
- * 每件收集到的装备贡献属性加成到 OuterAttributeCalculator。
+ * 局内版与局外版**本质是同一件遗物的两个作用域**，因此共用一行、共用 id / name / icon / 品质，
+ * 只有效果与描述分两侧：`modifiers_outer` / `description_outer` 就是本文件读的「局外装备」。
+ * 原 `equipments.json` / `equipments.xlsx` / `Tb_EquipmentConfig` 已删除；
+ * 英雄专属装备（`code=spc_*` + `hero_id`）也已按「无英雄专属」的口径删除。
+ * id 段：局内道具 **1001~1293**（两侧都有的用局内 id）+ 仅局外 **1294~1302** + 手工 demo 1~5。
  *
- * v2：属性统一 number 编号（AttributeType），
- *     兼容旧配置字符串键（atk/maxHp...），转换层自动映射。
+ * ## 数值口径（两套，别混）
+ *
+ * | 位置 | 百分比型属性（攻速 4 / 魔抗 7 / 闪避 8 / 倍率 11~13 / 暴率 14 / 暴伤 15） |
+ * |---|---|
+ * | `relics.kv.attrs` | **配置 int**：`100 = 100%`（`[8, 8, "add"]` = 闪避 +8%） |
+ * | `OuterBonusGroup`（本文件产出） | **运行时 float**：`0.08 = 8%` |
+ *
+ * `OuterAttributeCalculator` 用 `final = base × (1 + percent) + flat`，
+ * 其中 `percent` 是**小数**（`0.05 = +5%`）、`flat` 是运行时值。本文件负责 int → float 与分层。
+ * 分层遵循「品质 × 词条」门禁（docs/配置规则_品质与词条门禁.md）：`percent` 加成需**黄档（epic）起**。
+ *
+ * > ⚠ 该链路目前**尚未接线**（`OuterAttributeCalculator` 没有运行时消费点、`EquipmentCollection.addCollected` 无调用方）：
+ * > 「框架已备、待接入」，见《数值配置参考手册》§3.3.2。
  */
 
 import { TbRoot } from "../../../platform/excel_table/TbRoot";
-import { AttributeType, EquipmentCategory, EquipmentConfig, WeaponQuality, OuterBonusGroup, BonusLayerType } from "../../battle/core/Types";
-import { EquipCfgContainer, EquipCfg } from "../../excel_table/Tb_EquipmentConfig";
+import { AttributeType, EquipmentConfig, OuterBonusGroup } from "../../battle/core/Types";
+import { RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers } from "../../excel_table/Tb_RelicConfig";
 import { DataCenter } from "../DataCenter";
-import { ConfigLoader } from "../../config/ConfigLoader";
 
-/** 属性名（旧配置字符串键）→ 编号 */
-function attrKeyToId(key: string): number {
-  const n = Number(key);
-  return Number.isNaN(n) ? ConfigLoader.nameToAttrId(key) : n;
+/** 遗物 rarity → 品质档位序号（1 白 / 2 蓝 / 3 黄 / 4 红） */
+const RARITY_TIER: Record<string, number> = { common: 1, rare: 2, epic: 3, legendary: 4 };
+/** 档位序号 → 旧装备 `quality` 数字（保持对外契约：1 / 1.3 / 1.6 / 2） */
+const TIER_QUALITY = [0, 1, 1.3, 1.6, 2];
+/** `percent` 加成（对基础属性乘算）的最低档位：黄档 */
+const PERCENT_LAYER_MIN_TIER = 3;
+/** 百分比型属性编号（与 battle/core/AttributeScaling.SCALE 逐项对齐） */
+const PERCENT_ATTR_IDS = [4, 7, 8, 11, 12, 13, 14, 15];
+
+/** 配置 int → 运行时 float（百分比型属性 ÷100） */
+function toRuntime(attrId: number, configValue: number): number {
+    return PERCENT_ATTR_IDS.indexOf(attrId) >= 0 ? configValue / 100 : configValue;
+}
+
+/** 取 relics 表里所有**有局外版**的遗物（scope = outer / both） */
+export function getOuterRelics(): RelicCfg[] {
+    const container = TbRoot.ins.getTbContainer(RelicCfgContainer);
+    return container.cfgs.filter((r) => relicHasOuter(r));
+}
+
+/** 按 id 取局外版遗物（没有局外版的遗物返回 undefined） */
+export function getOuterRelic(equipId: number): RelicCfg | undefined {
+    const item = TbRoot.ins.getTbContainer(RelicCfgContainer).getCfgById(equipId);
+    return item && relicHasOuter(item) ? item : undefined;
 }
 
 /**
- * JSON 装备实体 → EquipmentConfig（业务层类型）
- * attributes 统一转为二维数组 [[attrId, value], ...]
+ * 局外版遗物 → `OuterBonusGroup`（flat / percent 两层）。读的是 **`modifiers_outer`**。
+ *
+ * 分层口径（按门禁规则，而不是「品质高就全都乘算」）：
+ *   · `add`（固定值）→ `flat`，值换算成运行时 float（闪避 8 → 0.08）
+ *   · `percent`（对基础属性乘算）→ `percent`，值是**百分数**（14 → 0.14），且需黄档起；
+ *     低档出现 percent 会被降级为 flat 并 warn
+ *   · 百分比型属性一律应写 `add`（其基础值为 0，percent 乘出来恒为 0）
+ *
+ * ⚠ 历史坑：旧 `equipments.json` 用 `quality ≥ 2.5 → 该件所有属性都进 percent 层`，
+ * 把 `atk: 30` 当成 3000% 的乘区 —— 现在所有属性都以 `[id, 值, 叠加方式]` 明确表达，坑已消失。
  */
-function equipJsonToConfig(json: EquipCfg): EquipmentConfig {
-  const attributes = Array.isArray(json.attributes)
-    ? (json.attributes as [number, number][])
-    : Object.entries(json.attributes ?? {}).map(([k, v]) => [attrKeyToId(k), v] as [number, number]);
+export function relicToBonusGroup(relic: RelicCfg): OuterBonusGroup {
+    const group: OuterBonusGroup = { flat: {}, percent: {} };
+    const tier = RARITY_TIER[relic.rarity] ?? 0;
+    const percentAllowed = tier >= PERCENT_LAYER_MIN_TIER;
 
-  const bonusTypes = Array.isArray(json.bonusTypes)
-    ? (json.bonusTypes as [number, BonusLayerType][])
-    : Object.entries(json.bonusTypes ?? {}).map(([k, v]) => [attrKeyToId(k), v as BonusLayerType] as [number, BonusLayerType]);
+    for (const m of relicOuterModifiers(relic)) {
+        const attrs = (m?.kv?.attrs ?? []) as Array<[number, number, (string | undefined)?]>;
+        for (const entry of attrs) {
+            if (!Array.isArray(entry)) continue;
+            const attrId = Number(entry[0]);
+            const value = Number(entry[1]);
+            const mode = entry[2] ?? 'add';
+            if (!Number.isFinite(attrId) || !Number.isFinite(value) || value === 0) continue;
 
-  return {
-    id: json.id,
-    name: json.name,
-    description: json.description,
-    category: json.category as EquipmentCategory,
-    quality: json.quality as WeaponQuality,
-    heroId: json.heroId,
-    attributes,
-    bonusTypes,
-    allPercent: json.allPercent,
-  };
-}
+            if (mode === 'percent') {
+                if (!percentAllowed) {
+                    console.warn(`[局外] 遗物 id=${relic.id} 品质档位不足（${relic.rarity}），属性 ${attrId} 的 percent 加成已降级为固定值`);
+                    group.flat[attrId as AttributeType] = (group.flat[attrId as AttributeType] ?? 0) + toRuntime(attrId, value);
+                    continue;
+                }
+                // percent 的配置值是百分数（14 = +14%），运行时层要小数（0.14）
+                group.percent[attrId as AttributeType] = (group.percent[attrId as AttributeType] ?? 0) + value / 100;
+                continue;
+            }
 
-/** 根据 ID 获取装备配置 */
-export function getEquipmentConfig(equipId: number): EquipmentConfig | undefined {
-  const container = TbRoot.ins.getTbContainer(EquipCfgContainer);
-  const item = container.getCfgById(equipId);
-  return item ? equipJsonToConfig(item) : undefined;
-}
+            if (mode !== 'add') {
+                console.warn(`[局外] 遗物 id=${relic.id} 属性 ${attrId} 的叠加方式 "${mode}" 不支持（局外只用 add / percent），按固定值处理`);
+            }
+            group.flat[attrId as AttributeType] = (group.flat[attrId as AttributeType] ?? 0) + toRuntime(attrId, value);
+        }
+    }
 
-/** 获取所有装备列表 */
-export function getAllEquipments(): EquipmentConfig[] {
-  const container = TbRoot.ins.getTbContainer(EquipCfgContainer);
-  return container.cfgs.map(item => equipJsonToConfig(item));
-}
-
-/** 获取指定英雄的专属装备 ID */
-export function getHeroSpecificEquipId(heroId: string): number | undefined {
-  const container = TbRoot.ins.getTbContainer(EquipCfgContainer);
-  const found = container.cfgs.find(item => item.heroId === heroId);
-  return found?.id;
-}
-
-/** 按装备类别筛选 */
-export function getEquipmentsByCategory(category: string): EquipmentConfig[] {
-  const container = TbRoot.ins.getTbContainer(EquipCfgContainer);
-  return container.cfgs
-    .filter(item => item.category === category)
-    .map(item => equipJsonToConfig(item));
-}
-
-/** 按品质筛选 */
-export function getEquipmentsByQuality(minQuality: number): EquipmentConfig[] {
-  const container = TbRoot.ins.getTbContainer(EquipCfgContainer);
-  return container.cfgs
-    .filter(item => item.quality >= minQuality)
-    .map(item => equipJsonToConfig(item));
+    return group;
 }
 
 /* ===================================================================
- * 装备 → OuterBonusGroup 转换（v2 简化版）
+ * 兼容层：原 equipment 形态的查询（局外收集系统按原样调用即可）
  * =================================================================== */
 
-/**
- * 获取属性的默认层类型
- * quality < 2.5 → 'flat'（固定值）
- * quality >= 2.5 → 'percent'（百分比）
- */
-function getDefaultLayerForQuality(quality: number): BonusLayerType {
-  return quality >= 2.5 ? 'percent' : 'flat';
+/** 局外版遗物 → 旧 `EquipmentConfig` 形态（quality / attributes / bonusTypes…） */
+function relicToEquipmentConfig(r: RelicCfg): EquipmentConfig {
+    const tier = RARITY_TIER[r.rarity] ?? 1;
+    const attributes: [number, number][] = [];
+    const bonusTypes: [number, 'flat' | 'percent'][] = [];
+
+    for (const m of relicOuterModifiers(r)) {
+        const attrs = (m?.kv?.attrs ?? []) as Array<[number, number, (string | undefined)?]>;
+        for (const entry of attrs) {
+            if (!Array.isArray(entry)) continue;
+            const attrId = Number(entry[0]);
+            const value = Number(entry[1]);
+            if (entry[2] === 'percent') {
+                attributes.push([attrId, value / 100]);
+                bonusTypes.push([attrId, 'percent']);
+            } else {
+                attributes.push([attrId, toRuntime(attrId, value)]);
+                bonusTypes.push([attrId, 'flat']);
+            }
+        }
+    }
+
+    return {
+        id: r.id,
+        name: r.name,
+        description: relicOuterDesc(r),
+        category: r.category ?? 'd2_basic',
+        quality: TIER_QUALITY[tier] ?? 1,
+        attributes,
+        bonusTypes,
+    };
+}
+
+/** 根据 ID 获取局外装备配置（没有局外版的遗物返回 undefined） */
+export function getEquipmentConfig(equipId: number): EquipmentConfig | undefined {
+    const relic = getOuterRelic(equipId);
+    return relic ? relicToEquipmentConfig(relic) : undefined;
+}
+
+/** 获取所有局外装备列表 */
+export function getAllEquipments(): EquipmentConfig[] {
+    return getOuterRelics().map(relicToEquipmentConfig);
+}
+
+/** 按装备类别筛选（category 列：d2_basic / d2_upgrade / d2_neutral） */
+export function getEquipmentsByCategory(category: string): EquipmentConfig[] {
+    return getOuterRelics()
+        .filter((r) => r.category === category)
+        .map(relicToEquipmentConfig);
+}
+
+/** 按品质筛选（minQuality 用旧装备口径：1 / 1.3 / 1.6 / 2） */
+export function getEquipmentsByQuality(minQuality: number): EquipmentConfig[] {
+    return getAllEquipments().filter((e) => (e.quality ?? 0) >= minQuality);
+}
+
+/** 旧装备 `quality` 数字 → 档位序号（2.5 旧「独特」并入红档；未知返回 0） */
+const QUALITY_TIER: Record<string, number> = { '1': 1, '1.3': 2, '1.6': 3, '2': 4, '2.5': 4 };
+function tierOfQuality(quality: number): number {
+    return QUALITY_TIER[String(quality)] ?? 0;
 }
 
 /**
- * 将单件装备配置转换为 OuterBonusGroup（2 层结构）
- * 根据 quality 和 bonusTypes 决定每个属性属于 flat 还是 percent
+ * 旧形态配置 → `OuterBonusGroup`（`attributes` + `bonusTypes`）。
+ * 新代码优先用 `relicToBonusGroup(遗物条目)`（能表达同一属性的 add + percent 双条目）。
  */
 export function equipmentConfigToBonuses(config: EquipmentConfig): OuterBonusGroup {
-  const group: OuterBonusGroup = {
-    flat: {},
-    percent: {},
-  };
+    const group: OuterBonusGroup = { flat: {}, percent: {} };
+    const tier = tierOfQuality(config.quality);
+    const percentAllowed = tier >= PERCENT_LAYER_MIN_TIER;
 
-  const defaultLayer = getDefaultLayerForQuality(config.quality);
-
-  // 属性为二维数组 [[attrId, value], ...]
-  for (const [attrId, value] of config.attributes) {
-    if (value === undefined || value === 0) continue;
-
-    // 分层映射（bonusTypes 数组或对象）
-    let layer: string = defaultLayer;
-    if (Array.isArray(config.bonusTypes)) {
-      const found = config.bonusTypes.find(([id]) => id === attrId);
-      if (found) layer = found[1];
-    } else if (config.bonusTypes) {
-      // 对象形式（旧配置兼容）
-      const found = Object.entries(config.bonusTypes).find(([k]) => Number(k) === attrId);
-      if (found) layer = found[1] as string;
+    if (tier === 0) {
+        console.warn(`[局外装备] id=${config.id} quality=${config.quality} 不在 4 档（1/1.3/1.6/2）内，按最低档处理`);
     }
 
-    if (layer === 'flat' || layer === 'percent') {
-      (group[layer] as Record<number, number>)[attrId] = value;
-    } else {
-      const targetLayer: 'flat' | 'percent' =
-        layer.includes('Percent') || layer.includes('percent') ? 'percent' : 'flat';
-      (group[targetLayer] as Record<number, number>)[attrId] = value;
+    for (const [attrId, value] of config.attributes) {
+        if (!value) continue;
+        const declared = (config.bonusTypes ?? []).find(([id]) => id === attrId)?.[1];
+        if (declared === 'percent') {
+            if (!percentAllowed) {
+                console.warn(`[局外装备] id=${config.id} 品质档位不足（quality=${config.quality}），属性 ${attrId} 的 percent 加成已降级为固定值`);
+                group.flat[attrId as AttributeType] = (group.flat[attrId as AttributeType] ?? 0) + value;
+            } else {
+                group.percent[attrId as AttributeType] = (group.percent[attrId as AttributeType] ?? 0) + value;
+            }
+        } else {
+            group.flat[attrId as AttributeType] = (group.flat[attrId as AttributeType] ?? 0) + value;
+        }
     }
-  }
-
-  // 旧版 allPercent 合并到 percent 层（对所有已有属性生效）
-  if (config.allPercent) {
-    for (const key of Object.keys(group.percent)) {
-      const attrId = Number(key);
-      (group.percent as Record<number, number>)[attrId] =
-        ((group.percent as Record<number, number>)[attrId] ?? 0) + config.allPercent;
-    }
-  }
-
-  return group;
+    return group;
 }
 
 /**
- * 获取所有已收集装备的总加成组
- * 从 DataCenter.ins.equipCollection 读取装备收集记录，
- * 每件装备的加成 × 收集次数（可重复收集，属性累加）
+ * 获取所有已收集局外装备的总加成组。
+ * 从 `DataCenter.ins.equipCollection` 读取收集记录（**存的是 relics 的遗物 id**，与局内是同一个 id 空间：
+ * 两侧都有的用局内 id，只有局外版的在 1294~1302），每件装备的加成 × 收集次数（可重复收集，属性累加）。
  */
 export function getAllEquipmentBonuses(): OuterBonusGroup {
-  const total: OuterBonusGroup = {
-    flat: {},
-    percent: {},
-  };
+    const total: OuterBonusGroup = { flat: {}, percent: {} };
 
-  // 从装备收集系统读取所有已收集的装备
-  const collection = DataCenter.ins.equipCollection;
-  const allCollectedIds = collection.getAllCollectedIds();
+    const collection = DataCenter.ins.equipCollection;
+    for (const equipId of collection.getAllCollectedIds()) {
+        const relic = getOuterRelic(equipId);
+        if (!relic) continue;
 
-  for (const equipId of allCollectedIds) {
-    const config = getEquipmentConfig(equipId);
-    if (!config) continue;
+        const count = collection.getCollectedCount(equipId);
+        if (count <= 0) continue;
 
-    const count = collection.getCollectedCount(equipId);
-    if (count <= 0) continue;
-
-    // 计算单件装备的基础加成组
-    const baseBonuses = equipmentConfigToBonuses(config);
-
-    // 乘以收集次数（可重复收集，属性累加）
-    for (const layer of ['flat', 'percent'] as const) {
-      for (const key of Object.keys(baseBonuses[layer])) {
-        const attrId = Number(key) as AttributeType;
-        const val = (baseBonuses[layer][attrId] ?? 0) as number;
-        if (val === 0) continue;
-        const existing = (total[layer][attrId] ?? 0) as number;
-        (total[layer] as Record<number, number>)[attrId] = existing + val * count;
-      }
+        const bonuses = relicToBonusGroup(relic);
+        for (const layer of ['flat', 'percent'] as const) {
+            for (const key of Object.keys(bonuses[layer])) {
+                const attrId = Number(key) as AttributeType;
+                const val = (bonuses[layer][attrId] ?? 0) as number;
+                if (val === 0) continue;
+                const existing = (total[layer][attrId] ?? 0) as number;
+                (total[layer] as Record<number, number>)[attrId] = existing + val * count;
+            }
+        }
     }
-  }
 
-  return total;
-}
-
-/**
- * 将 src 的加成合并到 dst（2 层版本）
- */
-function mergeBonusGroup(dst: OuterBonusGroup, src: OuterBonusGroup): void {
-  for (const layer of ['flat', 'percent'] as const) {
-    for (const key of Object.keys(src[layer])) {
-      const attrId = Number(key) as AttributeType;
-      const val = src[layer][attrId] as number;
-      const existing = (dst[layer][attrId] ?? 0) as number;
-      (dst[layer] as Record<number, number>)[attrId] = existing + val;
-    }
-  }
+    return total;
 }

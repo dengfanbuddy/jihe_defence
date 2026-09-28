@@ -2,7 +2,7 @@ import { GlobalEventMgr } from "../../../platform/event/GlobalEventMgr";
 import { IState } from "../../../platform/fsm/fsm_type";
 import { EventKeys } from "../../common/EventKeys";
 import { useBattleStore } from "../../stores";
-import { Scene_Game_Stage } from "../scene/Scene_Game_Stage";
+import { Scene_Game_Stage } from "../../ui/scenes/scene_game_stage/Scene_Game_Stage";
 
 
 export class PauseState implements IState<Scene_Game_Stage> {

@@ -1,3 +1,14 @@
+> **历史设计记录（勿当现状读）**
+>
+> 本文是早期关于「双向绑定时节点被移除会不会报错 / 内存泄漏」的 AI 对话整理。当时的类名写作 `BindableComponent`，
+> **落地实现是 `assets/scripts/platform/ui/UIComponent.ts`**：`_bindingReferences` / `_isDestroyed` / `setupAllBindings` /
+> `setupUIEvents` / `updateUIComponent` / `cleanupBinding` / `rebind` / `rebindAll` 都是现在真实存在的方法，
+> 但绑定是在 `__preload()` 里建立的（本文草案写的是 `onLoad()`），细节以源码为准。
+>
+> 文中未涉及、但后来已删除的旧机制（勿照本文或旧记忆恢复）：`ownerView` / `_uiComponents`（无人调用的父子注册表）、
+> `BaseCtl` + `dataModel` / `controller`（MVC）、`UIMgr`、`UIViewFieldPath`。
+> 组件之间（含任意深度）的通信请看 `UIScope.ts` / `UIWidget.ts` 的头部注释，以及仓库根目录 `AGENTS.md` 的「UI 通信规约」。
+
 双向绑定时，若绑定的节点被移除了，会不会报错和内存泄漏
 
 

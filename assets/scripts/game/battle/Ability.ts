@@ -23,12 +23,18 @@ export class Ability {
 
     getId(): number { return this.def.id; }
     isPassive(): boolean { return this.def.behavior === 'passive'; }
-    /** 普攻（普通攻击，不算技能；由 Entity.Attack 驱动，不走 Cast） */
+    /** 普攻形态标记（不算技能：普攻由 Entity.Attack 属性驱动；本标记用于把遗留普攻条目排除出技能枚举/自动升级） */
     isAttack(): boolean { return this.def.behavior === 'attack'; }
     /** 是否自动施放型主动技能（AI 可触发，区别于 passive 被动 / attack 普攻） */
     isAutoCastable(): boolean {
         return !this.isPassive() && !this.isAttack();
     }
+
+    /**
+     * 来源组标识：本技能（条目级）产生的效果统一打该 origin（如 'ability:6'）。
+     * 同 (id, origin) 按 stack_mode 合并；与遗物/商店 buff 等其它来源同 id 时各持独立实例。
+     */
+    get originKey(): string { return `ability:${this.def.id}`; }
 
     /** 冷却中？ */
     isOnCooldown(): boolean { return this.cooldownRemaining > 0; }
@@ -42,34 +48,6 @@ export class Ability {
         if (!status.canCast()) return false;
         if (this.def.mana_cost > 0 && this.caster.mana < this.def.mana_cost) return false;
         return true;
-    }
-
-    /**
-     * 普攻执行（behavior=attack）：由 Entity.Attack 调用，普通攻击不算技能。
-     * 效果来自技能配置 effects：
-     *   - damage（无弹道）→ 走普攻命中流程（闪避 + 特效事件）
-     *   - damage（带 projectile_speed）→ 发射弹道，命中时同样走普攻命中流程
-     *   - 其他动作 → EffectExecutor
-     * @param target 普攻目标
-     * @returns 即时造成的伤害（弹道为异步，命中后才结算）
-     */
-    OnAttack(target: any): number {
-        let dealt = 0;
-        for (const action of this.def.effects) {
-            if (action.type === 'damage') {
-                const damageType = action.damage_type ?? DamageType.Physical;
-                if (action.projectile_speed) {
-                    // 弹道普攻：发射（命中时由 Projectile 调 source.resolveAttackHit）
-                    this.caster.launchProjectile(target, action.value, damageType, true, this);
-                } else {
-                    // 即时普攻：走完整命中流程（闪避 + 特效）
-                    dealt = this.caster.resolveAttackHit(target, action.value, damageType, this);
-                }
-            } else {
-                this.ctx.effects.execute(action, { actor: this.caster, target });
-            }
-        }
-        return dealt;
     }
 
     /**
@@ -105,7 +83,7 @@ export class Ability {
         const effects = this.resolveEffects(target, point);
         for (const action of effects) {
             // 效果统一经 EffectExecutor 执行（解耦：技能不直接调用任何系统）
-            this.ctx.effects.execute(action, { actor: this.caster, target, point });
+            this.ctx.effects.execute(action, { actor: this.caster, target, point, origin: this.originKey });
         }
     }
 
@@ -116,7 +94,7 @@ export class Ability {
     ApplyPassive(): void {
         if (!this.isPassive()) return;
         for (const action of this.def.effects) {
-            this.ctx.effects.execute(action, { actor: this.caster, target: this.caster });
+            this.ctx.effects.execute(action, { actor: this.caster, target: this.caster, origin: this.originKey });
         }
     }
 

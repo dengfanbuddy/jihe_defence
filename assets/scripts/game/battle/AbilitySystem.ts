@@ -60,11 +60,6 @@ export class AbilitySystem {
         return this.abilities.find((a) => a.getId() === id);
     }
 
-    /** 获取普攻（behavior=attack，供 Entity.Attack 驱动；普攻不算技能） */
-    getAttackAbility(): Ability | undefined {
-        return this.abilities.find((a) => a.isAttack());
-    }
-
     /**
      * 获取可施放的主动技能列表（不含普攻/被动）
      * 普攻（behavior=attack）与被动（passive）都不算技能，不参与自动施放/技能枚举。

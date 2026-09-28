@@ -1,0 +1,24 @@
+{
+  "name": "jihe-excel-export",
+  "version": "1.0.0",
+  "private": true,
+  "description": "《集合防御》配表工具：Excel ⇄ tb JSON 双向转换",
+  "type": "module",
+  "scripts": {
+    "export": "node src/cli.ts excel2json",
+    "import": "node src/cli.ts json2excel",
+    "check": "node src/cli.ts excel2json --check",
+    "verify": "node src/cli.ts verify",
+    "check:shop": "node scripts/check-shop-draw.mjs",
+    "check:affix": "node scripts/check-affix-gating.mjs",
+    "migrate:affix": "node scripts/migrate-affix-gating.mjs",
+    "fix:crit": "node scripts/fix-crit-baseline.mjs",
+    "audit:attr": "node ../attr-audit/audit.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.4",
+    "exceljs": "^4.4.0",
+    "typescript": "^6.0.3"
+  }
+}

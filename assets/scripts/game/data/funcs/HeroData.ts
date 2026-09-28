@@ -39,8 +39,9 @@ export class HeroDataModule extends DataModule<IHeroData> {
     protected defaultData(): IHeroData {
         return {
             heroes: {
-                1: {
-                    id: 1,
+                // 默认解锁：火枪（units.json hero id 1001）
+                1001: {
+                    id: 1001,
                     level: 1,
                     exp: 0,
                 }

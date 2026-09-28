@@ -1,0 +1,28 @@
+{
+  "optionCount": 4,
+  "pickCount": 1,
+  "drawCostBase": 2,
+  "drawCostStep": 1,
+  "drawCostCap": 200,
+  "drawCostResetEachPhase": 0,
+  "stageMaxByPhase": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "relicSkillPoolWeight": {
+    "relic": 1,
+    "skill": 1
+  },
+  "guaranteeSkillPerDraw": 1,
+  "duplicateSkillUpgrade": 1,
+  "maxSkillSlots": 3,
+  "adFreeDrawEnabled": 1,
+  "adFreeDrawPerRun": 3,
+  "adExtraPickEnabled": 1,
+  "adExtraPickCount": 1,
+  "adRefreshEnabled": 0,
+  "killBuffPriceGrowth": 1.35,
+  "killBuffMaxStackDefault": 10
+}

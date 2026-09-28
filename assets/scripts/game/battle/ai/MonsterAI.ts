@@ -52,10 +52,23 @@ export abstract class MonsterAI {
     /* ============ 工具方法 ============ */
 
     /**
-     * 查找最近的敌对目标（默认 team=1 玩家方英雄）
+     * 查找攻击目标
+     *
+     * 优先级：
+     *   ① 强制目标（entity.forcedTarget，嘲讽类效果设置）—— 不看距离直接锁定，
+     *      moveToward 会自然把它带过去（斧王战吼"强制敌人攻击自己"走的就是这里）
+     *   ② 常规索敌：最近的敌对存活实体
      * @param team 敌方队伍号
      */
     protected findTarget(team = 1): Entity | null {
+        // ① 嘲讽：强制目标优先，且不受"最近"规则影响
+        const forced = this.entity.forcedTarget;
+        if (forced) {
+            if (!forced.IsDead() && !this.ctx.IsRecycled(forced)) return forced;
+            this.entity.ClearForcedTarget(); // 嘲讽对象已死/已回收 → 解除，回到常规索敌
+        }
+
+        // ② 常规索敌：最近
         const enemies = this.ctx.GetTeamEntities(team);
         if (enemies.length === 0) return null;
 
