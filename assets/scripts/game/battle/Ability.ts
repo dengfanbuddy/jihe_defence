@@ -2,6 +2,7 @@ import { BattleEvents, DamageType, StateType } from './types';
 import type { AbilityCfg, ConfigAction } from '../excel_table/Tb_AbilityConfig';
 import { abilityEffectsAtLevel, abilityMaxLevel } from '../excel_table/Tb_AbilityConfig';
 import type { BattleContext } from './BattleContext';
+import { AttributeType } from './core/Types';
 
 /**
  * 技能 —— 借鉴 Dota 2 的 Ability 设计
@@ -94,13 +95,29 @@ export class Ability {
         return Math.max(0, Math.min(1, this.cooldownRemaining / total));
     }
 
-    /** 摘掉本技能之前挂上的全部 Modifier（换级重挂用；origin 与本技能一致的那些） */
-    private removeOwnModifiers(): void {
+    /**
+     * 摘掉本技能之前挂上的全部 Modifier（origin 与本技能一致的那些）。
+     *
+     * 两个调用方，缺一不可：
+     *   · `setLevel()` —— 换级要重挂（等级变化会换一整套 effects，旧效果不会自己消失）；
+     *   · `AbilitySystem.RemoveAbility()` —— **技能被顶掉时必须摘**。
+     *
+     * ⚠ **public 不是随手改的（2026-10 修的一个真 bug）**：这个方法原本是 private、只被
+     *   `setLevel` 调用，于是 `AbilitySystem.RemoveAbility` 就只 `filter` 掉了技能对象、
+     *   **没摘它挂的 Modifier** → 肉鸽技能被替换后，它给的属性加成**永久留在英雄身上**
+     *   （抽「迅捷 +25% 攻速」再换掉，攻速一直白给）。30 条肉鸽技能全是
+     *   `passive` + `modify_attr`，所以这条对它们是致命的；英雄自带技能因为槽 0
+     *   永久锁定、不可替换，所以一直没暴露。**别把它改回 private。**
+     */
+    removeOwnModifiers(): void {
         const system = this.caster?.modifiers;
         if (!system?.getAll) return;
         for (const m of [...system.getAll()]) {
             if (m.origin === this.originKey) system.RemoveModifier(m);
         }
+        // 摘掉的效果里可能有**最大生命**（如「强健 +22%」）→ 上限回落，当前生命要跟着钳回，
+        // 否则满血时换掉这个技能会留下 `hp > maxHp`（HUD 显示 1.22B / B）。
+        this.caster?.ClampHpToMax?.();
     }
 
     /** 是否满足施放条件 */
@@ -133,8 +150,9 @@ export class Ability {
 
         this.OnCast(target, point);
 
-        // 进入冷却
-        this.cooldownRemaining = this.def.cooldown;
+        // 进入冷却（2026-10：吃「23 冷却缩减」遗物属性；运行时比例 0.25 = 冷却 −25%）
+        const cdr = Math.max(0, Math.min(0.5, caster.attrs?.get(AttributeType.CooldownReduce) ?? 0));
+        this.cooldownRemaining = this.def.cooldown * (1 - cdr);
         this.ctx.bus.publish(BattleEvents.OnAbilityCast, {
             caster, abilityId: this.def.id, target, point,
         });

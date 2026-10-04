@@ -116,6 +116,16 @@ export interface SkillSlotsDeps {
      * 本类不认识 store，也不该认识（它只管槽位规则）。
      */
     onChanged?(): void;
+    /**
+     * **首次**获得某个技能（填槽 / 顶掉旧技能）之后回调 —— 宿主用它上报成就进度
+     * （`skills_picked` 的「种类数」；升级不回调，种类数没变）。
+     *
+     * ⚠ **为什么走回调而不是直接 `import DataCenter`**：本类是纯 TS 战斗功能类，
+     *   一旦 import 数据层，`tools/skill-slot-audit` 这类「真跑源码」的体检就必须多加载一整棵
+     *   数据层依赖树 —— 实测直接把 `npm run audit:slot` 打挂（`Cannot find module '../data'`）。
+     *   分层口径与 `onChanged` 一致：本类只认规则，**不认识数据层**。
+     */
+    onSkillGranted?(skillId: number): void;
 }
 
 /**
@@ -354,6 +364,9 @@ export class SkillSlots {
         next[target].skillId = skillId;
         next[target].level = 1;
         this.granted.add(skillId);
+        // 成就进度：抽到过的肉鸽技能**种类**（target=skills_picked；只在首次获得时记，升级不推进）
+        // —— 上报交给宿主（本类不认识数据层，见 deps.onSkillGranted 的注释）
+        this.deps.onSkillGranted?.(skillId);
         this.slots.value = next;
         this.deps.onChanged?.();
 

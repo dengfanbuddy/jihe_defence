@@ -26,12 +26,25 @@ export enum AttributeType {
     HpRegen = 9,            // 生命恢复/秒
     ManaRegen = 10,         // 魔法恢复/秒
     DamageOut = 11,         // 伤害输出倍率
-    IncomingPhysical = 12,  // 物理受伤倍率
-    IncomingMagical = 13,   // 魔法受伤倍率
+    /**
+     * 受伤减免倍率（**全能减免**：物理与法术都减）
+     * 2026-10：原「12 物理受伤 / 13 魔法受伤」两条合并成这一条，13（IncomingMagical）**退役**。
+     * 消费点 `DamagePipeline.collectIncomingMultiplier` 现在一律取本属性，不再按伤害类型分支。
+     */
+    IncomingDamage = 12,
+    // 13 空号（原 IncomingMagical，已并入 12 —— 不要再分配出去）
     CritRate = 14,          // 暴击率
     CritDmg = 15,           // 暴击倍率
     AtkRange = 16,          // 攻击距离
 
+    /* ---------- 21~27：局内遗物新增（2026-10 遗物重做） ---------- */
+    GoldGain = 21,          // 金币获取（%，无上限轴）
+    ExpGain = 22,           // 经验获取（%，无上限轴）
+    CooldownReduce = 23,    // 冷却缩减（%，上限 50）
+    DrawDiscount = 24,      // 遗物抽取费用折扣（%，上限 80）
+    Lifesteal = 25,         // 吸血（%，只对普攻伤害生效，无上限轴）
+    HitHeal = 26,           // 攻击回复（每次普攻命中回复的固定生命，无上限轴）
+    HitMana = 27,           // 攻击回蓝（每次普攻命中回复的固定魔法，无上限轴）
 }
 
 /** 属性编号 → 属性名（调试/日志用） */
@@ -47,11 +60,17 @@ export const AttributeTypeName: Record<AttributeType, string> = {
     [AttributeType.HpRegen]: '生命恢复',
     [AttributeType.ManaRegen]: '魔法恢复',
     [AttributeType.DamageOut]: '伤害输出',
-    [AttributeType.IncomingPhysical]: '物理受伤',
-    [AttributeType.IncomingMagical]: '魔法受伤',
+    [AttributeType.IncomingDamage]: '受伤减免',
     [AttributeType.CritRate]: '暴击率',
     [AttributeType.CritDmg]: '暴击倍率',
     [AttributeType.AtkRange]: '攻击距离',
+    [AttributeType.GoldGain]: '金币获取',
+    [AttributeType.ExpGain]: '经验获取',
+    [AttributeType.CooldownReduce]: '冷却缩减',
+    [AttributeType.DrawDiscount]: '抽卡折扣',
+    [AttributeType.Lifesteal]: '吸血',
+    [AttributeType.HitHeal]: '攻击回复',
+    [AttributeType.HitMana]: '攻击回蓝',
 };
 
 /** 属性配置的二维数组形式：[[attrId, value], ...] */

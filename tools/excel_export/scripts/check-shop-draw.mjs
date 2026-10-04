@@ -4,9 +4,9 @@
  * 用真实的 assets/resources/tb/shop_*.json + relics.json 跑批量模拟抽取，输出各「阶段 × 英雄等级」下的：
  *   - 最少选项数（应为 optionCount，不足说明池子有洞）
  *   - 品质分布（白/蓝/黄/红，应与 shop_draw 的等级段权重 + 阶段门槛吻合）
- *   - 遗物(道具) : 技能 比例（应与 shop_constants.relicSkillPoolWeight 吻合）
+ *   - 遗物(道具) : 技能 比例 + **每轮技能个数分布**（应吻合 shop_constants.skillDrawChance × skillCountWeight）
  *   - 每次抽取的平均「越阶」命中数
- * 并检查：选项不重复、池子耗尽（全部已获得）时的退化行为、抽取费用曲线。
+ * 并检查：选项不重复、技能个数不超 skillMaxPerDraw、池子耗尽（全部已获得）时的退化行为、抽取费用曲线。
  *
  * 用法：node tools/excel_export/scripts/check-shop-draw.mjs
  *
@@ -58,7 +58,38 @@ function pickWeighted(list) {
     return list[list.length - 1];
 }
 
-/** 复刻 ShopSystem.rollOptionsInternal + pickCandidate + ensureSkillGuarantee */
+/**
+ * 本轮该出几个技能 —— 复刻 `RelicDraw.rollSkillCount`：
+ * ① 先按 `skillDrawChance` 掷「这轮有没有技能」（默认 20%）；② 有技能时按 `skillCountWeight` 掷个数。
+ */
+function rollSkillCount() {
+    const max = Math.max(0, Math.floor(consts.skillMaxPerDraw ?? 2));
+    if (max <= 0) return 0;
+    const chance = Math.max(0, Math.min(100, consts.skillDrawChance ?? 20));
+    if (Math.random() * 100 >= chance) return 0;
+    const weights = consts.skillCountWeight ?? {};
+    const list = [];
+    for (let n = 1; n <= max; n++) {
+        const v = Number(weights[String(n)]);
+        if (Number.isFinite(v) && v > 0) list.push({ n, w: v });
+    }
+    const hit = pickWeighted(list);
+    return hit ? hit.n : 1;
+}
+
+/**
+ * 复刻 `RelicDraw.pickFrom`：`preferSkill`（本轮技能配额还没用满）时先拿技能、没有才退回遗物；
+ * 否则先遗物、遗物空才退回技能 —— 回退只为「别让格子空着」，不会突破配额上限。
+ */
+function pickKind(byKind, preferSkill) {
+    const order = preferSkill ? ['skill', 'relic'] : ['relic', 'skill'];
+    for (const k of order) {
+        if (byKind[k].length) return pickWeighted(byKind[k]);
+    }
+    return null;
+}
+
+/** 复刻 RelicDraw.roll（品质链路：权重 roll → 阶段门槛/越阶；种类链路：技能配额） */
 function drawOnce(phase, level, owned) {
     const b = band(level);
     const weights = ORDER.map(r => b[r]);
@@ -67,8 +98,42 @@ function drawOnce(phase, level, owned) {
 
     const picked = [];
     const used = new Set();
+    const usedRelic = new Set();
+    const usedSkill = new Set();
     let upgrades = 0;
+    // 技能配额：先掷「有没有技能」，再掷「几个」（一轮里的技能选项数上限 = skillMaxPerDraw）
+    let skillBudget = rollSkillCount();
 
+    /** 当前品质/阶段下的候选（技能满级的不算候选；遗物本局唯一） */
+    const candidates = (rarity, allowed, allRarities) => {
+        const byKind = { relic: [], skill: [] };
+        for (const r of relics) {
+            if (!allRarities && r.rarity !== rarity) continue;
+            // 遗物不落 stage 列：阶段由品质推导（白 1 / 蓝 2 / 黄 3 / 红 4）
+            if (stageOf(r.rarity) > allowed) continue;
+            if (usedRelic.has(r.id) || owned.relics.has(r.id)) continue;
+            byKind.relic.push({ kind: 'relic', id: r.id, rarity: r.rarity, w: 1 });
+        }
+        for (const sk of skills) {
+            if (!allRarities && sk.rarity !== rarity) continue;
+            if (sk.stage > allowed) continue;
+            if (usedSkill.has(sk.id)) continue;
+            // 重复抽到同名技能 = 升 1 级；**满级之后才**从池子里去掉（max_level 封顶）
+            if ((owned.skills.get(sk.id) ?? 0) >= (sk.max_level ?? 1)) continue;
+            byKind.skill.push({ kind: 'skill', id: sk.id, rarity: sk.rarity, stage: sk.stage, w: sk.weight });
+        }
+        return byKind;
+    };
+
+    const take = (hit) => {
+        if (!hit) return false;
+        used.add(`${hit.kind}:${hit.id}`);
+        if (hit.kind === 'relic') usedRelic.add(hit.id); else { usedSkill.add(hit.id); skillBudget--; }
+        picked.push(hit);
+        return true;
+    };
+
+    // ① 主循环：先 roll 品质，再按「配额还剩几个技能」定种类
     for (let i = 0; i < consts.optionCount; i++) {
         let rarity = rollRarity(weights);
         if (stageOf(rarity) > cap) {
@@ -76,63 +141,46 @@ function drawOnce(phase, level, owned) {
             else rarity = ORDER[Math.max(0, cap - 1)];
         }
         const allowed = Math.max(cap, stageOf(rarity));
-
-        const byKind = { relic: [], skill: [] };
-        for (const r of relics) {
-            // 遗物不落 stage 列：阶段由品质推导（白 1 / 蓝 2 / 黄 3 / 红 4）
-            if (r.rarity !== rarity || stageOf(r.rarity) > allowed) continue;
-            if (used.has(`relic:${r.id}`)) continue;
-            if (owned.relics.has(r.id)) continue; // 遗物本局唯一
-            byKind.relic.push({ kind: 'relic', id: r.id, rarity, w: 1 });
-        }
-        for (const sk of skills) {
-            if (sk.rarity !== rarity || sk.stage > allowed) continue;
-            if (used.has(`skill:${sk.id}`)) continue;
-            // 重复抽到同名技能 = 升 1 级；**满级之后才**从池子里去掉（max_level 封顶）
-            if ((owned.skills.get(sk.id) ?? 0) >= (sk.max_level ?? 1)) continue;
-            byKind.skill.push({ kind: 'skill', id: sk.id, rarity, w: sk.weight });
-        }
-
-        const nonEmpty = Object.keys(byKind).filter(k => byKind[k].length > 0);
-        if (!nonEmpty.length) continue;
-
-        const kindWeights = nonEmpty.map(k => ({ k, w: Math.max(0, consts.relicSkillPoolWeight[k] ?? 1) }));
-        const positive = kindWeights.filter(x => x.w > 0);
-        const chosen = pickWeighted(positive.length ? positive : kindWeights)?.k;
-        const hit = pickWeighted(byKind[chosen]);
-        if (!hit) continue;
-        used.add(`${hit.kind}:${hit.id}`);
-        picked.push(hit);
+        take(pickKind(candidates(rarity, allowed, false), skillBudget > 0));
     }
 
-    // 技能保底
-    let haveSkill = picked.filter(p => p.kind === 'skill').length;
-    while (haveSkill < consts.guaranteeSkillPerDraw) {
-        const pool = skills.filter(s => s.stage <= cap
-            && !used.has(`skill:${s.id}`)
-            && (owned.skills.get(s.id) ?? 0) < (s.max_level ?? 1));
+    // ② 配额补齐：该品质里没有技能可选 → 把遗物候选换成阶段内任意技能（池子空了就放弃）
+    while (skillBudget > 0) {
+        const pool = candidates(null, cap, true).skill;
         if (!pool.length) break;
-        const s = pool[Math.floor(Math.random() * pool.length)];
         const at = picked.map(p => p.kind).lastIndexOf('relic');
-        const idx = at >= 0 ? at : picked.length - 1;
-        if (idx < 0) break;
-        used.delete(`${picked[idx].kind}:${picked[idx].id}`);
+        if (at < 0) break;
+        const evicted = picked[at];
+        used.delete(`relic:${evicted.id}`);
+        usedRelic.delete(evicted.id);
+        const s = pickWeighted(pool);
         used.add(`skill:${s.id}`);
-        picked[idx] = { kind: 'skill', id: s.id, rarity: s.rarity };
-        haveSkill++;
+        usedSkill.add(s.id);
+        picked[at] = s;
+        skillBudget--;
     }
 
-    return { picked, upgrades };
+    // ③ 补位：池子变窄少抽了格子时，忽略品质先阶段内后全池补齐
+    for (let guard = 0; picked.length < consts.optionCount && guard < consts.optionCount * 2; guard++) {
+        const inStage = pickKind(candidates(null, cap, true), skillBudget > 0);
+        const hit = inStage ?? pickKind(candidates(null, ORDER.length, true), skillBudget > 0);
+        if (!take(hit)) break;
+    }
+
+    return { picked, upgrades, skillCount: picked.filter(p => p.kind === 'skill').length };
 }
 
 // ============================ 主流程 ============================
 
 console.log('▌肉鸽商店抽取体检');
 console.log(`  遗物(道具) ${relics.length} 件 / 技能 ${skills.length} 个 / 每轮模拟 ${RUNS} 次`);
-console.log(`  选项数 ${consts.optionCount} · 可选 ${consts.pickCount} · 技能保底 ${consts.guaranteeSkillPerDraw} · 池比例 遗物${consts.relicSkillPoolWeight.relic}:技能${consts.relicSkillPoolWeight.skill}\n`);
+console.log(`  选项数 ${consts.optionCount} · 可选 ${consts.pickCount} · 技能配额 出技能${consts.skillDrawChance}% × ${JSON.stringify(consts.skillCountWeight)}（上限 ${consts.skillMaxPerDraw} 个）\n`);
 
 const problems = [];
 const phases = [...new Set([...consts.stageMaxByPhase.map((_, i) => i + 1), 5])];
+/** 每轮技能个数直方图（全局累计；键 = 技能个数） */
+const skillHist = {};
+let skillHistRuns = 0;
 
 for (const phase of phases) {
     for (const level of [1, 5, 12, 25, 30]) {
@@ -140,11 +188,15 @@ for (const phase of phases) {
         const kindCount = { relic: 0, skill: 0 };
         let minOpts = Infinity;
         let upgradeTotal = 0;
+        let maxSkills = 0;
 
         for (let n = 0; n < RUNS; n++) {
-            const { picked, upgrades } = drawOnce(phase, level, { relics: new Set(), skills: new Map() });
+            const { picked, upgrades, skillCount } = drawOnce(phase, level, { relics: new Set(), skills: new Map() });
             upgradeTotal += upgrades;
             minOpts = Math.min(minOpts, picked.length);
+            maxSkills = Math.max(maxSkills, skillCount);
+            skillHist[skillCount] = (skillHist[skillCount] ?? 0) + 1;
+            skillHistRuns++;
             if (new Set(picked.map(p => `${p.kind}:${p.id}`)).size !== picked.length) {
                 problems.push(`阶段${phase} Lv${level}：出现重复选项`);
             }
@@ -167,6 +219,28 @@ for (const phase of phases) {
         if (minOpts < consts.optionCount) {
             problems.push(`阶段${phase} Lv${level}：选项不足 ${minOpts}/${consts.optionCount}（池子在该品质/阶段下为空）`);
         }
+        if (maxSkills > consts.skillMaxPerDraw) {
+            problems.push(`阶段${phase} Lv${level}：单轮技能数 ${maxSkills} 超过 skillMaxPerDraw=${consts.skillMaxPerDraw}`);
+        }
+    }
+}
+
+// 技能配额分布（应吻合 skillDrawChance × skillCountWeight）
+const histPct = n => skillHistRuns ? (skillHist[n] ?? 0) / skillHistRuns * 100 : 0;
+const histLine = Object.keys(skillHist).sort((a, b) => Number(a) - Number(b))
+    .map(n => `${n}个 ${histPct(Number(n)).toFixed(1)}%`).join('  ');
+console.log(`\n每轮技能个数分布（${skillHistRuns} 轮）：${histLine}`);
+const expectHasSkill = Math.max(0, Math.min(100, consts.skillDrawChance ?? 20));
+const hasSkillPct = 100 - histPct(0);
+// 容差 3 个百分点：样本量有限 + 技能池被阶段门槛/满级收窄时可能排不满配额
+if (Math.abs(hasSkillPct - expectHasSkill) > 3) {
+    problems.push(`出技能的实际概率 ${hasSkillPct.toFixed(1)}% 与 skillDrawChance=${expectHasSkill}% 偏差超过 3 个百分点`);
+}
+const weights = consts.skillCountWeight ?? {};
+for (const key of Object.keys(weights)) {
+    const n = Number(key);
+    if (!Number.isFinite(n) || n < 1 || n > (consts.skillMaxPerDraw ?? 2)) {
+        problems.push(`skillCountWeight 的键 "${key}" 越界（只认 1 ~ skillMaxPerDraw=${consts.skillMaxPerDraw}）`);
     }
 }
 
@@ -183,7 +257,15 @@ if (drained.picked.length !== 0) problems.push('池子耗尽时仍抽出了选�
 const cost = n => Math.min(consts.drawCostBase + consts.drawCostStep * n, consts.drawCostCap);
 console.log('费用曲线: ' + [0, 1, 2, 3, 4, 5, 8].map(n => `第${n + 1}次=${cost(n)}`).join('  '));
 if (cost(0) !== consts.drawCostBase) problems.push('首次抽取费用不等于 drawCostBase');
-if (cost(99) !== consts.drawCostCap) problems.push('抽取费用未收敛到 drawCostCap');
+// 收敛判据不能假定「99 次就能顶到 cap」：base/step 是策划调过的（现 base+step 远小于 cap），
+// 按「还差多少 / 每步增量」算出真正需要的次数再验一次
+const stepsToCap = consts.drawCostStep > 0
+    ? Math.ceil((consts.drawCostCap - consts.drawCostBase) / consts.drawCostStep)
+    : Infinity;
+if (Number.isFinite(stepsToCap) && cost(stepsToCap + 1) !== consts.drawCostCap) {
+    problems.push('抽取费用未收敛到 drawCostCap');
+}
+if (cost(1e6) > consts.drawCostCap) problems.push('抽取费用超过 drawCostCap');
 
 console.log(problems.length ? `\n✖ ${problems.length} 个问题：\n  · ` + problems.slice(0, 20).join('\n  · ') : '\n✔ 未发现空池 / 重复 / 费用异常');
 process.exitCode = problems.length ? 1 : 0;

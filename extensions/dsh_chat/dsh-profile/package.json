@@ -1,0 +1,15 @@
+{
+    "name": "dsh-profile-cocos",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Cocos Creator 编辑器内的 DSH profile：dsh-base + sdk-app + 编辑器原生工具桥",
+    "dsh": {
+        "profile": {
+            "bundles": [
+                "@deepseek-ai/dsh-base",
+                "@deepseek-ai/dsh-sdk-app"
+            ],
+            "patchReload": "live"
+        }
+    }
+}

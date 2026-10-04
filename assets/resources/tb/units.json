@@ -24,7 +24,7 @@
       ],
       [
         16,
-        350
+        250
       ]
     ],
     "abilities": [
@@ -121,7 +121,7 @@
       ],
       [
         16,
-        600
+        250
       ]
     ],
     "abilities": [
@@ -173,7 +173,7 @@
       ],
       [
         16,
-        200
+        187
       ]
     ],
     "abilities": [
@@ -191,6 +191,304 @@
       [
         3,
         1.5
+      ]
+    ]
+  },
+  {
+    "id": 1005,
+    "name": "幻影刺客",
+    "head_icon": "textures/heros/huanci",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        300
+      ],
+      [
+        2,
+        100
+      ],
+      [
+        3,
+        44
+      ],
+      [
+        4,
+        110
+      ],
+      [
+        16,
+        187
+      ]
+    ],
+    "abilities": [
+      23
+    ],
+    "attack_interval": 1,
+    "attack_targeting": "nearest",
+    "gold": 0,
+    "collision_radius": 24,
+    "growthValues": [
+      [
+        1,
+        11
+      ],
+      [
+        3,
+        3.2
+      ]
+    ]
+  },
+  {
+    "id": 1006,
+    "name": "卓尔游侠",
+    "head_icon": "textures/heros/zhuoer",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        300
+      ],
+      [
+        2,
+        120
+      ],
+      [
+        3,
+        32
+      ],
+      [
+        4,
+        140
+      ],
+      [
+        16,
+        240
+      ]
+    ],
+    "abilities": [
+      24
+    ],
+    "attack_interval": 0.9,
+    "attack_targeting": "lowest_hp",
+    "attack_projectile": "arrow",
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
+    "gold": 0,
+    "collision_radius": 24,
+    "growthValues": [
+      [
+        1,
+        11
+      ],
+      [
+        3,
+        2.6
+      ]
+    ]
+  },
+  {
+    "id": 1007,
+    "name": "水晶室女",
+    "head_icon": "textures/heros/shuijing",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        420
+      ],
+      [
+        2,
+        260
+      ],
+      [
+        3,
+        24
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        16,
+        240
+      ]
+    ],
+    "abilities": [
+      25
+    ],
+    "attack_interval": 1.3,
+    "attack_targeting": "nearest",
+    "attack_projectile": "ice",
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
+    "gold": 0,
+    "collision_radius": 26,
+    "growthValues": [
+      [
+        1,
+        16
+      ],
+      [
+        2,
+        12
+      ],
+      [
+        3,
+        1.8
+      ]
+    ]
+  },
+  {
+    "id": 1008,
+    "name": "莉娜",
+    "head_icon": "textures/heros/lina",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        320
+      ],
+      [
+        2,
+        200
+      ],
+      [
+        3,
+        30
+      ],
+      [
+        4,
+        105
+      ],
+      [
+        16,
+        250
+      ]
+    ],
+    "abilities": [
+      26
+    ],
+    "attack_interval": 1.15,
+    "attack_targeting": "strongest",
+    "attack_projectile": "fire",
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
+    "gold": 0,
+    "collision_radius": 24,
+    "growthValues": [
+      [
+        1,
+        12
+      ],
+      [
+        2,
+        10
+      ],
+      [
+        3,
+        2.4
+      ]
+    ]
+  },
+  {
+    "id": 1009,
+    "name": "冥界亚龙",
+    "head_icon": "textures/heros/viper",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        380
+      ],
+      [
+        2,
+        160
+      ],
+      [
+        3,
+        28
+      ],
+      [
+        4,
+        120
+      ],
+      [
+        16,
+        220
+      ]
+    ],
+    "abilities": [
+      27
+    ],
+    "attack_interval": 1.1,
+    "attack_targeting": "nearest",
+    "attack_projectile": "venom",
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
+    "gold": 0,
+    "collision_radius": 26,
+    "growthValues": [
+      [
+        1,
+        14
+      ],
+      [
+        3,
+        2.2
+      ]
+    ]
+  },
+  {
+    "id": 1010,
+    "name": "谜团",
+    "head_icon": "textures/heros/mituan",
+    "team": 1,
+    "category": "hero",
+    "base_attributes": [
+      [
+        1,
+        400
+      ],
+      [
+        2,
+        240
+      ],
+      [
+        3,
+        26
+      ],
+      [
+        4,
+        95
+      ],
+      [
+        16,
+        220
+      ]
+    ],
+    "abilities": [
+      28
+    ],
+    "attack_interval": 1.35,
+    "attack_targeting": "strongest",
+    "attack_projectile": "shadow",
+    "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
+    "gold": 0,
+    "collision_radius": 26,
+    "growthValues": [
+      [
+        1,
+        15
+      ],
+      [
+        2,
+        11
+      ],
+      [
+        3,
+        2
       ]
     ]
   },
@@ -353,7 +651,8 @@
         "wanderRadius": 150,
         "aggroRange": 350,
         "wanderSpeedMul": 0.5,
-        "chaseSpeedMul": 1.1
+        "chaseSpeedMul": 1.1,
+        "aggroAfter": 5
       }
     },
     "collision_radius": 18,
@@ -408,7 +707,7 @@
     "ai": {
       "type": "orbit",
       "params": {
-        "orbitRadius": 200,
+        "orbitRadius": 150,
         "angularSpeed": 1.8,
         "attackInterval": 2.5
       }
@@ -537,7 +836,7 @@
             "hpRatio": 0.7,
             "behavior": "orbit",
             "params": {
-              "orbitRadius": 220,
+              "orbitRadius": 150,
               "angularSpeed": 1.2
             }
           },
@@ -571,7 +870,7 @@
     "base_attributes": [
       [
         1,
-        2200
+        1400
       ],
       [
         2,
@@ -583,7 +882,7 @@
       ],
       [
         3,
-        30
+        10
       ],
       [
         4,
@@ -605,7 +904,7 @@
     "abilities": [],
     "attack_interval": 2.2,
     "gold": 300,
-    "goldReward": 250,
+    "goldReward": 60,
     "expReward": 5,
     "rewardType": "gold_boss",
     "ai": {
@@ -680,6 +979,116 @@
       }
     },
     "collision_radius": 36,
+    "prefab": "prefabs/units/monster_9"
+  },
+  {
+    "id": 2009,
+    "name": "处刑者",
+    "team": 2,
+    "category": "monster",
+    "subtype": "boss",
+    "base_attributes": [
+      [
+        1,
+        1800
+      ],
+      [
+        2,
+        100
+      ],
+      [
+        5,
+        150
+      ],
+      [
+        3,
+        55
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        7,
+        25
+      ],
+      [
+        16,
+        180
+      ]
+    ],
+    "abilities": [],
+    "attack_interval": 2,
+    "gold": 400,
+    "goldReward": 30,
+    "expReward": 120,
+    "rewardType": "kill_boss",
+    "ai": {
+      "type": "chase",
+      "params": {
+        "speedMul": 1
+      }
+    },
+    "collision_radius": 32,
+    "prefab": "prefabs/units/monster_9"
+  },
+  {
+    "id": 2010,
+    "name": "敌方守卫",
+    "team": 2,
+    "category": "monster",
+    "subtype": "boss",
+    "base_attributes": [
+      [
+        1,
+        1500
+      ],
+      [
+        2,
+        80
+      ],
+      [
+        5,
+        55
+      ],
+      [
+        3,
+        12
+      ],
+      [
+        4,
+        100
+      ],
+      [
+        6,
+        10
+      ],
+      [
+        7,
+        30
+      ],
+      [
+        16,
+        150
+      ]
+    ],
+    "abilities": [],
+    "attack_interval": 2,
+    "gold": 600,
+    "goldReward": 80,
+    "expReward": 200,
+    "rewardType": "boss",
+    "ai": {
+      "type": "chase",
+      "params": {
+        "speedMul": 1
+      }
+    },
+    "collision_radius": 48,
     "prefab": "prefabs/units/monster_9"
   }
 ]

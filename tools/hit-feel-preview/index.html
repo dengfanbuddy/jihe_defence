@@ -1,0 +1,1864 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>打击感要素演示台 · 集合防御</title>
+<style>
+/* ============================================================
+   样式口径取自 docs/美术风格预设.md（唯一权威）：
+     浅色纸面底 / 双色（墨灰 + 青绿）/ 细线描边 / 无渐变 / 无阴影 / 无高光
+     字号阶梯 40-24-20-16-14-12；描边 #14181B；品质框 4 档色另见 §6
+   ============================================================ */
+:root{
+  --paper:#EFEEED;      /* 局外纸面 */
+  --canvas:#EBF4FB;     /* 局内战斗底 */
+  --surface:#FFFFFF;
+  --line:#C0CCD1;       /* 范围圈 / 细线 */
+  --line-2:#E8ECEE;
+  --ink:#445054;
+  --ink-2:#6A696B;      /* 墨线图标 */
+  --ink-3:#8E979C;
+  --accent:#67999A;     /* 主按钮实底 */
+  --accent-2:#70ACB3;   /* HUD 数值条 / 武器格 */
+  --accent-soft:#CADDE3;
+  --track:#DDDDDD;
+  --bad:#E74C3C;
+  --mono:ui-monospace,Consolas,"Cascadia Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper);color:var(--ink);
+  font:14px/1.5 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;
+  display:flex;flex-direction:column;height:100vh;overflow:hidden;
+}
+/* ---------- 顶栏 ---------- */
+header{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 16px 12px;flex:none}
+.headline{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-size:24px;margin:0;letter-spacing:.4px}
+.sub{font-size:12px;color:var(--ink-2)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:10px}
+.block{display:flex;align-items:center;gap:8px;padding:4px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.block>label{font-size:12px;color:var(--ink-2)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--track);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent-2);border:1px solid var(--accent);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--accent-2);border:1px solid var(--accent);cursor:pointer}
+.tier{font-size:20px;font-weight:700;color:var(--accent);min-width:86px;text-align:right;line-height:1}
+.tier small{display:block;font-size:10.5px;font-weight:400;color:var(--ink-3);text-align:right;letter-spacing:0}
+button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:5px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
+button:hover{background:var(--accent-soft)}
+button.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+button.sel:hover{background:#5b8b8c}
+.seg{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.seg .lbl{font-size:11.5px;color:var(--ink-3);padding-right:2px}
+/* ---------- 主区 ---------- */
+main{flex:1;display:grid;grid-template-columns:412px 1fr;min-height:0}
+aside{overflow-y:auto;background:var(--surface);border-right:1px solid var(--line);padding:10px 12px 48px}
+.stage{position:relative;background:var(--canvas);min-width:0;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+/* ---------- 参数块 ---------- */
+.params{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;background:#F7F8F8}
+.params h2{font-size:13px;margin:0 0 6px}
+.prow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2);padding:2px 0}
+.prow span:first-child{width:96px;flex:none}
+.prow input[type=range]{width:120px}
+.prow b{color:var(--ink);font-family:var(--mono);font-size:11px;min-width:52px;text-align:right}
+/* ---------- 分组 / 开关行 ---------- */
+.grp{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface)}
+.grp>summary{cursor:pointer;list-style:none;padding:7px 10px;background:#F7F8F8;
+  font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary .gname{display:flex;flex-direction:column;gap:1px}
+.grp>summary .gname i{font-style:normal;font-weight:400;font-size:10.5px;color:var(--ink-3)}
+.grp .cnt{font-weight:400;font-size:11px;color:var(--ink-2);font-family:var(--mono);flex:none}
+.feat{display:grid;grid-template-columns:32px 1fr 78px;gap:8px;padding:7px 10px;border-top:1px solid var(--line-2);align-items:start}
+.feat:hover{background:#FAFBFB}
+.feat.on{background:#F2F8F9}
+.sw{position:relative;width:32px;height:18px;margin-top:2px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:2}
+.sw .knob{position:absolute;inset:0;background:var(--track);border:1px solid var(--line);border-radius:9px;transition:background .12s}
+.sw .knob::after{content:'';position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;
+  background:#fff;border:1px solid var(--line);transition:left .12s}
+.sw input:checked+.knob{background:var(--accent-2);border-color:var(--accent-2)}
+.sw input:checked+.knob::after{left:15px;border-color:var(--accent-2)}
+.sw input:focus-visible+.knob{outline:2px solid var(--accent);outline-offset:2px}
+.meta .t{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.meta .t b{font-size:13px}
+.meta .t i{font-style:normal;font-size:10.5px;color:var(--ink-3);font-family:var(--mono)}
+.badge{font-size:9.5px;padding:0 4px;border-radius:3px;border:1px solid currentColor;line-height:14px;flex:none}
+.badge.have{color:var(--accent)}
+.badge.new{color:var(--ink-2)}
+.badge.warn{color:var(--bad)}
+.meta .why{font-size:11.5px;color:var(--ink-2);margin:2px 0 0}
+.meta .src{font-size:10.5px;color:var(--ink-3);margin-top:2px;font-family:var(--mono)}
+.rngwrap{display:flex;flex-direction:column;gap:3px}
+.rngwrap input[type=range]{width:78px}
+.rngwrap .note{font-size:9.5px;color:var(--ink-3);line-height:1.3}
+/* ---------- 舞台浮层 ---------- */
+.ov{position:absolute;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:10px;
+  padding:7px 10px;font-size:11px;pointer-events:none}
+.budget{top:10px;right:10px;min-width:216px}
+.budget .row{display:flex;justify-content:space-between;gap:14px;font-family:var(--mono);font-size:10.5px;padding:1px 0}
+.budget .row b{color:var(--ink)}
+.budget .row.hot b{color:var(--bad)}
+.budget h3{margin:0 0 4px;font-size:11.5px;color:var(--ink-2)}
+.budget hr{border:none;border-top:1px solid var(--line-2);margin:5px 0}
+.inspector{left:10px;bottom:10px;max-width:430px;font-family:var(--mono);font-size:10.5px;line-height:1.45}
+.inspector b{color:var(--accent)}
+.layers{right:10px;bottom:10px;font-size:10.5px;line-height:1.5;max-width:290px}
+.layers code{font-family:var(--mono);font-size:10px;color:var(--ink-2)}
+.hint{position:absolute;left:50%;top:17%;transform:translate(-50%,-50%);text-align:center;
+  font-size:13px;color:var(--ink-2);background:rgba(255,255,255,.9);border:1px solid var(--line);
+  border-radius:10px;padding:10px 16px;pointer-events:none}
+.hint b{display:block;font-size:16px;color:var(--ink);margin-bottom:2px}
+footer{flex:none;background:var(--surface);border-top:1px solid var(--line);padding:7px 16px;
+  font-size:11px;color:var(--ink-2);display:flex;gap:18px;flex-wrap:wrap}
+footer code{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+@media(max-width:1180px){
+  main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(0,1.1fr)}
+  aside{border-right:none;border-bottom:1px solid var(--line)}
+  .inspector,.layers{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="headline">
+    <h1>打击感要素演示台</h1>
+    <span class="sub">集合防御 Jihe Defence · 47 个开关 / 7 组 · 全几何图形绘制 · 配色·时长·数值取自工程真源</span>
+  </div>
+  <div class="bar">
+    <div class="block">
+      <label>总开关</label>
+      <input id="master" type="range" min="0" max="100" value="0" style="width:200px">
+      <div class="tier" id="tierLabel">0%<small>无打击感</small></div>
+    </div>
+    <div class="seg" id="presets"><span class="lbl">预设</span></div>
+    <div class="seg" id="scenarios"><span class="lbl">场景</span></div>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="params">
+      <h2>演示参数（口径 = 工程真值）</h2>
+      <div class="prow"><span>暴击率</span><input id="pCrit" type="range" min="0" max="60" value="15"><b id="vCrit">15%</b></div>
+      <div class="prow"><span>暴击倍率</span><input id="pMult" type="range" min="150" max="300" value="150"><b id="vMult">1.50×</b></div>
+      <div class="prow"><span>同屏怪数</span><input id="pSpawn" type="range" min="0" max="14" value="5"><b id="vSpawn">5</b></div>
+      <div class="prow"><span>音效音量</span><input id="pVol" type="range" min="0" max="100" value="55"><b id="vVol">55%</b></div>
+      <div class="prow"><label style="display:flex;align-items:center;gap:6px;width:auto">
+        <input id="pReal" type="checkbox"> 按游戏真实概率（火枪击退 15%、闪避 0%）</label></div>
+      <div class="prow" style="color:var(--ink-3)">暴击率 base = 0（靠遗物堆，cap 60%）· 暴击倍率 base 150 = 1.50× · 火枪攻速 1.2 → 实际间隔 0.833s</div>
+    </div>
+    <div id="groups"></div>
+  </aside>
+
+  <section class="stage" id="stage">
+    <canvas id="cv"></canvas>
+
+    <div class="ov budget" id="budget"></div>
+    <div class="ov inspector" id="inspector"></div>
+    <div class="ov layers">
+      <div><b>图层顺序（= 预制件节点顺序）</b></div>
+      <div><code>bg-001 → enimys → hero → range → projectile → vfx* → damege_layer → UI</code></div>
+      <div style="color:var(--ink-3);margin-top:3px">震屏只作用于前 6 层；HUD 与飘字层级按 <code>damageLayerNode</code> 契约；<code>vfx*</code> 是本次新增层（建议插在 projectile 与 damege_layer 之间）</div>
+    </div>
+    <div class="hint" id="hint"><b>点一下画面开始</b>英雄会自动普攻，也可点击舞台手动开火</div>
+  </section>
+</main>
+
+<footer>
+  <span>口径：<code>EntityVisualConfig.ts</code> 配色 / <code>DamageTextConfig.ts</code> 飘字 / <code>battle_constants.json</code> 常量 / <code>units.json</code> 数值 / <code>DamagePipeline.ts</code> 减伤与暴击</span>
+  <span>漂移体检：<code>node tools/hit-feel-preview/check-drift.mjs</code></span>
+</footer>
+
+<!-- ============================================================
+     工程常量（真源快照）—— check-drift.mjs 逐字段与 TS/JSON 比对
+     ⚠ 改工程真源后此块必须同步，否则体检脚本报漂移（退出码 1）
+     ============================================================ -->
+<script id="project-const" type="application/json">
+{
+  "_source": "EntityVisualConfig.ts / DamageTextConfig.ts / battle_constants.json / units.json / docs/美术风格预设.md",
+  "hitFlashDuration": 0.08,
+  "unitVisuals": {
+    "hero":       { "color": null,        "scale": 1,   "hitColor": "#ff4c4c" },
+    "normal":     { "color": "#6b8e9b",   "scale": 1,   "hitColor": "#ffffff" },
+    "elite":      { "color": "#9b59b6",   "scale": 1.3, "hitColor": "#e0b0ff" },
+    "gold_boss":  { "color": "#e74c3c",   "scale": 1.5, "hitColor": "#ffffff" },
+    "kill_boss":  { "color": "#e74c3c",   "scale": 1.5, "hitColor": "#ffa500" },
+    "stage_boss": { "color": "#3b1c32",   "scale": 1.5, "hitColor": "#00ffff" },
+    "final_boss": { "color": "#3b1c32",   "scale": 2,   "hitColor": "#00ffff" }
+  },
+  "damageText": {
+    "baseFontSize": 16, "heroScaleBonus": 1.15, "outlineGrow": 0.12, "outlineColor": "#14181b",
+    "mergeWindow": 0.15, "maxAlive": 24, "ladderSteps": 3, "ladderGapRatio": 1.25,
+    "scatterRadius": 24, "spawnOffsetY": 26, "strokeRatio": 0.16, "advanceRatio": 0.92
+  },
+  "damageTextStyles": {
+    "normal": { "scale":1,   "color":"#ffffff", "heroColor":"#ff4c4c", "life":0.45, "rise":28,
+                "pop":1,   "popTime":0,    "marker":0,    "markerHeight":0,    "markerGap":0,
+                "fadeFrom":0.55, "priority":1 },
+    "crit":   { "scale":1.6, "color":"#ffffff", "heroColor":"#ff4c4c", "life":0.75, "rise":46,
+                "pop":1.4, "popTime":0.16, "marker":0.24, "markerHeight":0.32, "markerGap":0.3,
+                "fadeFrom":0.6,  "priority":3 }
+  },
+  "battleConstants": {
+    "pxPerMeter": 50, "critDmgBase": 0.5, "critRateCap": 0.6, "atkSpeedCap": 3,
+    "projectileSpeedDefault": 600, "projectileMaxDistDefault": 2000,
+    "minDamage": 1, "dodgeCap": 0.4, "collisionRadiusDefault": 26, "separationStrength": 1
+  },
+  "attributes": {
+    "atkSpeedBase": 100, "atkSpeedMode": "multiply",
+    "magicResistBase": 25, "magicResistMode": "complement",
+    "critRateBase": 0, "critMultBase": 150, "critMultMode": "best"
+  },
+  "hero": {
+    "id": 1001, "name": "火枪", "maxHp": 320, "maxMana": 120, "atk": 40, "atkSpeed": 1.2,
+    "atkRange": 250, "attackInterval": 1, "collisionRadius": 24,
+    "attackTargeting": "farthest", "attackProjectile": "musket",
+    "headshotPct": 0.05, "headshotKnockChance": 0.15, "headshotKnockMeter": 1
+  },
+  "monsters": {
+    "goblin":     { "id":2001, "name":"哥布林",   "kind":"normal",     "maxHp":40,   "moveSpeed":70,  "atk":0,  "atkSpeed":1.0, "armor":0,  "magicResist":0.25, "collisionRadius":10, "goldReward":2, "expReward":8 },
+    "troll":      { "id":2002, "name":"巨魔",     "kind":"normal",     "maxHp":240,  "moveSpeed":155, "atk":16, "atkSpeed":1.0, "armor":3,  "magicResist":0.25, "collisionRadius":24, "goldReward":4, "expReward":15 },
+    "elite":      { "id":2005, "name":"重击者",   "kind":"elite",      "maxHp":320,  "moveSpeed":125, "atk":24, "atkSpeed":0.8, "armor":5,  "magicResist":0.25, "collisionRadius":26, "goldReward":6, "expReward":25 },
+    "stage_boss": { "id":2006, "name":"深海领主", "kind":"stage_boss", "maxHp":3000, "moveSpeed":140, "atk":60, "atkSpeed":0.8, "armor":12, "magicResist":0.35, "collisionRadius":40, "goldReward":40, "expReward":200 },
+    "gold_boss":  { "id":2007, "name":"黄金魔像", "kind":"gold_boss",  "maxHp":1400, "moveSpeed":85,  "atk":10, "atkSpeed":0.4, "armor":4,  "magicResist":0.20, "collisionRadius":38, "goldReward":250,"expReward":5 }
+  },
+  "art": {
+    "battleBg":"#EBF4FB", "paper":"#EFEEED", "rangeCircle":"#C0CCD1", "heroRing":"#6AAAB0",
+    "hpBar":"#70ACB3", "outline":"#14181B", "accent":"#67999A", "inkIcon":"#6A696B",
+    "hpBarTrack":"#DDDDDD", "quality":[ "#DDDDDD", "#5096FF", "#CF68FF", "#FF6464" ]
+  }
+}
+</script>
+
+<!-- ============================================================
+     47 个开关的登记表（数据，不是代码）
+       id    稳定标识（与 README 的落点表一一对应）
+       g     分组 A~G
+       name  中文名      en 英文名
+       why   一句话原理
+       file  本项目的落点（文件 / 字段 / 事件）
+       st    have = 工程已有 | new = 待新增 | warn = 与本项目口径冲突
+       d     默认强度 0~1（"全开"预设用）
+       note  滑杆满格的物理含义（强度是可验收的量化描述，见术语手册 §0）
+     ============================================================ -->
+<script id="features" type="application/json">
+[
+  { "id":"A1", "g":"A", "name":"前摇 / 预备", "en":"Anticipation", "why":"出手前极短回拉蓄力，让\"因\"早于\"果\"；没有前摇的伤害像凭空掉血。", "file":"攻击动画状态机（现无动画，attackTimer 到点直接结算）", "st":"new", "d":0.5, "note":"满格 = 前摇 120ms" },
+  { "id":"A2", "g":"A", "name":"顿帧", "en":"Hit Stop", "why":"命中瞬间把战斗时间冻住 30~80ms，让这一下被大脑单独记住。", "file":"Scene_Game_Stage.tick(dt) 的 dt × timeScale", "st":"new", "d":0.6, "note":"满格 = 80ms 顿帧" },
+  { "id":"A3", "g":"A", "name":"暴击慢动作", "en":"Slow-mo", "why":"只对暴击/击杀瞬时降速，而不是每次命中都慢；稀有才叫奖励。", "file":"同上（分级不同：暴击 0.2× / 击杀 0.12×）", "st":"new", "d":0.6, "note":"满格 = 0.2× 慢动作 200ms" },
+  { "id":"A4", "g":"A", "name":"后摇与取消窗口", "en":"Recovery / Cancel", "why":"命中后立刻能接下一发，攻击才不粘手；后摇长会白扣 DPS。", "file":"Entity.getAttackInterval() 的收尾段", "st":"new", "d":0.7, "note":"满格 = 完全取消后摇" },
+  { "id":"A5", "g":"A", "name":"节奏抖动", "en":"Rhythm Jitter", "why":"顿帧时长/音高/火花角度每次随机 ±10~20%，机械重复会被耳朵抓出来。", "file":"各表现参数加随机因子", "st":"new", "d":0.5, "note":"满格 = ±20% 随机" },
+
+  { "id":"B1", "g":"B", "name":"挤压拉伸", "en":"Squash & Stretch", "why":"出手前压扁蓄力、命中瞬间沿伤害轴拉长：形变就是\"力\"的形状。", "file":"node.setScale（⚠ 与 HitFlash 的基准 scale 必须乘法叠加）", "st":"new", "d":0.6, "note":"满格 = 形变 22%" },
+  { "id":"B2", "g":"B", "name":"前冲", "en":"Lunge / Step-in", "why":"攻击者朝目标瞬时位移一小段再弹回，把\"我打出去\"写上。", "file":"表现层 offset（不写 entity.position）", "st":"new", "d":0.5, "note":"满格 = 前冲 22px" },
+  { "id":"B3", "g":"B", "name":"击退", "en":"Knockback", "why":"受击者沿伤害方向被推开，把伤害变成\"位置代价\"。", "file":"Entity.ApplyKnockback(source, px)；米→像素 pxPerMeter=50", "st":"have", "d":0.6, "note":"满格 = 3m（游戏值 15% 概率 / 1m）" },
+  { "id":"B4", "g":"B", "name":"受击抖动", "en":"Hit Shake", "why":"原地高频小幅抖、不改逻辑位置；比击退轻，适合 3 次/秒的普攻。", "file":"表现层 offset（EntityView 脏检查只同步 position）", "st":"new", "d":0.5, "note":"满格 = ±4px 抖 140ms" },
+  { "id":"B5", "g":"B", "name":"受击倾斜", "en":"Tilt / Flinch", "why":"朝伤害反方向倾一下；\"被打歪\"比\"变了色\"更像生物。", "file":"节点 angle", "st":"new", "d":0.5, "note":"满格 = ±10°" },
+  { "id":"B6", "g":"B", "name":"层级弹出", "en":"Z-Pop", "why":"被击中的目标短暂置顶，不被怪群遮住 —— 塔防怪重叠刚需。", "file":"临时 setSiblingIndex / 独立 overlay 层", "st":"new", "d":0.7, "note":"满格 = 置顶 250ms" },
+
+  { "id":"C1", "g":"C", "name":"闪白 / 受击染色", "en":"Hit Flash", "why":"受击瞬间整体变色，最便宜的一项；本项目按单位类别染色而不是纯白。", "file":"✅ entityview/HitFlash.ts（0.08s，色表见 EntityVisualConfig）", "st":"have", "d":1, "note":"满格 = 0.08s 染色（游戏值）" },
+  { "id":"C2", "g":"C", "name":"发光", "en":"Additive Glow", "why":"加法混合让特效\"亮起来\"。", "file":"⚠ 浅底 #EBF4FB 上加法混合趋白 → 看不见（本项开满就是要演示它失效）", "st":"warn", "d":0.6, "note":"满格 = 加法光晕 18px" },
+  { "id":"C3", "g":"C", "name":"描边脉冲", "en":"Outline Pop", "why":"轮廓一帧加粗 + 高饱和色，是浅底上替代\"发光\"的正解。", "file":"HitFlash.paint 之外再叠一层轮廓绘制", "st":"new", "d":0.7, "note":"满格 = 描边 ×3.2" },
+  { "id":"C4", "g":"C", "name":"冲击波", "en":"Shockwave", "why":"从命中点扩散的圆环，把\"点\"伤害画成\"面\"。", "file":"复用 GraphCircle（美术规范：只描边不填充）", "st":"new", "d":0.7, "note":"满格 = 扩散到半径 52px" },
+  { "id":"C5", "g":"C", "name":"命中火花", "en":"Hit Spark", "why":"3~5 条放射短线 + 一道弧线，浅底几何风格下性价比最高。", "file":"新增 vfx 层（projectile 与 damege_layer 之间）", "st":"new", "d":0.8, "note":"满格 = 5 条放射线 + 1 弧" },
+  { "id":"C6", "g":"C", "name":"粒子迸溅", "en":"Particle Burst", "why":"几何碎片沿伤害方向散开；项目禁贴图禁渐变 → 只能用纯色小方块/三角。", "file":"同上（注意 VFX 预算与 draw call）", "st":"new", "d":0.6, "note":"满格 = 10 颗碎片" },
+  { "id":"C7", "g":"C", "name":"弹道拖尾", "en":"Trail", "why":"轨迹把\"飞行\"画出来，命中才有落点感。", "file":"ProjectileView 现在只同步位置，无拖尾", "st":"new", "d":0.8, "note":"满格 = 拖尾 14 段" },
+  { "id":"C8", "g":"C", "name":"残影", "en":"Afterimage", "why":"高速/冲刺时的分身序列，速度感的来源。", "file":"按时间采样 position 画淡色副本", "st":"new", "d":0.5, "note":"满格 = 4 个残影" },
+  { "id":"C9", "g":"C", "name":"死亡碎裂", "en":"Death Burst", "why":"死亡时裂成几何块散开；现在死亡只有回池 + 飘字，缺收尾。", "file":"OnDeath 订阅（现只做统计/结算）", "st":"new", "d":0.7, "note":"满格 = 7 块碎片" },
+  { "id":"C10", "g":"C", "name":"全屏闪帧", "en":"Flash Frame", "why":"全屏一帧闪，比震屏更猛；但浅底上白闪看不见。", "file":"⚠ 浅底只能用墨色闪（#14181B），白闪无效", "st":"warn", "d":0.6, "note":"满格 = 墨闪 α 0.14" },
+  { "id":"C11", "g":"C", "name":"屏幕后处理", "en":"Post FX", "why":"变焦模糊 + 色差，把\"命中\"放大到整块屏幕。", "file":"⚠ 项目无后处理管线，游戏内成本高（demo 里可演）", "st":"warn", "d":0.5, "note":"满格 = 模糊 3 层 + 色差 3px" },
+
+  { "id":"D1", "g":"D", "name":"震屏", "en":"Screen Shake", "why":"战斗内容短促位移，是\"重量\"最快的一路。", "file":"⚠ 只有一个 UI 相机（Main > Canvas > Camera）→ 正解是位移战斗内容容器", "st":"warn", "d":0.45, "note":"满格 = 震幅 9px" },
+  { "id":"D2", "g":"D", "name":"方向性震屏", "en":"Directional Shake", "why":"沿伤害方向推、而不是随机抖，玩家能读出\"从哪边被打的\"。", "file":"同 D1，用带符号的方向而非随机", "st":"new", "d":0.6, "note":"满格 = 方向位移 11px" },
+  { "id":"D3", "g":"D", "name":"推近变焦", "en":"Punch-in", "why":"暴击瞬间推近 2~3%，把注意力锁到命中点。", "file":"容器 scale（轴心 = 命中点）", "st":"new", "d":0.5, "note":"满格 = 推近 3%" },
+  { "id":"D4", "g":"D", "name":"旋转抖动", "en":"Roll Shake", "why":"绕视线轴轻微旋转 = \"重\"感来源，位移做不出来的那种晃。", "file":"容器 angle", "st":"new", "d":0.4, "note":"满格 = ±0.9°" },
+  { "id":"D5", "g":"D", "name":"分级 + 钳制", "en":"Severity & Clamp", "why":"普攻微/暴击中/Boss死大；同帧多次命中必须取最大而不是相加。", "file":"⚠ 塔防怪群同帧 20 次命中 → 不钳制必晕", "st":"new", "d":1, "note":"满格 = 每 0.5s 震幅预算 14px" },
+
+  { "id":"E1", "g":"E", "name":"命中音效", "en":"Hit SFX", "why":"命中音是\"重量\"的一半；视觉再足、没声音也像打棉花。", "file":"⚠ 工程 assets 下 0 个音频文件；demo 用 Web Audio 程序化合成", "st":"warn", "d":0.8, "note":"满格 = 音量 100%" },
+  { "id":"E2", "g":"E", "name":"音效分层", "en":"Layered SFX", "why":"攻击 / 命中 / 暴击三层叠加，单层永远\"薄\"。", "file":"AudioMgr.ins.sfx（战斗侧从未调用）", "st":"new", "d":0.7, "note":"满格 = 3 层叠加" },
+  { "id":"E3", "g":"E", "name":"音高随机", "en":"Pitch Variation", "why":"±5% 随机，高频普攻才不会变成哒哒哒的白噪音。", "file":"播放时随机频率/播放速率", "st":"new", "d":0.5, "note":"满格 = ±5% 音高" },
+  { "id":"E4", "g":"E", "name":"低频冲击", "en":"Sub-bass Thump", "why":"60~100Hz 短促低频就是\"重量\"：耳朵听不见，身体听得见。", "file":"独立低频音轨（与命中音分开混音）", "st":"new", "d":0.6, "note":"满格 = 70Hz 低频层" },
+  { "id":"E5", "g":"E", "name":"并发节流", "en":"SFX Budget", "why":"同帧 N 次命中只出 1~2 个声音，否则糊成白噪音。", "file":"音效层自带节流（与 G2 同口径）", "st":"new", "d":1, "note":"满格 = 每 50ms 最多 2 声" },
+  { "id":"E6", "g":"E", "name":"手感震动", "en":"Haptics", "why":"移动端马达是打击感最直接的一路，比屏幕更贴身。", "file":"navigator.vibrate(30)（桌面浏览器无效）", "st":"new", "d":0.6, "note":"满格 = 30ms 震动（仅移动端）" },
+
+  { "id":"F1", "g":"F", "name":"伤害飘字", "en":"Damage Text", "why":"数值反馈；本项目已有合并窗口/并发上限/连击阶梯/描边/暴击菱形标。", "file":"✅ entityview/DamageTextLayer.ts + common/DamageTextConfig.ts", "st":"have", "d":1, "note":"满格 = 游戏值（字号 16 / 上限 24）" },
+  { "id":"F2", "g":"F", "name":"伤害类型配色", "en":"Dmg Type Color", "why":"物理白 / 魔法紫 / 纯粹青。", "file":"⚠ 与\"颜色 = 打谁\"的主通道冲突（见 DamageTextConfig 文件头）；替代：类型由形状承载", "st":"warn", "d":0.5, "note":"满格 = 类型配色（抢颜色通道）" },
+  { "id":"F3", "g":"F", "name":"几何符号", "en":"Symbols", "why":"闪避/免疫/格挡用几何符号，不占数字的位置。", "file":"DamageTextConfig 已列为\"尚未做\"；本层已有暴击菱形标", "st":"new", "d":0.6, "note":"满格 = 闪避斜杠 / 免疫圆 / 格挡方" },
+  { "id":"F4", "g":"F", "name":"连击计数", "en":"Combo Counter", "why":"连续命中累计，把\"我正在变强\"写在屏幕上。", "file":"新增 HUD 元素（数据源 OnTakeDamage / OnKill）", "st":"new", "d":0.7, "note":"满格 = 2.5s 断连" },
+  { "id":"F5", "g":"F", "name":"连击评级", "en":"Rank / Grade", "why":"D→C→B→A→S 弹出，是爽点峰值。", "file":"同上（阈值表 5/10/20/35/60）", "st":"new", "d":0.6, "note":"满格 = 阈值 5/10/20/35/60" },
+  { "id":"F6", "g":"F", "name":"延迟掉血条", "en":"Damage Lag Bar", "why":"血条先掉、白色残影条慢慢跟上 → 一眼看出这一下打掉多少。", "file":"HpBar 扩展（宽度唯一写入方仍是 HpBar）", "st":"new", "d":0.8, "note":"满格 = 残影条 0.6s 追上" },
+  { "id":"F7", "g":"F", "name":"屏幕边缘受伤", "en":"Damage Vignette", "why":"英雄受击时屏幕四角报红，不看血条也知道自己挨打了。", "file":"独立全屏 overlay（不参与震屏）；硬边角标，不用渐变", "st":"new", "d":0.6, "note":"满格 = 四角标记 α 0.9" },
+  { "id":"F8", "g":"F", "name":"击杀提示", "en":"Kill Feed", "why":"\"击杀 +N\"图标飞出，给每一次击杀一个落款。", "file":"OnKill 订阅（现只加 killCount）", "st":"new", "d":0.7, "note":"满格 = 提示存活 1.2s" },
+  { "id":"F9", "g":"F", "name":"金币 / 经验飞入", "en":"Loot Fly", "why":"奖励飞向 HUD，把\"数值增长\"变成一次空间事件。", "file":"OnKill 的 goldReward / expReward", "st":"new", "d":0.7, "note":"满格 = 飞行 0.45s" },
+  { "id":"F10", "g":"F", "name":"HUD 数值弹跳", "en":"HUD Punch", "why":"数字弹一下；静态数字是最容易被忽略的信息。", "file":"金币 / 血条数值的 scale 脉冲", "st":"new", "d":0.6, "note":"满格 = 弹跳 1.25×" },
+
+  { "id":"G1", "g":"G", "name":"打击感分级", "en":"Impact Tier", "why":"普通怪不该上 Boss 的规格；分级 = 预算分配，不是省钱。", "file":"扩 UNIT_VISUALS（已有 scale / hitColor 分档）", "st":"new", "d":1, "note":"满格 = 普通 0.6 / 精英 1.0 / Boss 1.5" },
+  { "id":"G2", "g":"G", "name":"多目标表现合并", "en":"Merge / Throttle", "why":"同帧 AoE 打 20 只 → 震屏取最大、冲击波合成一个、音效按优先级。", "file":"⚠ 塔防特有；飘字层的\"合并窗口 + 并发上限\"是现成口径", "st":"new", "d":1, "note":"满格 = 同帧合并为一次全局表现" },
+  { "id":"G3", "g":"G", "name":"VFX 预算", "en":"VFX Budget", "why":"同屏特效上限 + draw call；飘字层\"整层一个 Graphics = 恒定 1 draw call\"是现成做法。", "file":"参考 DamageTextLayer 的整层画法", "st":"new", "d":1, "note":"满格 = 火花 24 / 粒子 120 / 环 12" },
+  { "id":"G4", "g":"G", "name":"无障碍钳制", "en":"A11y Clamp", "why":"震屏/闪光强度封顶，晕动症玩家的安全阀；开关本身就是无障碍。", "file":"所有表现参数过一层上限（本页开关天然也是它）", "st":"new", "d":0.8, "note":"满格 = 震幅≤60% 闪光≤8% 关后处理" }
+]
+</script>
+
+<script>
+"use strict";
+/* ==========================================================================
+   打击感要素演示台 —— 单文件 / 零依赖 / 全几何绘制
+   --------------------------------------------------------------------------
+   骨架：本页内部复刻 DamagePipeline 的 OnTakeDamage 载荷
+         { source, target, rawDamage, finalDamage, damageType, isCrit }
+         47 个开关 = 这个事件的 47 个订阅者（正如 DamageTextLayer / HitFlash 那样）。
+         → 证明：接入这些表现，战斗逻辑一行都不用改
+           （唯二要动的：顿帧的 dt、震屏的容器引用）
+   ========================================================================== */
+
+/* ====================== 0. 常量与开关注册表 ====================== */
+const PC = JSON.parse(document.getElementById('project-const').textContent);
+const FEATURES = JSON.parse(document.getElementById('features').textContent);
+const GROUPS = [
+    { id:'A', name:'A · 时间轴 —— "打出去"的节奏', note:'前摇 / 顿帧 / 后摇 / 随机' },
+    { id:'B', name:'B · 形变与位移 —— "谁把谁推动"', note:'挤压拉伸 / 击退 / 抖动 / 层级' },
+    { id:'C', name:'C · 光、色与形状 —— "看得见的那一下"', note:'闪白 / 冲击波 / 火花 / 粒子 / 拖尾' },
+    { id:'D', name:'D · 相机 —— "有多重"', note:'震屏 / 推近 / 旋转 / 钳制' },
+    { id:'E', name:'E · 听觉 —— "一半的重量"', note:'合成音效（工程 0 个音频文件）' },
+    { id:'F', name:'F · HUD 与信息 —— "把结果告诉玩家"', note:'飘字 / 连击 / 血条 / 奖励' },
+    { id:'G', name:'G · 系统与预算 —— "符合塔防"', note:'分级 / 合并 / 上限 / 无障碍' },
+];
+
+const F = {};
+FEATURES.forEach(f => { F[f.id] = f; });
+const en = {}, iv = {};
+FEATURES.forEach(f => { en[f.id] = false; iv[f.id] = f.d; });
+/** 开关是否打开 */
+const ON = id => !!en[id];
+/** 有效强度：关了就是 0 */
+const K = id => (en[id] ? (iv[id] == null ? 1 : iv[id]) : 0);
+/** 分级/钳制后的强度：G4 无障碍把上限压到 60% */
+const KC = id => K(id) * (ON('G4') ? (1 - 0.4 * iv['G4']) : 1);
+
+/* 演示参数（默认值即工程真值口径） */
+const P = {
+    critRate: 0.15,       // 工程 base = 0（靠遗物），cap = critRateCap 0.6
+    critMult: 1.5,        // 工程 critDmgBase 0.5 → 1.5×
+    spawnMax: 5,
+    realRng: false,       // true = 火枪击退按真实的 15% 概率
+    volume: 0.55,
+};
+
+/* ====================== 1. UI ====================== */
+const $ = id => document.getElementById(id);
+const PRESETS = {
+    none:    { label:'无打击感',   set:{} },
+    current: { label:'项目当前',   set:{ C1:1, F1:1, B3:0.6 } },
+    // 「本作建议」= docs/打击反馈设计.md §10 的点菜结果（47 项里开启 30 / 关闭 17，其中 3 项是降级形态）。
+    // 这是**已拍板的设计档**，不是默认值；新加/改这一档必须同步那份文档，两边不一致即以文档为准。
+    jihe:    { label:'本作建议',   set:{ A1:0.4, A2:0.5, A3:0.35, A5:0.4,
+                                        B1:0.5, B3:0.6, B4:0.5, B6:0.7,
+                                        C1:1, C3:0.45, C4:0.5, C5:0.35, C7:0.8, C9:0.5, C10:0.6,
+                                        D1:0.35, D2:0.6, D5:1,
+                                        F1:1, F3:0.6, F4:0.7, F6:0.8, F7:0.6, F8:0.5, F9:0.5, F10:0.5,
+                                        G1:1, G2:1, G3:1, G4:0.8 } },
+    basic:   { label:'基础',       set:{ A2:0.5, A4:0.7, A5:0.5, B1:0.6, B3:0.6, B4:0.4, C1:1, C4:0.6, C5:0.8, C6:0.5, D1:0.35, E1:0.8, E3:0.5, F1:1, F4:0.7, F6:0.8, G1:1, G2:1, G3:1 } },
+    full:    { label:'全开',       set:'default' },
+    over:    { label:'用力过猛',   set:'max' },
+};
+const SCENARIOS = {
+    attack: { label:'单发普攻',  fn:() => fireHeroAttack(true) },
+    crit:   { label:'暴击',      fn:() => { forceCrit = true; fireHeroAttack(true); } },
+    aoe:    { label:'AoE 怪群×20', fn:() => scenarioAoe(20) },
+    boss:   { label:'Boss 死亡',  fn:() => scenarioBossKill() },
+    reset:  { label:'清场重置',  fn:() => resetStage() },
+};
+
+let masterValue = 0;
+
+function buildPanel() {
+    const host = $('groups');
+    host.innerHTML = '';
+    GROUPS.forEach(g => {
+        const list = FEATURES.filter(f => f.g === g.id);
+        const d = document.createElement('details');
+        d.className = 'grp';
+        d.open = (g.id === 'A' || g.id === 'C');
+        const sum = document.createElement('summary');
+        sum.innerHTML = '<span class="gname">' + g.name + '<i>' + g.note + '</i></span>'
+                      + '<span class="cnt" data-cnt="' + g.id + '">0/' + list.length + '</span>';
+        d.appendChild(sum);
+
+        list.forEach(f => {
+            const row = document.createElement('div');
+            row.className = 'feat';
+            row.dataset.id = f.id;
+            const badge = f.st === 'have' ? '<em class="badge have">已有</em>'
+                        : f.st === 'warn' ? '<em class="badge warn">口径冲突</em>'
+                        : '<em class="badge new">待新增</em>';
+            row.innerHTML =
+                '<label class="sw"><input type="checkbox" data-en="' + f.id + '"><span class="knob"></span></label>'
+              + '<div class="meta">'
+              +   '<div class="t"><b>' + f.name + '</b><i>' + f.en + '</i>' + badge + '</div>'
+              +   '<p class="why">' + f.why + '</p>'
+              +   '<div class="src">' + f.file + '</div>'
+              + '</div>'
+              + '<div class="rngwrap"><input type="range" min="0" max="100" data-iv="' + f.id + '" value="' + Math.round(f.d * 100) + '">'
+              + '<span class="note">' + f.note + '</span></div>';
+            d.appendChild(row);
+        });
+        host.appendChild(d);
+    });
+
+    host.querySelectorAll('input[data-en]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const id = cb.dataset.en;
+            en[id] = cb.checked;
+            if (cb.checked && iv[id] === 0) iv[id] = F[id].d || 0.5;
+            syncRow(id);
+            syncMasterLabel();
+        });
+    });
+    host.querySelectorAll('input[data-iv]').forEach(r => {
+        r.addEventListener('input', () => {
+            const id = r.dataset.iv;
+            iv[id] = (+r.value) / 100;
+            if (iv[id] > 0 && !en[id]) { en[id] = true; syncRow(id); }
+            if (iv[id] === 0 && en[id]) { en[id] = false; syncRow(id); }
+            syncMasterLabel();
+        });
+    });
+
+    // 预设 / 场景按钮
+    const ph = $('presets'), sh = $('scenarios');
+    Object.keys(PRESETS).forEach(key => {
+        const b = document.createElement('button');
+        b.textContent = PRESETS[key].label;
+        b.dataset.preset = key;
+        b.addEventListener('click', () => applyPreset(key));
+        ph.appendChild(b);
+    });
+    Object.keys(SCENARIOS).forEach(key => {
+        const b = document.createElement('button');
+        b.textContent = SCENARIOS[key].label;
+        b.addEventListener('click', () => { ensureAudio(); SCENARIOS[key].fn(); hideHint(); });
+        sh.appendChild(b);
+    });
+
+    // 演示参数
+    bindParam('pCrit', 'vCrit', v => { P.critRate = v / 100; return v + '%'; });
+    bindParam('pMult', 'vMult', v => { P.critMult = v / 100; return (v / 100).toFixed(2) + '×'; });
+    bindParam('pSpawn', 'vSpawn', v => { P.spawnMax = v; return String(v); });
+    bindParam('pVol', 'vVol', v => { P.volume = v / 100; if (AU.master) AU.master.gain.value = P.volume * 0.9; return v + '%'; });
+    $('pReal').addEventListener('change', e => { P.realRng = e.target.checked; });
+
+    const m = $('master');
+    m.addEventListener('input', () => applyMaster(+m.value));
+}
+
+function bindParam(rid, vid, fn) {
+    const r = $(rid), v = $(vid);
+    const upd = () => { v.textContent = fn(+r.value); };
+    r.addEventListener('input', upd);
+    upd();
+}
+
+function syncRow(id) {
+    const row = document.querySelector('.feat[data-id="' + id + '"]');
+    if (!row) return;
+    row.classList.toggle('on', ON(id));
+    row.querySelector('input[data-en]').checked = ON(id);
+    const rng = row.querySelector('input[data-iv]');
+    if (Math.abs((+rng.value) / 100 - iv[id]) > 0.001) rng.value = Math.round(iv[id] * 100);
+    const g = F[id].g;
+    const cnt = document.querySelector('[data-cnt="' + g + '"]');
+    if (cnt) {
+        const list = FEATURES.filter(f => f.g === g);
+        cnt.textContent = list.filter(f => ON(f.id)).length + '/' + list.length;
+    }
+}
+
+function syncAll() {
+    FEATURES.forEach(f => syncRow(f.id));
+    syncMasterLabel();
+}
+
+function applyPreset(key) {
+    const p = PRESETS[key];
+    FEATURES.forEach(f => { en[f.id] = false; iv[f.id] = f.d; });
+    if (p.set === 'default') FEATURES.forEach(f => { en[f.id] = true; });
+    else if (p.set === 'max') FEATURES.forEach(f => { en[f.id] = true; iv[f.id] = 1; });
+    else Object.keys(p.set).forEach(id => { en[id] = true; iv[id] = p.set[id]; });
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('sel', b.dataset.preset === key));
+    computeMasterFromState();
+    syncAll();
+}
+
+function applyMaster(v) {
+    FEATURES.forEach(f => {
+        en[f.id] = v > 0;
+        if (v > 0) iv[f.id] = v / 100;
+    });
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('sel'));
+    masterValue = v;
+    syncAll();
+}
+
+function computeMasterFromState() {
+    const n = FEATURES.filter(f => ON(f.id)).length;
+    // 滑杆位置 = **覆盖率**（开了几项），不是平均强度 ——
+    // 否则「项目当前」这个只开 3 项的档会显示成 87%，一眼读不懂。
+    const v = Math.round(n / FEATURES.length * 100);
+    masterValue = v;
+    $('master').value = v;
+}
+
+function syncMasterLabel() {
+    const list = FEATURES.filter(f => ON(f.id));
+    const n = list.length;
+    const avg = n === 0 ? 0 : list.reduce((s, f) => s + iv[f.id], 0) / n;
+    const pct = Math.round(avg * 100);
+    const cov = n / FEATURES.length;
+    let name = '无打击感';
+    if (n > 0 && cov < 0.12) name = '只有基础项';
+    else if (cov < 0.35) name = '克制';
+    else if (cov < 0.7) name = '标准';
+    else if (cov < 1) name = '全开';
+    else if (cov >= 1) name = (pct >= 95 && iv['C11'] >= 0.9 && iv['C10'] >= 0.9) ? '用力过猛' : '全开';
+    const el = $('tierLabel');
+    el.innerHTML = Math.round(cov * 100) + '%<small>' + name + ' · ' + n + '/47 项 · 平均强度 ' + pct + '%</small>';
+    if (document.activeElement !== $('master')) $('master').value = Math.round(cov * 100);
+}
+
+/* ====================== 2. 舞台与坐标 ====================== */
+const cv = $('cv');
+const ctx = cv.getContext('2d');
+const off = document.createElement('canvas');
+const offCtx = off.getContext('2d');
+let CW = 800, CH = 600, DPR = 1, S = 1;
+/** view：世界坐标（y 向下，与游戏里 position 同向）→ 屏幕
+ *  **缩放 = 1（1 世界像素 = 1 屏幕像素，与游戏一致）**，相机对在英雄身上（cx = 英雄 x）。
+ *  为什么不做"自适应铺满"：游戏里英雄碰撞半径 24、射程 350、刷怪半径 650~800，
+ *  全是像素口径；按 1:1 画，射程圈（直径 700）刚好在舞台里看全，怪的体型也就是游戏里的样子。
+ *  曾经的世界宽 1150 自适应 → 缩放 0.55，英雄环只剩 13px、哥布林 5px，等于什么都看不清。
+ *  只在舞台比 760px 还窄时才等比缩小（下限 0.6），避免小窗口里怪"凭空出现"。 */
+const VIEW = { cx: -120, cy: 0, worldW: 760 };
+
+function resize() {
+    const r = cv.parentElement.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    CW = Math.max(320, Math.round(r.width));
+    CH = Math.max(240, Math.round(r.height));
+    cv.width = Math.round(CW * DPR);
+    cv.height = Math.round(CH * DPR);
+    off.width = cv.width;
+    off.height = cv.height;
+    S = Math.max(0.6, Math.min(1, CW / VIEW.worldW));
+}
+window.addEventListener('resize', resize);
+
+const SX = x => (x - VIEW.cx) * S + CW / 2;
+const SY = y => (y - VIEW.cy) * S + CH / 2;
+const SL = l => l * S;
+
+/* ====================== 3. 音频（程序化合成，零素材） ======================
+   工程现状：assets 下 0 个音频文件、AudioMgr.ins.sfx 战斗侧从未调用。
+   这里用 Web Audio 合成三层（攻击 whoosh / 命中 impact / 暴击 crit）+ 低频层，
+   真接入时把同样的"三层 + 音高随机 + 并发节流"接到 AudioMgr 即可。 */
+const AU = { ctx: null, master: null, noise: null, stamps: [], plays: [] };
+function ensureAudio() {
+    if (!AU.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        AU.ctx = new AC();
+        AU.master = AU.ctx.createGain();
+        AU.master.gain.value = P.volume * 0.9;
+        AU.master.connect(AU.ctx.destination);
+        // 白噪声缓冲（0.4s）
+        const len = Math.floor(AU.ctx.sampleRate * 0.4);
+        const buf = AU.ctx.createBuffer(1, len, AU.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        AU.noise = buf;
+    }
+    if (AU.ctx.state === 'suspended') AU.ctx.resume();
+}
+function noiseHit(t0, dur, freq, q, gain) {
+    const src = AU.ctx.createBufferSource(); src.buffer = AU.noise;
+    const bp = AU.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
+    const g = AU.ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(bp); bp.connect(g); g.connect(AU.master);
+    src.start(t0); src.stop(t0 + dur + 0.02);
+}
+function toneHit(t0, f0, f1, dur, gain, type) {
+    const o = AU.ctx.createOscillator(); o.type = type || 'square';
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    const g = AU.ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(AU.master);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+}
+/** 播放一次命中音；返回是否真的播了（E5 节流会吞掉） */
+function playHitSound(h, layerScale) {
+    if (!AU.ctx || K('E1') <= 0) return false;
+    const now = AU.ctx.currentTime;
+    if (ON('E5')) {
+        const win = 0.05, maxN = Math.max(1, Math.round(2 * iv['E5']));
+        AU.stamps = AU.stamps.filter(t => now - t < win);
+        if (AU.stamps.length >= maxN) return false;
+        AU.stamps.push(now);
+    }
+    const vol = K('E1') * (layerScale == null ? 1 : layerScale);
+    AU.plays.push(now);                                  // 面板用（不受 E5 节流影响，节流本身也可见）
+    const jit = ON('E3') ? 1 + (Math.random() * 2 - 1) * 0.05 * iv['E3'] : 1;
+    // 层 1：攻击 whoosh
+    if (ON('E2')) noiseHit(now, 0.07, 1400 * jit, 1.2, 0.10 * vol);
+    // 层 2：命中 impact
+    noiseHit(now, 0.06, 900 * jit, 0.9, 0.26 * vol);
+    toneHit(now, 240 * jit, 90, 0.05, 0.16 * vol, 'square');
+    // 层 3：暴击
+    if (h && h.isCrit && ON('E2')) {
+        noiseHit(now, 0.10, 2600 * jit, 1.6, 0.20 * vol);
+        toneHit(now, 520 * jit, 180, 0.09, 0.16 * vol, 'square');
+    }
+    // 低频层
+    if (ON('E4')) toneHit(now, 70, 46, 0.13, 0.34 * vol * iv['E4'], 'sine');
+    return true;
+}
+
+/* ====================== 4. 时间 / 相机 / 预算 ====================== */
+const clock = { scale: 1, forced: 1, forcedT: 0 };
+const cam = {
+    shakeA: 0, shakeT: 0, shakeMax: 0, shakeBudget: [], dirX: 0, dirY: 0,
+    roll: 0, rollT: 0, punch: 0, punchT: 0, px: 0, py: 0, pivotX: 0, pivotY: 0,
+};
+const budget = {
+    cap: { spark: 24, part: 120, ring: 12, shard: 60, ghost: 24, trail: 40 },
+    hitsThisFrame: 0, maxHitsPerFrame: 0, frameWindow: 0, sfx100: [],
+    dropped: 0, overCap: false,
+};
+let flashFrame = { a: 0, color: PC.art.outline };
+let heroVignette = 0;
+let fxPost = 0;
+
+function setTimeOverride(scale, dur) {
+    if (scale < clock.forced || clock.forcedT <= 0) { clock.forced = scale; }
+    clock.forcedT = Math.max(clock.forcedT, dur);
+}
+function addShake(amp, dirX, dirY) {
+    if (ON('G4')) amp *= (1 - 0.4 * iv['G4']);
+    if (ON('D5')) {
+        cam.shakeA = Math.max(cam.shakeA, amp);          // 取最大
+    } else {
+        cam.shakeA += amp;                               // 相加 → 20 只怪同帧就爆了
+    }
+    cam.shakeMax = Math.max(cam.shakeMax, cam.shakeA);
+    cam.dirX = dirX; cam.dirY = dirY;
+    cam.shakeT = Math.max(cam.shakeT, 0.16);
+}
+
+/* ====================== 5. 世界 ====================== */
+let hero = null;
+let monsters = [];
+let projectiles = [];
+let uid = 1;
+let autoSpawn = true;
+let spawnTimer = 1.2;
+let forceCrit = false;
+let now = 0;
+let stats = { hits: 0, crits: 0, kills: 0, best: 0, gold: 0, exp: 0, merged: 0, lastPayload: null };
+let combo = { n: 0, t: 0, best: 0, rank: '', rankT: 0, rankScale: 0 };
+
+function makeHero() {
+    const h = PC.hero;
+    return {
+        id: h.id, name: h.name, kind: 'hero',
+        x: -120, y: 0, hp: h.maxHp, maxHp: h.maxHp,
+        /** 英雄 = 防守锚点：不被击退（同 Entity.ApplyKnockback 对 immovable 的处理） */
+        immovable: true,
+        atk: h.atk, range: h.atkRange, attackTimer: 0.4,
+        radius: h.collisionRadius,
+        color: PC.art.heroRing, fill: null,
+        flash: 0, flashColor: hex2rgb(PC.unitVisuals.hero.hitColor),
+        deform: { a: 1, b: 1, ang: 0, t: 0 },
+        offX: 0, offY: 0, shakeT: 0, tilt: 0, tiltV: 0,
+        windup: 0, windTarget: null, facing: 0, ghosts: [], popT: 0, lagHp: h.maxHp, lagDelay: 0,
+        hpPunch: 0, lastDamageT: -99,
+    };
+}
+
+function spawnMonster(key, x, y) {
+    const m = PC.monsters[key];
+    const vis = PC.unitVisuals[m.kind] || PC.unitVisuals.normal;
+    const e = {
+        uid: uid++, key, id: m.id, name: m.name, kind: m.kind,
+        x, y, hp: m.maxHp, maxHp: m.maxHp,
+        speed: m.moveSpeed, atk: m.atk, atkTimer: 1.5, atkInterval: 2 / Math.max(0.1, m.atkSpeed),
+        armor: m.armor, magicResist: m.magicResist,
+        radius: m.collisionRadius * vis.scale,
+        color: vis.color ? hex2rgb(vis.color) : [120, 130, 135],
+        hitColor: hex2rgb(vis.hitColor),
+        scale: vis.scale, reward: m.goldReward, exp: m.expReward,
+        flash: 0, deform: { a: 1, b: 1, ang: 0, t: 0 },
+        offX: 0, offY: 0, shakeT: 0, tilt: 0,
+        lagHp: m.maxHp, lagDelay: 0, hpShowT: 0, hpPunch: 0,
+        dead: false, deadT: 0, zpop: 0, spawnT: 0.001, dodgeT: 0, immuneT: 0, text: null,
+    };
+    monsters.push(e);
+    return e;
+}
+
+function resetStage() {
+    hero = makeHero();
+    monsters = []; projectiles = [];
+    vfx.spark.length = 0; vfx.part.length = 0; vfx.ring.length = 0;
+    vfx.shard.length = 0; vfx.ghost.length = 0; vfx.chip.length = 0; vfx.fly.length = 0;
+    texts.length = 0;
+    combo.n = 0; combo.best = 0; combo.rank = ''; combo.rankT = 0;
+    stats = { hits: 0, crits: 0, kills: 0, best: 0, gold: 0, exp: 0, merged: 0, lastPayload: null };
+    cam.shakeA = 0; cam.roll = 0; cam.punch = 0; cam.shakeMax = 0;
+    flashFrame.a = 0; heroVignette = 0; fxPost = 0;
+    budget.dropped = 0; budget.maxHitsPerFrame = 0;
+    spawnTimer = 0.6;
+    for (let i = 0; i < Math.min(3, P.spawnMax); i++) spawnFromEdge();
+}
+
+function spawnFromEdge(forceKey) {
+    const a = (Math.random() * 2 - 1) * (Math.PI * 0.42);
+    const r = 650 + Math.random() * 150;                  // 刷怪半径 650~800（工程真值）
+    const x = hero.x + Math.cos(a) * r;
+    const y = hero.y + Math.sin(a) * r;
+    let key = forceKey;
+    if (!key) {
+        const roll = Math.random();
+        key = roll < 0.62 ? 'goblin' : roll < 0.88 ? 'troll' : 'elite';
+    }
+    return spawnMonster(key, x, y);
+}
+
+/* ====================== 6. 伤害管线（复刻 DamagePipeline 口径） ====================== */
+function resistance(target, dmg, type) {
+    if (type === 'pure') return dmg;
+    if (type === 'physical') {
+        const a = target.armor || 0;
+        // Dota 双曲公式（DamagePipeline.applyResistance 原文）
+        return dmg * (1 - (0.06 * a) / (1 + 0.06 * Math.abs(a)));
+    }
+    return dmg * (1 - (target.magicResist == null ? 0.25 : target.magicResist));
+}
+function rollCrit() {
+    // 原文：chance > 0 && mult > 1 && Math.random() < chance
+    if (P.critRate > 0 && P.critMult > 1 && Math.random() < P.critRate) return P.critMult;
+    return null;
+}
+let frameHits = [];
+function applyHit(source, target, raw, opt) {
+    opt = opt || {};
+    // 口径同 DamagePipeline 开头：`if (!target || target.IsDead?.()) return 0;`
+    // —— IsDead() = `!alive || hp <= 0`，所以 **hp<=0 就再也吃不到伤害**（同帧的第二发也挡）。
+    if (!target || target.dead || target.hp <= 0 || raw <= 0) return 0;
+    const type = opt.damageType || 'physical';
+
+    // 闪避（工程 base = 0；演示模式下按 F3 开关给一个可看的概率）
+    const dodge = opt.canDodge ? (P.realRng ? 0 : 0.12 * K('F3')) : 0;
+    if (dodge > 0 && Math.random() < dodge) {
+        if (ON('F3')) target.text = { kind: 'dodge', t: 0.7, x: target.x, y: target.y };
+        combo.n = 0;
+        return 0;
+    }
+
+    let dmg = raw, isCrit = !!opt.isCrit;
+    if (!isCrit) {
+        const c = P.realRng ? rollCrit() : (forceCrit || rollCrit());
+        if (c) { isCrit = true; dmg *= c; }
+    } else { dmg *= (opt.critMult || P.critMult); }
+    const before = dmg;
+    dmg = resistance(target, dmg, type);
+    const finalDamage = Math.max(0, dmg);
+
+    const hpBefore = target.hp;
+    target.hp = Math.max(0, target.hp - finalDamage);
+    const hpAfter = target.hp;
+
+    const dx = target.x - source.x, dy = target.y - source.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const h = {
+        source: source === hero ? 'hero' : (source.name || 'unit'),
+        target: target.name + '#' + target.uid,
+        rawDamage: round2(raw), finalDamage: round2(finalDamage),
+        damageType: type, isCrit, killed: hpAfter <= 0, type_: type,
+        tx: target.x, ty: target.y, dirX: dx / d, dirY: dy / d,
+        hpBefore, hpAfter, targetRef: target, t: now,
+    };
+    if (isCrit) stats.crits++;
+    stats.hits++;
+    if (finalDamage > stats.best) stats.best = finalDamage;
+    stats.lastPayload = h;
+
+    perTargetEffects(h);
+    frameHits.push(h);
+    return finalDamage;
+}
+const round2 = v => Math.round(v * 100) / 100;
+
+/** 逐目标表现：这些永远按目标各来一份（合并的是"全局通道"，见 processGlobalHits） */
+function perTargetEffects(h) {
+    const t = h.targetRef;
+    const before = h.hpBefore, after = h.hpAfter;
+
+    // C1 闪白/受击染色
+    if (K('C1') > 0) t.flash = PC.hitFlashDuration * (0.4 + 0.6 * K('C1'));
+    // B1 挤压拉伸（受击者沿伤害轴压扁）
+    if (K('B1') > 0) {
+        const amt = 0.22 * K('B1');
+        t.deform = { a: 1 - amt, b: 1 + amt * 0.7, ang: Math.atan2(h.dirY, h.dirX), t: 0.16 };
+    }
+    // B5 受击倾斜
+    if (K('B5') > 0) t.tilt = (Math.random() < 0.5 ? -1 : 1) * (10 * Math.PI / 180) * K('B5');
+    // B4 受击抖动
+    if (K('B4') > 0) { t.shakeT = 0.14; t.shakeAmp = 4 * K('B4'); }
+    // B6 层级弹出
+    if (K('B6') > 0) t.zpop = 0.25 * K('B6');
+    // B3 击退（工程口径：Entity.ApplyKnockback，只改 position、不给状态；
+    //    **immovable 的实体（英雄/防守点）不被推动** —— 与实体分离同一口径）
+    if (K('B3') > 0 && !t.dead && !t.immovable) {
+        const chanceOk = P.realRng
+            ? Math.random() < PC.hero.headshotKnockChance
+            : true;                                       // 演示模式：必触发
+        if (chanceOk) {
+            const meter = P.realRng ? PC.hero.headshotKnockMeter : 3;
+            const dist = PC.battleConstants.pxPerMeter * meter * K('B3');
+            t.x += h.dirX * dist;
+            t.y += h.dirY * dist;
+        }
+    }
+    // F6 延迟掉血条
+    if (K('F6') > 0) { t.lagHp = Math.max(t.lagHp, before); t.lagDelay = 0.06; }
+    t.hpShowT = 2;                                        // HpBar.hideDelay = 2
+    if (K('F10') > 0) t.hpPunch = 1;
+
+    // F1 伤害飘字（口径：Math.max(1, Math.round(finalDamage))）
+    if (K('F1') > 0) addDamageText(t, Math.max(1, Math.round(h.finalDamage)), h.isCrit, false, h.damageType);
+
+    // C5 命中火花 / C6 粒子
+    if (K('C5') > 0) pushVfx('spark', makeSpark(h));
+    if (K('C6') > 0) { const n = Math.max(1, Math.round(10 * K('C6'))); for (let i = 0; i < n; i++) pushVfx('part', makePart(h)); }
+
+    // C9 死亡碎裂（死亡在 OnDeath，这里先记标记，由 endFrame 处理）
+}
+
+/** 全局通道：这些是"屏幕级"表现，塔防里必须合并（G2） */
+function processGlobalHits(hits) {
+    if (!hits.length) return;
+    budget.hitsThisFrame = Math.max(budget.hitsThisFrame, hits.length);
+    budget.maxHitsPerFrame = Math.max(budget.maxHitsPerFrame, hits.length);
+
+    const merge = ON('G2');
+    const groups = merge ? [hits] : hits.map(h => [h]);
+
+    groups.forEach(g => {
+        const first = g[0];
+        const n = g.length;
+        let sev = 0, cx = 0, cy = 0, anyCrit = false, anyKill = false;
+        g.forEach(h => {
+            const tier = tierCap(h.targetRef);
+            let s = h.isCrit ? 2.2 : 1;
+            if (h.killed) s = Math.max(s, 3);
+            sev = Math.max(sev, s * tier);
+            cx += h.tx; cy += h.ty;
+            anyCrit = anyCrit || h.isCrit;
+            anyKill = anyKill || h.killed;
+        });
+        cx /= n; cy /= n;
+
+        // C4 冲击波：合并时一个（在质心），不合并时每个命中点一个
+        if (K('C4') > 0) {
+            pushVfx('ring', {
+                x: cx, y: cy, t: 0, life: 0.28,
+                r0: 6, r1: 52 * (0.6 + 0.4 * K('C4')) * (merge ? Math.min(2.2, 1 + n * 0.06) : 1),
+                color: anyCrit ? '#E74C3C' : PC.art.inkIcon, w: 1.6,
+            });
+        }
+        // D 相机：震屏 / 方向震 / 推近 / 旋转抖动
+        if (K('D1') > 0) addShake(9 * K('D1') * (sev / 2.2), first.dirX, first.dirY);
+        if (K('D2') > 0) {
+            const amp = 11 * K('D2') * (sev / 2.2);
+            cam.dirX = first.dirX; cam.dirY = first.dirY;
+            cam.dirAmp = amp; cam.shakeT = Math.max(cam.shakeT, 0.18);
+        }
+        if (K('D3') > 0 && (anyCrit || anyKill)) { cam.punch = 0.03 * K('D3') * (sev / 3); cam.punchT = 0.2; cam.pivotX = SX(cx); cam.pivotY = SY(cy); }
+        if (K('D4') > 0) { cam.roll = (Math.random() < 0.5 ? -1 : 1) * (0.9 * Math.PI / 180) * K('D4') * (sev / 2.2); cam.rollT = 0.2; }
+        // C10 全屏闪帧（浅底上只能墨闪）
+        if (K('C10') > 0 && (anyCrit || anyKill)) { flashFrame.a = Math.max(flashFrame.a, 0.14 * K('C10')); flashFrame.color = PC.art.outline; }
+        // C11 后处理
+        if (K('C11') > 0 && (anyCrit || anyKill)) fxPost = Math.max(fxPost, K('C11'));
+        // A2 顿帧 / A3 慢动作
+        if (anyKill && ON('A3')) setTimeOverride(0.12, 0.10 * (0.5 + iv['A3']));
+        else if (anyCrit && ON('A3')) setTimeOverride(0.2, 0.2 * (0.5 + iv['A3']));
+        else if (ON('A2')) {
+            const jit = ON('A5') ? 1 + (Math.random() * 2 - 1) * 0.2 * iv['A5'] : 1;
+            setTimeOverride(0.03, 0.08 * iv['A2'] * jit * (K('A2') / Math.max(0.01, iv['A2'] || 1)));
+        }
+        // E 音效：合并时只出"最有价值"的那一声
+        if (K('E1') > 0) {
+            let pick = first;
+            g.forEach(h => { if (h.isCrit || h.killed) pick = h; });
+            playHitSound(pick, merge ? Math.min(1, 0.6 + 0.4 / Math.sqrt(n)) : 1);
+        }
+        // E6 震动
+        if (K('E6') > 0 && navigator.vibrate) {
+            try { navigator.vibrate(Math.round(30 * K('E6') * (anyKill ? 1.6 : 1))); } catch (e) { /* 桌面无效 */ }
+        }
+    });
+
+    // F4/F5 连击（每次命中都算，不参与合并）
+    hits.forEach(h => {
+        if (!ON('F4')) return;
+        combo.n++;
+        combo.t = 2.5;
+        if (combo.n > combo.best) combo.best = combo.n;
+        if (ON('F5')) {
+            const th = [5, 10, 20, 35, 60], rk = ['D', 'C', 'B', 'A', 'S'];
+            let r = '';
+            for (let i = 0; i < th.length; i++) if (combo.n >= th[i]) r = rk[i];
+            if (r && r !== combo.rank) { combo.rank = r; combo.rankT = 1.2; combo.rankScale = 0; }
+        }
+    });
+
+    // 死亡结算（OnDeath / OnKill）
+    hits.forEach(h => {
+        const t = h.targetRef;
+        if (!h.killed || t.dead) return;
+        t.dead = true; t.deadT = 0;
+        stats.kills++;
+        stats.gold += t.reward; stats.exp += t.exp;
+        if (K('F10') > 0) hudPunch = 1;
+        if (K('C9') > 0) {
+            const n = Math.max(3, Math.round(7 * K('C9') * (ON('G1') ? tierCap(t) : 1)));
+            for (let i = 0; i < n; i++) pushVfx('shard', makeShard(t));
+        }
+        if (K('F8') > 0) pushVfx('chip', { x: t.x, y: t.y, t: 0, life: 1.2 * (0.4 + 0.6 * K('F8')), text: '击杀 +' + t.reward });
+        if (K('F9') > 0) pushVfx('fly', { x: t.x, y: t.y, t: 0, life: 0.45, tx: 0, ty: 0 });
+        // 合并计数（同帧同目标多段伤害被飘字合并的次数）
+    });
+}
+
+function tierCap(unit) {
+    if (!ON('G1')) return 1.6;                           // 关掉分级 → 杂兵也上 Boss 规格
+    const u = PC.unitVisuals[unit.kind];
+    if (!u) return 1;
+    return u.scale >= 1.5 ? 1.5 : u.scale >= 1.3 ? 1.0 : 0.6;
+}
+
+/* ====================== 7. 飘字层（复刻 DamageTextLayer 口径） ====================== */
+const texts = [];
+const DT = PC.damageText, DTS = PC.damageTextStyles;
+let ladderIdx = 0;
+
+function addDamageText(target, value, isCrit, heroHurt, damageType) {
+    const tier = isCrit ? DTS.crit : DTS.normal;
+    // 合并窗口：同目标 + 同档位 + 同来源 0.15s 内累加
+    const srcKey = heroHurt ? 'hero' : 'atk';
+    for (let i = texts.length - 1; i >= 0; i--) {
+        const it = texts[i];
+        if (it.uid !== target.uid) continue;
+        if (it.crit !== isCrit) continue;
+        if (it.src !== srcKey) continue;
+        if (it.age > DT.mergeWindow) continue;
+        // 合并后从"当前所在位置"继续往上飘，不跳回出生点（同 DamageTextLayer.mergeInto 的口径）
+        it.y0 = it.y0 - it.rise * (it.age / it.life);
+        it.value += value;
+        it.age = 0;
+        stats.merged++;
+        return;
+    }
+    // 全场并发上限（超了按 priority*1000+age 淘汰最差的）
+    if (texts.length >= DT.maxAlive) {
+        let worst = 0, ws = Infinity;
+        texts.forEach((it, i) => { const s = it.priority * 1000 + it.age * -1; if (s < ws) { ws = s; worst = i; } });
+        texts.splice(worst, 1);
+    }
+    const step = ladderIdx % DT.ladderSteps; ladderIdx++;
+    const seed = (target.uid * 2654435761) % 1000 / 1000;
+    const scatter = heroHurt ? 0 : (seed * 2 - 1) * DT.scatterRadius;
+    texts.push({
+        uid: target.uid, src: srcKey, crit: isCrit, heroHurt: !!heroHurt,
+        value, age: 0, life: tier.life, rise: tier.rise, scale: tier.scale,
+        marker: tier.marker, markerHeight: tier.markerHeight, markerGap: tier.markerGap,
+        pop: tier.pop, popTime: tier.popTime, fadeFrom: tier.fadeFrom, priority: tier.priority + (heroHurt ? 6 : 0),
+        x: target.x + scatter, y0: target.y - DT.spawnOffsetY - step * DT.baseFontSize * DT.ladderGapRatio,
+        damageType: damageType || 'physical',
+    });
+}
+function updateTexts(dt) {
+    for (let i = texts.length - 1; i >= 0; i--) {
+        const it = texts[i];
+        it.age += dt;
+        if (it.age >= it.life) texts.splice(i, 1);
+    }
+}
+/** 飘字配色：颜色通道 = "打谁"（F2 打开后改用伤害类型 → 演示通道冲突） */
+function textColor(it) {
+    if (ON('F2')) {
+        const c = it.damageType === 'magical' ? PC.art.quality[2] : it.damageType === 'pure' ? '#00FFFF' : '#ffffff';
+        return it.heroHurt ? DTS.normal.heroColor : c;
+    }
+    return it.heroHurt ? DTS.normal.heroColor : DTS.normal.color;
+}
+
+/* ====================== 8. VFX（几何图元；预算 + 合并） ====================== */
+const vfx = { spark: [], part: [], ring: [], shard: [], ghost: [], chip: [], fly: [] };
+const VFX_CAP = { spark: 24, part: 120, ring: 12, shard: 60, ghost: 24, chip: 12, fly: 40 };
+function pushVfx(kind, item) {
+    const arr = vfx[kind];
+    if (ON('G3')) {
+        const cap = Math.max(1, Math.round(VFX_CAP[kind] * (0.3 + 0.7 * iv['G3'])));
+        if (arr.length >= cap) { arr.shift(); budget.dropped++; }
+    } else {
+        if (arr.length >= VFX_CAP[kind] * 3) { arr.shift(); budget.dropped++; }
+    }
+    arr.push(item);
+}
+function makeSpark(h) {
+    const n = Math.max(2, Math.round(5 * K('C5')));
+    const jitter = ON('A5') ? (1 + (Math.random() * 2 - 1) * 0.2 * iv['A5']) : 1;
+    const lines = [];
+    const base = Math.atan2(h.dirY, h.dirX);
+    for (let i = 0; i < n; i++) {
+        const a = base + (i - (n - 1) / 2) * 0.42 * jitter;
+        lines.push({ a, len: (10 + Math.random() * 10) * (0.6 + 0.4 * K('C5')) });
+    }
+    return { x: h.tx, y: h.ty, t: 0, life: 0.12 + 0.06 * K('C5'), lines, arc: base, color: h.isCrit ? '#E74C3C' : PC.art.inkIcon, dir: base };
+}
+function makePart(h) {
+    const base = Math.atan2(h.dirY, h.dirX);
+    const a = base + (Math.random() * 2 - 1) * 0.9;
+    const sp = (60 + Math.random() * 130) * (0.5 + K('C6'));
+    return { x: h.tx, y: h.ty, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 0.3 + Math.random() * 0.2,
+             s: 2 + Math.random() * 2.6, rot: Math.random() * 6.28, vr: (Math.random() * 2 - 1) * 8,
+             color: h.isCrit ? '#E74C3C' : PC.art.inkIcon, tri: Math.random() < 0.4 };
+}
+function makeShard(t) {
+    const a = Math.random() * 6.28;
+    const sp = 40 + Math.random() * 150;
+    const u = PC.unitVisuals[t.kind] || PC.unitVisuals.normal;
+    return { x: t.x, y: t.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 0.5 + Math.random() * 0.3,
+             s: 3 + Math.random() * 4 * Math.max(1, u.scale), rot: Math.random() * 6.28, vr: (Math.random() * 2 - 1) * 9,
+             fill: t.color, stroke: PC.art.outline };
+}
+function updateVfx(dt) {
+    vfx.spark.forEach(o => o.t += dt); vfx.spark = vfx.spark.filter(o => o.t < o.life);
+    vfx.ring.forEach(o => o.t += dt); vfx.ring = vfx.ring.filter(o => o.t < o.life);
+    vfx.chip.forEach(o => { o.t += dt; o.y -= 34 * dt; }); vfx.chip = vfx.chip.filter(o => o.t < o.life);
+    vfx.part.forEach(o => { o.t += dt; o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.vr * dt; o.vx *= (1 - 2.4 * dt); o.vy *= (1 - 2.4 * dt); });
+    vfx.part = vfx.part.filter(o => o.t < o.life);
+    vfx.shard.forEach(o => { o.t += dt; o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.vr * dt; o.vx *= (1 - 2.0 * dt); o.vy *= (1 - 2.0 * dt); });
+    vfx.shard = vfx.shard.filter(o => o.t < o.life);
+    vfx.ghost.forEach(o => o.t += dt); vfx.ghost = vfx.ghost.filter(o => o.t < o.life);
+    vfx.fly.forEach(o => o.t += dt); vfx.fly = vfx.fly.filter(o => o.t < o.life);
+}
+const vfxCount = () => vfx.spark.length + vfx.part.length + vfx.ring.length + vfx.shard.length + vfx.ghost.length;
+
+/* ====================== 9. 攻击 / 更新 ====================== */
+function fireHeroAttack(force) {
+    const target = pickTarget();
+    if (!target) { if (force) toast('射程内没有目标', '先刷怪或等怪物走进 350px 射程（火枪攻击距离）'); return; }
+    const dx = target.x - hero.x, dy = target.y - hero.y;
+    const d = Math.hypot(dx, dy) || 1;
+    hero.facing = Math.atan2(dy, dx);
+    // A1 前摇：有前摇则先蓄力，伤害延后到前摇结束
+    const wind = K('A1') > 0 ? 0.12 * K('A1') : 0;
+    hero.windup = wind;
+    hero.windTarget = target;
+    if (wind <= 0) { launchProjectile(target); }
+    // B1 出手形变（攻击者沿攻击轴拉长）
+    if (K('B1') > 0) hero.deform = { a: 1 + 0.18 * K('B1'), b: 1 - 0.12 * K('B1'), ang: hero.facing, t: 0.14 };
+    // B2 前冲
+    if (K('B2') > 0) { hero.lungeX = Math.cos(hero.facing) * 22 * K('B2'); hero.lungeY = Math.sin(hero.facing) * 22 * K('B2'); hero.lungeT = 0.18; }
+    // C8 残影
+    if (K('C8') > 0) {
+        const n = Math.max(1, Math.round(4 * K('C8')));
+        for (let i = 0; i < n; i++) pushVfx('ghost', { x: hero.x - Math.cos(hero.facing) * i * 9, y: hero.y - Math.sin(hero.facing) * i * 9, t: -i * 0.02, life: 0.22, r: 24, color: PC.art.heroRing });
+    }
+    // 后摇：A4 满格 = 完全取消后摇（1.0×）；关掉 = 被后摇拖慢 35%（有效 DPS 下降）
+    hero.attackTimer = PC.hero.attackInterval / PC.hero.atkSpeed * (1.35 - 0.35 * K('A4'));
+}
+function pickTarget() {
+    // 火枪 attack_targeting = farthest（锁定时挑最靠外的那只）
+    let best = null, bestD = -1;
+    monsters.forEach(m => {
+        if (m.dead) return;
+        const d = Math.hypot(m.x - hero.x, m.y - hero.y);
+        if (d <= hero.range && d > bestD) { bestD = d; best = m; }
+    });
+    return best;
+}
+function launchProjectile(target) {
+    projectiles.push({ x: hero.x, y: hero.y, target, speed: PC.battleConstants.projectileSpeedDefault,
+                       trail: [], life: PC.battleConstants.projectileMaxDistDefault / PC.battleConstants.projectileSpeedDefault });
+}
+function projectileHit(p) {
+    const t = p.target;
+    if (!t || t.dead) return;
+    // 普攻：物理伤害
+    applyHit(hero, t, hero.atk, { canDodge: true, damageType: 'physical' });
+    // 火枪技能 16：攻击附带 5% 攻击力额外伤害 + 15% 概率击退 1m（两件都挂在普攻命中）
+    const extra = hero.atk * PC.hero.headshotPct;
+    if (extra > 0) applyHit(hero, t, extra, { damageType: 'physical' });
+    forceCrit = false;
+}
+
+function updateWorld(dt) {
+    // 前摇结束 → 出手
+    if (hero.windup > 0) {
+        hero.windup -= dt;
+        if (hero.windup <= 0 && hero.windTarget) { launchProjectile(hero.windTarget); hero.windTarget = null; }
+    }
+    // 普攻冷却
+    hero.attackTimer -= dt;
+    if (hero.attackTimer <= 0 && hero.windup <= 0) fireHeroAttack(false);
+
+    // 表现层弹簧（前冲/形变/抖动/倾斜）
+    if (hero.lungeT > 0) { hero.lungeT -= dt; if (hero.lungeT <= 0) { hero.lungeX = 0; hero.lungeY = 0; } }
+    if (hero.deform.t > 0) { hero.deform.t -= dt; if (hero.deform.t <= 0) hero.deform = { a: 1, b: 1, ang: 0, t: 0 }; }
+    if (hero.flash > 0) hero.flash -= dt;
+
+    monsters.forEach(m => {
+        if (m.flash > 0) m.flash -= dt;
+        if (m.deform.t > 0) { m.deform.t -= dt; if (m.deform.t <= 0) m.deform = { a: 1, b: 1, ang: 0, t: 0 }; }
+        if (m.tilt) { m.tilt *= (1 - Math.min(1, 9 * dt)); if (Math.abs(m.tilt) < 0.002) m.tilt = 0; }
+        if (m.shakeT > 0) m.shakeT -= dt;
+        if (m.zpop > 0) m.zpop -= dt;
+        if (m.hpShowT > 0) m.hpShowT -= dt;
+        if (m.hpPunch > 0) m.hpPunch = Math.max(0, m.hpPunch - 4 * dt);
+        if (m.dodgeT > 0) m.dodgeT -= dt;
+        if (m.spawnT > 0) m.spawnT -= dt;
+        // F6 延迟掉血条：残影条慢慢追上真实血条
+        if (m.lagDelay > 0) m.lagDelay -= dt;
+        else if (m.lagHp > m.hp) {
+            const speed = ON('F6') ? m.maxHp / (0.6 * Math.max(0.05, iv['F6'])) : m.maxHp / 0.05;
+            m.lagHp = Math.max(m.hp, m.lagHp - speed * dt);
+        }
+        if (m.dead) { m.deadT += dt; return; }
+
+        // 追击 AI（ChaseAI）：朝英雄走
+        const dx = hero.x - m.x, dy = hero.y - m.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const reach = m.radius + hero.radius + 6;
+        if (d > reach) {
+            const sp = m.speed;
+            m.x += (dx / d) * sp * dt;
+            m.y += (dy / d) * sp * dt;
+        } else {
+            m.atkTimer -= dt;
+            if (m.atkTimer <= 0) {
+                m.atkTimer = m.atkInterval;
+                if (m.atk > 0) {
+                    // 怪物打英雄：走同一条管线（英雄 immovable，不会被推）
+                    const hpB = hero.hp;
+                    applyHit(m, hero, m.atk, { damageType: 'physical' });
+                    if (hero.hp < hpB) hero.lastDamageT = now;
+                    if (K('F7') > 0) heroVignette = 1;
+                    if (K('F1') > 0) { /* 英雄受击飘字走同一条 addDamageText（heroHurt） */ }
+                    if (hero.hp <= 1) hero.hp = Math.max(1, hero.hp);
+                } else {
+                    m.dodgeT = 0.2;   // 攻击力 0 的怪（哥布林）打不出伤害 —— 工程真值
+                }
+            }
+        }
+    });
+    monsters = monsters.filter(m => !m.dead || m.deadT < 0.6);
+
+    // 弹道
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        const t = p.target;
+        let ang;
+        if (t && !t.dead) {
+            const dx = t.x - p.x, dy = t.y - p.y;
+            ang = Math.atan2(dy, dx);
+            const step = p.speed * dt;
+            const d = Math.hypot(dx, dy);
+            if (d <= step + t.radius * 0.4) { projectileHit(p); projectiles.splice(i, 1); continue; }
+            p.x += (dx / d) * step; p.y += (dy / d) * step;
+        } else {
+            ang = p.a == null ? 0 : p.a;
+            p.x += Math.cos(ang) * p.speed * dt * 0.6;
+            p.y += Math.sin(ang) * p.speed * dt * 0.6;
+            p.life -= dt;
+            if (p.life <= 0) { projectiles.splice(i, 1); continue; }
+        }
+        p.a = ang;
+        if (K('C7') > 0) {
+            p.trail.push({ x: p.x, y: p.y, t: 0 });
+            const maxTrail = Math.max(2, Math.round(14 * K('C7')));
+            while (p.trail.length > maxTrail) p.trail.shift();
+        } else if (p.trail.length) p.trail.length = 0;
+    }
+
+    // 刷怪
+    if (autoSpawn && P.spawnMax > 0) {
+        spawnTimer -= dt;
+        const alive = monsters.filter(m => !m.dead).length;
+        if (spawnTimer <= 0 && alive < P.spawnMax) { spawnFromEdge(); spawnTimer = 1.1 + Math.random() * 0.6; }
+    } else if (P.spawnMax === 0 && spawnTimer <= 0) {
+        spawnTimer = 1.5;
+    }
+
+    // 连击断连
+    if (combo.t > 0) { combo.t -= dt; if (combo.t <= 0) { combo.n = 0; combo.rank = ''; } }
+    if (combo.rankT > 0) combo.rankT -= dt;
+    if (combo.rankScale < 1) combo.rankScale = Math.min(1, combo.rankScale + dt * 6);
+    if (hudPunch > 0) hudPunch = Math.max(0, hudPunch - 4 * dt);
+    if (heroVignette > 0) heroVignette = Math.max(0, heroVignette - dt * 1.6);
+    if (fxPost > 0) fxPost = Math.max(0, fxPost - dt * 2.2);
+    if (flashFrame.a > 0) flashFrame.a = Math.max(0, flashFrame.a - dt * 2.4);
+
+    // 相机衰减
+    if (cam.shakeT > 0) cam.shakeT -= dt; else cam.shakeA *= Math.pow(0.0015, dt);
+    if (cam.punchT > 0) { cam.punchT -= dt; if (cam.punchT <= 0) cam.punch = 0; }
+    if (cam.rollT > 0) { cam.rollT -= dt; if (cam.rollT <= 0) cam.roll = 0; }
+    cam.shakeA *= Math.pow(0.0009, dt);
+
+    // 预算窗口
+    budget.frameWindow += dt;
+    if (budget.frameWindow > 2) { budget.frameWindow = 0; budget.hitsThisFrame = 0; }
+}
+
+function scenarioAoe(n) {
+    // 20 只怪聚在一团，同帧 AoE 打中 —— 塔防打击感的终极大考（G2/G3/G1）
+    const cx = hero.x + 210, cy = hero.y + 20;
+    const list = [];
+    for (let i = 0; i < n; i++) {
+        const a = Math.random() * 6.28, r = Math.random() * 52;
+        list.push(spawnMonster('goblin', cx + Math.cos(a) * r, cy + Math.sin(a) * r));
+    }
+    now += 0.0001;
+    list.forEach(m => applyHit(hero, m, 45, { damageType: 'physical' }));   // 哥布林 40HP / 护甲 0 → 全灭
+    endFrame();
+    toast('AoE 怪群 ×' + n, '哥布林 40HP × 护甲 0，一发 45 物理 → 同帧 ' + n + ' 次击杀。看右上角的"同帧命中"与"特效"计数：G2/G3 关掉就爆表');
+}
+function scenarioBossKill() {
+    const m = spawnMonster('stage_boss', hero.x + 280, hero.y - 30);
+    now += 0.0001;
+    applyHit(hero, m, m.maxHp * 2, { damageType: 'pure', isCrit: true });
+    endFrame();
+    toast('Boss 死亡', '深海领主 3000HP / 护甲 12 —— 一击致死，看分级预算（G1）与死亡碎裂（C9）');
+}
+
+/* ====================== 10. 绘制 ====================== */
+function hex2rgb(hex) {
+    if (!hex) return [255, 255, 255];
+    const h = hex.replace('#', '');
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+function lerpColor(a, b, k) {
+    return [Math.round(a[0] + (b[0] - a[0]) * k), Math.round(a[1] + (b[1] - a[1]) * k), Math.round(a[2] + (b[2] - a[2]) * k)];
+}
+
+function render() {
+    const g = ON('C11') ? offCtx : ctx;
+    const dpr = DPR;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = PC.art.battleBg;
+    g.fillRect(0, 0, CW, CH);
+
+    g.save();
+    applyCamTransform(g);
+
+    drawRange(g);
+    drawMonsters(g);
+    drawHero(g);
+    drawProjectiles(g);
+    drawVfx(g);
+    drawDamageTexts(g);
+
+    g.restore();
+
+    if (ON('C11')) compositePost();
+
+    drawHud(ctx);
+    drawFlashFrame(ctx);
+    drawVignette(ctx);
+    drawToasts(ctx);
+}
+function applyCamTransform(g) {
+    const px = cam.punch > 0 ? cam.pivotX : CW / 2;
+    const py = cam.punch > 0 ? cam.pivotY : CH / 2;
+    let ox = Math.sin(now * 63) * cam.shakeA, oy = Math.cos(now * 71) * cam.shakeA;
+    if (ON('D2') && cam.dirAmp) {                       // 方向性震屏：沿伤害方向推
+        ox = cam.dirX * cam.dirAmp * Math.sin(now * 34);
+        oy = cam.dirY * cam.dirAmp * Math.sin(now * 34);
+    }
+    g.translate(px + ox, py + oy);
+    g.rotate(cam.roll);
+    g.scale(1 + cam.punch, 1 + cam.punch);
+    g.translate(-px, -py);
+}
+
+function drawRange(g) {
+    g.strokeStyle = PC.art.rangeCircle;
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(SX(hero.x), SY(hero.y), SL(hero.range), 0, 6.2832);
+    g.stroke();
+}
+function drawHero(g) {
+    const x = SX(hero.x + hero.offX + (hero.lungeX || 0)), y = SY(hero.y + hero.offY + (hero.lungeY || 0));
+    const r = SL(hero.radius);
+    g.save();
+    g.translate(x, y);
+    g.rotate(hero.facing);
+    g.scale(hero.deform.a, hero.deform.b);
+
+    // C2 发光：加法混合 —— 在浅底 #EBF4FB 上会趋白，所以这里能看见它"失效"
+    if (K('C2') > 0) {
+        g.save();
+        g.globalCompositeOperation = 'lighter';
+        const glow = 18 * K('C2');
+        const grad = g.createRadialGradient(0, 0, r * 0.4, 0, 0, r + SL(glow));
+        grad.addColorStop(0, 'rgba(112,172,179,0.55)');
+        grad.addColorStop(1, 'rgba(112,172,179,0)');
+        g.fillStyle = grad;
+        g.beginPath(); g.arc(0, 0, r + SL(glow), 0, 6.2832); g.fill();
+        g.restore();
+    }
+    // 青绿空心圆环（GraphCircle 口径：只描边不填充）
+    g.strokeStyle = PC.art.heroRing;
+    g.lineWidth = Math.max(1.6, SL(3));
+    g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.stroke();
+    // C3 描边脉冲
+    if (K('C3') > 0) {
+        g.strokeStyle = PC.art.accent;
+        g.lineWidth = Math.max(1, SL(1.4)) * (1 + 2.2 * K('C3'));
+        g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.stroke();
+    }
+    // 朝向标记
+    g.strokeStyle = PC.art.heroRing;
+    g.lineWidth = Math.max(1.2, SL(2));
+    g.beginPath(); g.moveTo(r * 0.35, 0); g.lineTo(r * 1.05, 0); g.stroke();
+    // 受击染色（英雄受击红）
+    if (hero.flash > 0) {
+        g.strokeStyle = rgba(hex2rgb(PC.unitVisuals.hero.hitColor), Math.min(1, hero.flash / PC.hitFlashDuration));
+        g.lineWidth = Math.max(2, SL(3.4));
+        g.beginPath(); g.arc(0, 0, r, 0, 6.2832); g.stroke();
+    }
+    g.restore();
+}
+function drawMonsters(g) {
+    // B6 层级弹出：置顶的先画（后画 = 在上）
+    const order = monsters.slice().sort((a, b) => (a.zpop > 0 ? 1 : 0) - (b.zpop > 0 ? 1 : 0));
+    order.forEach(m => {
+        const sx = SX(m.x + (m.shakeT > 0 ? (Math.random() * 2 - 1) * (m.shakeAmp || 3) : 0));
+        const sy = SY(m.y + (m.shakeT > 0 ? (Math.random() * 2 - 1) * (m.shakeAmp || 3) : 0));
+        const r = SL(m.radius) * (1 + 0.08 * (m.hpPunch || 0));
+        if (r < 0.5) return;
+        g.save();
+        g.translate(sx, sy);
+        g.rotate((m.tilt || 0));
+        g.scale(m.deform.a, m.deform.b);
+        g.rotate(m.deform.t > 0 ? -m.deform.ang : 0);
+        if (m.dead) g.globalAlpha = Math.max(0, 1 - m.deadT / 0.6);
+        if (m.spawnT > 0) g.globalAlpha *= Math.max(0.15, 1 - m.spawnT / 0.25);
+
+        let fill = m.color;
+        if (m.flash > 0) {
+            const k = Math.min(1, m.flash / PC.hitFlashDuration);
+            fill = lerpColor(m.color, m.hitColor, k);
+        }
+        // C2 发光（加法）+ C3 描边脉冲
+        if (K('C2') > 0) {
+            g.save();
+            g.globalCompositeOperation = 'lighter';
+            const glow = SL(18 * K('C2'));
+            const grad = g.createRadialGradient(0, 0, r * 0.5, 0, 0, r + glow);
+            grad.addColorStop(0, rgba(m.color, 0.5));
+            grad.addColorStop(1, rgba(m.color, 0));
+            g.fillStyle = grad;
+            g.beginPath(); g.arc(0, 0, r + glow, 0, 6.2832); g.fill();
+            g.restore();
+        }
+        // 几何体：普通=方 / 精英=六边 / Boss=三角+内十字 / 经济Boss=菱形
+        g.fillStyle = rgba(fill, 1);
+        g.strokeStyle = PC.art.outline;
+        g.lineWidth = Math.max(1.2, SL(1.8));
+        const kind = m.kind;
+        if (kind === 'elite') polygon(g, 6, r);
+        else if (kind === 'gold_boss' || kind === 'kill_boss') polygon(g, 4, r, Math.PI / 4);
+        else if (kind === 'stage_boss' || kind === 'final_boss') polygon(g, 3, r, -Math.PI / 2);
+        else polygon(g, 4, r, Math.PI / 4);
+        g.fill(); g.stroke();
+        if (kind === 'stage_boss' || kind === 'final_boss') {
+            g.strokeStyle = PC.art.outline; g.lineWidth = Math.max(1, SL(1.4));
+            g.beginPath(); g.moveTo(-r * 0.45, 0); g.lineTo(r * 0.45, 0);
+            g.moveTo(0, -r * 0.45); g.lineTo(0, r * 0.45); g.stroke();
+        }
+        if (K('C3') > 0) {
+            g.strokeStyle = PC.art.accent;
+            g.lineWidth = Math.max(1, SL(1.2)) * (1 + 2 * K('C3'));
+            polygon(g, kind === 'elite' ? 6 : 4, r, kind === 'elite' ? 0 : Math.PI / 4);
+            g.stroke();
+        }
+        g.restore();
+
+        // 血条（HpBar 口径：高 5 世界单位 / 宽 = 生命百分比 / 未受击 2s 隐藏）
+        if (m.hpShowT > 0 && !m.dead) {
+            const w = r * 2, h = Math.max(1.5, SL(5));
+            const bx = sx - w / 2, by = sy - r - SL(9);
+            g.fillStyle = PC.art.hpBarTrack;
+            g.fillRect(bx, by, w, h);
+            // F6 延迟掉血条（白色残影条）
+            if (K('F6') > 0 && m.lagHp > m.hp) {
+                g.fillStyle = '#FFFFFF';
+                g.fillRect(bx, by, w * (m.lagHp / m.maxHp), h);
+            }
+            g.fillStyle = PC.art.hpBar;
+            g.fillRect(bx, by, w * (m.hp / m.maxHp), h);
+            g.strokeStyle = PC.art.outline; g.lineWidth = 1;
+            g.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+        }
+        if (m.dodgeT > 0) {
+            g.fillStyle = PC.art.inkIcon; g.font = '600 11px system-ui'; g.textAlign = 'center';
+            g.fillText('攻击力 0 → 无伤害', sx, sy - r - SL(14));
+            g.textAlign = 'left';
+        }
+    });
+}
+function polygon(g, n, r, rot) {
+    g.beginPath();
+    for (let i = 0; i < n; i++) {
+        const a = (rot || 0) + i * 6.2832 / n;
+        const x = Math.cos(a) * r, y = Math.sin(a) * r;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath();
+}
+function drawProjectiles(g) {
+    projectiles.forEach(p => {
+        // C7 拖尾
+        if (K('C7') > 0 && p.trail.length > 1) {
+            for (let i = 0; i < p.trail.length; i++) {
+                const t = p.trail[i], a = (i + 1) / p.trail.length;
+                const s = SL(4.6) * a;
+                g.save();
+                g.translate(SX(t.x), SY(t.y));
+                g.rotate(p.a || 0);
+                g.fillStyle = rgba(hex2rgb(PC.art.accent), 0.10 + 0.42 * a * K('C7'));
+                g.fillRect(-s / 2, -s / 4, s, s / 2);
+                g.restore();
+            }
+        }
+        g.save();
+        g.translate(SX(p.x), SY(p.y));
+        g.rotate(p.a || 0);
+        const s = Math.max(2.4, SL(7)) ;
+        g.fillStyle = PC.art.outline;
+        g.beginPath(); g.moveTo(s * 0.62, 0); g.lineTo(-s * 0.38, s * 0.30); g.lineTo(-s * 0.38, -s * 0.30); g.closePath(); g.fill();
+        g.restore();
+    });
+}
+function drawVfx(g) {
+    // C4 冲击波（只描边不填充 —— 与 GraphCircle 同口径）
+    vfx.ring.forEach(o => {
+        const k = o.t / o.life;
+        const r = SL(o.r0 + (o.r1 - o.r0) * (1 - Math.pow(1 - k, 2)));
+        g.strokeStyle = hexA(o.color, (1 - k) * 0.9);
+        g.lineWidth = Math.max(1, SL(o.w * (1 - k * 0.6)));
+        g.beginPath(); g.arc(SX(o.x), SY(o.y), r, 0, 6.2832); g.stroke();
+    });
+    // C6 粒子
+    vfx.part.forEach(o => {
+        const k = o.t / o.life;
+        g.save();
+        g.translate(SX(o.x), SY(o.y)); g.rotate(o.rot);
+        g.fillStyle = hexA(o.color, (1 - k) * 0.95);
+        const s = Math.max(1, SL(o.s));
+        if (o.tri) { g.beginPath(); g.moveTo(s, 0); g.lineTo(-s * 0.6, s * 0.7); g.lineTo(-s * 0.6, -s * 0.7); g.closePath(); g.fill(); }
+        else g.fillRect(-s / 2, -s / 2, s, s);
+        g.restore();
+    });
+    // C9 死亡碎裂
+    vfx.shard.forEach(o => {
+        const k = o.t / o.life;
+        g.save();
+        g.translate(SX(o.x), SY(o.y)); g.rotate(o.rot);
+        g.globalAlpha = 1 - k;
+        g.fillStyle = rgba(o.fill, 1); g.strokeStyle = o.stroke; g.lineWidth = 1;
+        const s = Math.max(1.2, SL(o.s));
+        g.fillRect(-s / 2, -s / 2, s, s); g.strokeRect(-s / 2, -s / 2, s, s);
+        g.restore();
+    });
+    // C8 残影
+    vfx.ghost.forEach(o => {
+        if (o.t < 0) return;
+        const k = Math.max(0, o.t / o.life);
+        g.strokeStyle = hexA(o.color, (1 - k) * 0.45);
+        g.lineWidth = Math.max(1, SL(2));
+        g.beginPath(); g.arc(SX(o.x), SY(o.y), SL(o.r), 0, 6.2832); g.stroke();
+    });
+    // C5 命中火花（放射短线 + 一道弧）
+    vfx.spark.forEach(o => {
+        const k = o.t / o.life;
+        g.strokeStyle = hexA(o.color, (1 - k));
+        g.lineWidth = Math.max(1.1, SL(2.2 * (1 - k * 0.5)));
+        const cx = SX(o.x), cy = SY(o.y);
+        o.lines.forEach(l => {
+            const r0 = SL(4), r1 = SL(l.len);
+            g.beginPath();
+            g.moveTo(cx + Math.cos(l.a) * r0, cy + Math.sin(l.a) * r0);
+            g.lineTo(cx + Math.cos(l.a) * r1, cy + Math.sin(l.a) * r1);
+            g.stroke();
+        });
+        g.beginPath();
+        g.arc(cx, cy, SL(11 * (0.6 + 0.4 * (1 - k))), o.arc - 0.7, o.arc + 0.7);
+        g.stroke();
+    });
+    // F8 击杀提示
+    vfx.chip.forEach(o => {
+        const k = o.t / o.life;
+        g.fillStyle = hexA(PC.art.outline, 1 - k);
+        g.font = '700 12px system-ui';
+        g.textAlign = 'center';
+        g.fillText(o.text, SX(o.x), SY(o.y) - SL(20) - k * SL(26));
+        g.textAlign = 'left';
+    });
+    // F9 金币飞入
+    if (K('F9') > 0) {
+        vfx.fly.forEach(o => {
+            const k = o.t / o.life;
+            const hx = 24, hy = CH - 26;                 // 飞向 HUD（左下血条/金币区）
+            const x = SX(o.x) + (hx - SX(o.x)) * k;
+            const y = SY(o.y) + (hy - SY(o.y)) * k;
+            g.fillStyle = PC.art.accent;
+            g.fillRect(x - 3, y - 3, 6, 6);
+            g.strokeStyle = PC.art.outline; g.lineWidth = 1;
+            g.strokeRect(x - 3, y - 3, 6, 6);
+        });
+    }
+}
+const hexA = (hex, a) => {
+    const c = hex2rgb(hex);
+    return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + Math.max(0, Math.min(1, a)) + ')';
+};
+
+function drawDamageTexts(g) {
+    texts.forEach(it => {
+        const st = it.crit ? DTS.crit : DTS.normal;
+        const k = it.age / it.life;
+        let size = DT.baseFontSize * st.scale * (it.heroHurt ? DT.heroScaleBonus : 1);
+        if (st.pop > 1 && st.popTime > 0) {
+            const pt = Math.min(1, it.age / st.popTime);
+            size *= 1 + (st.pop - 1) * (1 - pt) * (1 - pt);
+        }
+        const y = it.y0 - st.rise * k;
+        let alpha = 1;
+        if (k > st.fadeFrom) alpha = 1 - (k - st.fadeFrom) / (1 - st.fadeFrom);
+        const color = textColor(it);
+        const sz = Math.max(6, SL(size));
+        g.save();
+        g.globalAlpha = alpha;
+        g.font = '700 ' + sz.toFixed(1) + 'px system-ui,"Segoe UI",sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        // 描边层（深墨，比正文宽 outlineGrow）
+        if (DT.outlineGrow > 0) {
+            g.lineWidth = Math.max(1, sz * DT.outlineGrow);
+            g.strokeStyle = DT.outlineColor;
+            g.lineJoin = 'round';
+            g.strokeText(String(it.value), SX(it.x), SY(y));
+        }
+        g.fillStyle = color;
+        g.fillText(String(it.value), SX(it.x), SY(y));
+        // 暴击几何标：左侧实心菱形
+        if (it.marker > 0) {
+            const mw = sz * it.marker, mh = sz * it.markerHeight;
+            const gap = sz * it.markerGap;
+            const tw = String(it.value).length * sz * DT.advanceRatio;
+            const mx = SX(it.x) - tw / 2 - gap - mw;
+            const my = SY(y);
+            g.beginPath();
+            g.moveTo(mx, my - mh); g.lineTo(mx + mw, my); g.lineTo(mx, my + mh); g.lineTo(mx - mw, my);
+            g.closePath();
+            g.fillStyle = color;
+            if (DT.outlineGrow > 0) { g.lineWidth = Math.max(1, sz * DT.outlineGrow * 0.7); g.strokeStyle = DT.outlineColor; g.stroke(); }
+            g.fill();
+        }
+        g.restore();
+    });
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+}
+
+function drawHud(g) {
+    // HUD 不参与震屏（只有一个 UI 相机，动相机 = UI 一起抖 → 这是刻意分开的）
+    const bw = Math.min(260, CW * 0.36), bh = 4;
+    const bx = 20, by = CH - 22;
+    g.fillStyle = PC.art.hpBarTrack;
+    g.fillRect(bx, by, bw, bh);
+    const hpk = Math.max(0, hero.hp / hero.maxHp);
+    g.fillStyle = PC.art.hpBar;
+    g.fillRect(bx, by, bw * hpk, bh);
+    g.strokeStyle = PC.art.outline; g.lineWidth = 1;
+    g.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    g.fillStyle = PC.art.inkIcon;
+    g.font = '11px ' + 'system-ui';
+    g.fillText('英雄 HP ' + Math.ceil(hero.hp) + '/' + hero.maxHp, bx, by - 5);
+
+    // 金币 / 击杀 / 经验（F10 弹跳）
+    const punch = K('F10') > 0 ? 1 + 0.25 * K('F10') * hudPunch : 1;
+    g.save();
+    g.translate(bx + bw + 22, by - 4);
+    g.scale(punch, punch);
+    g.fillStyle = PC.art.inkIcon;
+    g.font = '700 13px system-ui';
+    g.fillText('金币 ' + stats.gold + '   击杀 ' + stats.kills + '   经验 ' + stats.exp, 0, 0);
+    g.restore();
+
+    // F4 连击计数 / F5 连击评级
+    if (ON('F4') && combo.n >= 2) {
+        g.textAlign = 'right';
+        g.fillStyle = PC.art.ink;
+        g.font = '700 24px system-ui';
+        g.fillText(combo.n + '', CW - 22, 40);
+        g.font = '11px system-ui';
+        g.fillStyle = PC.art.inkIcon;
+        g.fillText('COMBO', CW - 22, 54);
+        g.textAlign = 'left';
+    }
+    if (ON('F5') && combo.rank && combo.rankT > 0) {
+        const s = 1 + (1 - combo.rankScale) * 0.6;
+        g.save();
+        g.translate(CW - 34, 96);
+        g.scale(s, s);
+        g.textAlign = 'right';
+        const idx = ['D', 'C', 'B', 'A', 'S'].indexOf(combo.rank);
+        const colors = PC.art.quality;
+        g.fillStyle = colors[idx];
+        g.font = '700 40px system-ui';
+        g.strokeStyle = PC.art.outline; g.lineWidth = 2;
+        g.strokeText(combo.rank, 0, 0);
+        g.fillText(combo.rank, 0, 0);
+        g.textAlign = 'left';
+        g.restore();
+    }
+}
+function drawFlashFrame(g) {
+    if (!ON('C10') || flashFrame.a <= 0) return;
+    g.save();
+    g.globalAlpha = Math.min(0.22, flashFrame.a);
+    g.fillStyle = flashFrame.color;
+    g.fillRect(0, 0, CW, CH);
+    g.restore();
+}
+function drawVignette(g) {
+    if (!ON('F7') || heroVignette <= 0) return;
+    // 硬边角标（不用渐变 —— 美术规范禁渐变）
+    const a = 0.9 * K('F7') * heroVignette;
+    const L = Math.min(CW, CH) * 0.09, t = Math.max(2, Math.min(CW, CH) * 0.006);
+    g.save();
+    g.globalAlpha = a;
+    g.fillStyle = PC.unitVisuals.hero.hitColor;
+    const m = 10;
+    [[m, m, 1, 1], [CW - m, m, -1, 1], [m, CH - m, 1, -1], [CW - m, CH - m, -1, -1]].forEach(c => {
+        const [x, y, sx, sy] = c;
+        g.fillRect(x, y, L * sx, t * sy);
+        g.fillRect(x, y, t * sx, L * sy);
+    });
+    g.restore();
+}
+let toastMsg = null, toastSub = '';
+let toastT = 0;
+function toast(msg, sub) { toastMsg = msg; toastSub = sub || ''; toastT = 4.2; }
+function drawToasts(g) {
+    if (!toastMsg || toastT <= 0) return;
+    g.save();
+    g.globalAlpha = Math.min(1, toastT);
+    g.fillStyle = PC.art.outline;
+    g.font = '700 15px system-ui';
+    g.textAlign = 'center';
+    g.fillText(toastMsg, CW / 2, 30);
+    if (toastSub) {
+        g.font = '11px system-ui';
+        g.fillStyle = PC.art.inkIcon;
+        g.fillText(toastSub, CW / 2, 48);
+    }
+    g.textAlign = 'left';
+    g.restore();
+}
+/** C11 后处理：变焦模糊 + 色差（demo 里用离屏画布近似） */
+function compositePost() {
+    const k = fxPost;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.save();
+    ctx.globalAlpha = 1 - 0.35 * k;
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
+    const layers = Math.max(1, Math.round(3 * k));
+    for (let i = 1; i <= layers; i++) {
+        const s = k * 0.018 * i;
+        ctx.save();
+        ctx.globalAlpha = 0.16 * k / i;
+        const w = cv.width * (1 + s), h = cv.height * (1 + s);
+        ctx.drawImage(off, -(w - cv.width) / 2, -(h - cv.height) / 2, w, h);
+        ctx.restore();
+    }
+    const dx = Math.max(1, Math.round(3 * k * DPR));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.13 * k;
+    ctx.drawImage(off, -dx, 0);
+    ctx.drawImage(off, dx, 0);
+    ctx.restore();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+/* ====================== 11. 浮层面板 ====================== */
+let hudPunch = 0;
+let fps = 60;
+function drawPanels() {
+    const b = $('budget');
+    const dcLayers = 8;                                    // bg + range + enimys + hero + projectile + vfx + 飘字 + HUD
+    const dcPost = ON('C11') ? 2 + Math.round(3 * fxPost) : 0;
+    const capK = ON('G3') ? (0.3 + 0.7 * iv['G3']) : 3;
+    const capSpark = Math.max(1, Math.round(VFX_CAP.spark * capK));
+    const capPart = Math.max(1, Math.round(VFX_CAP.part * capK));
+    const over = (vfxCount() > capSpark + capPart) || texts.length >= DT.maxAlive;
+    const hitsHot = budget.maxHitsPerFrame > 3 && !ON('G2');
+    b.innerHTML =
+        '<h3>预算面板 · 实时</h3>'
+      + row('帧率', fps.toFixed(0) + ' fps')
+      + row('同帧命中（2s 峰值）', budget.maxHitsPerFrame + (hitsHot ? '  ⚠未合并' : ''), hitsHot)
+      + row('飘字并发 / 上限', texts.length + ' / ' + DT.maxAlive, texts.length >= DT.maxAlive)
+      + row('特效并发', vfxCount() + (ON('G3') ? ' / ' + (capSpark + capPart) : ' / 无上限'), over)
+      + row('　火花 / 粒子 / 环', vfx.spark.length + ' / ' + vfx.part.length + ' / ' + vfx.ring.length)
+      + row('　碎裂 / 残影 / 提示', vfx.shard.length + ' / ' + vfx.ghost.length + ' / ' + (vfx.chip.length + vfx.fly.length))
+      + row('超限丢弃累计', budget.dropped + (ON('G3') ? '' : '  ⚠无上限'), !ON('G3') && budget.dropped > 0)
+      + '<hr>'
+      + row('draw call 估算', '≈' + (dcLayers + dcPost), false)
+      + row('　口径', '整层一个 Graphics')
+      + row('音效（近 100ms）', budget.sfx100.length + (ON('E5') ? ' / ≤2' : ' / 无限制'))
+      + row('震幅（当前）', cam.shakeA.toFixed(1) + ' px', cam.shakeA > 14)
+      + row('时间缩放', clock.scale.toFixed(2) + '×', clock.scale < 0.9)
+      + '<hr>'
+      + row('图层', '6 层参与震屏')
+      + row('无障碍', ON('G4') ? '已钳制 ≤' + Math.round((1 - 0.4 * iv['G4']) * 100) + '%' : '未启用', !ON('G4'));
+
+    const ins = $('inspector');
+    const p = stats.lastPayload;
+    ins.innerHTML = p
+        ? '<div><b>OnTakeDamage</b> payload（本页复刻，每个开关都是它的订阅者）</div>'
+        + '<div>{ source: "' + p.source + '", target: "' + p.target + '",</div>'
+        + '<div>&nbsp;&nbsp;rawDamage: ' + p.rawDamage + ', <b>finalDamage: ' + p.finalDamage + '</b>,</div>'
+        + '<div>&nbsp;&nbsp;damageType: "' + p.damageType + '", isCrit: ' + p.isCrit + ', killed: ' + p.killed + ' }</div>'
+        + '<div style="margin-top:4px;color:#6A696B">累计 命中 ' + stats.hits + ' · 暴击 ' + stats.crits + ' · 击杀 ' + stats.kills
+        + ' · 最大单发 ' + round2(stats.best) + ' · 飘字合并 ' + stats.merged + ' 次 · 最高连击 ' + combo.best + '</div>'
+        : '<div>等待第一次命中……（点画面或场景按钮开始）</div>';
+}
+function row(k, v, hot) {
+    return '<div class="row' + (hot ? ' hot' : '') + '"><span>' + k + '</span><b>' + v + '</b></div>';
+}
+function hideHint() { const h = $('hint'); if (h) h.style.display = 'none'; }
+
+/* ====================== 12. 主循环 ====================== */
+let lastT = 0;
+let panelT = 0;
+function frame(ts) {
+    /* ⚠ 别写 `(ts - lastT) / 1000 || 0.016`：rAF 会成簇回调（同一时间戳连续来几次，
+       headless 浏览器尤其常见），而 **0 是 falsy** → 每个空帧都白推 16ms 战斗 →
+       仿真比真实时间快好几倍（实测命中数是理论值的 3~5 倍）。
+       口径：非正增量直接跳过这一帧（只更新 lastT），并把增量钳在 [1ms, 50ms]。 */
+    let real = (ts - lastT) / 1000;
+    lastT = ts;
+    if (!(real > 0)) { requestAnimationFrame(frame); return; }
+    if (real > 0.05) real = 0.05;
+    else if (real < 0.001) real = 0.001;
+    fps = fps * 0.9 + (1 / real) * 0.1;
+    now += real;
+
+    // 顿帧 / 慢动作只冻战斗，不冻计时器本身（同工程口径）
+    if (clock.forcedT > 0) { clock.forcedT -= real; clock.scale = clock.forced; if (clock.forcedT <= 0) { clock.scale = 1; clock.forced = 1; } }
+    else clock.scale = 1;
+    const dt = real * clock.scale;
+
+    if (dt > 0) {
+        frameHits = [];
+        updateWorld(dt);
+        endFrame();
+        updateTexts(dt);
+        updateVfx(dt);
+    }
+    if (budget.frameWindow === 0) budget.maxHitsPerFrame = Math.max(0, Math.round(budget.maxHitsPerFrame * 0.98));
+    if (toastT > 0) toastT -= real;
+
+    render();
+    // 面板是 innerHTML 整体重建，别每帧做（60Hz 重建 20 行 DOM 会拖出长任务，
+    // 长任务又会让下一帧的 rAF 时间戳成簇 → 反过来喂给上面的增量守卫）
+    panelT += real;
+    if (panelT >= 0.12) { panelT = 0; drawPanels(); }
+    requestAnimationFrame(frame);
+}
+function endFrame() {
+    if (!frameHits.length) return;
+    processGlobalHits(frameHits);
+    budget.sfx100 = AU.ctx ? AU.plays.filter(t => AU.ctx.currentTime - t < 0.1) : [];
+    AU.plays = AU.plays.filter(t => (AU.ctx ? AU.ctx.currentTime - t : 0) < 1);
+    frameHits = [];
+}
+
+/* ====================== 13. 启动 ====================== */
+buildPanel();
+applyPreset('current');       // 默认停在"项目当前"档 —— 一眼看见我们现在在哪
+resize();
+resetStage();
+applyPreset('current');
+cv.addEventListener('pointerdown', e => {
+    ensureAudio();
+    hideHint();
+    const r = cv.getBoundingClientRect();
+    const wx = (e.clientX - r.left - CW / 2) / S + VIEW.cx;
+    const wy = (e.clientY - r.top - CH / 2) / S + VIEW.cy;
+    // 点最近的怪 = 手动开火；否则只是启用声音
+    let best = null, bd = 1e9;
+    monsters.forEach(m => { if (m.dead) return; const d = Math.hypot(m.x - wx, m.y - wy); if (d < bd) { bd = d; best = m; } });
+    if (best && bd < 120) { hero.attackTimer = 0; fireHeroAttack(true); }
+});
+window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); autoSpawn = !autoSpawn; toast(autoSpawn ? '刷怪：开' : '刷怪：暂停'); }
+    if (e.key === 'r' || e.key === 'R') { resetStage(); }
+    if (e.key === '1') { forceCrit = true; fireHeroAttack(true); }
+});
+toast('默认停在「项目当前」档', '只开了 3 项（闪白 / 飘字 / 击退）—— 这就是工程现在的打击感水位');
+requestAnimationFrame(frame);
+
+/* 供 check-drift / audit 与人工调试使用：把内部状态与纯函数暴露出来，
+   好让 node 里的体检脚本（audit.mjs）能"真跑"这套逻辑而不是只做语法检查。 */
+window.HIT_FEEL_DEMO = {
+    PC, FEATURES, GROUPS, en, iv, ON, K, KC, P,
+    applyPreset, applyMaster, computeMasterFromState,
+    clock, cam, vfx, texts, budget,
+    /* ⚠ 下面这几个必须是 getter：resetStage() 会把它们**重新赋值成新对象**
+       （hero / monsters / projectiles / stats），存快照引用会指向上一局的旧对象。 */
+    get stats() { return stats; },
+    get combo() { return combo; },
+    get hero() { return hero; },
+    get monsters() { return monsters; },
+    get projectiles() { return projectiles; },
+    get now() { return now; },
+    applyHit, resistance, rollCrit, tierCap, spawnMonster, resetStage,
+    endFrame, processGlobalHits, scenarioAoe, scenarioBossKill,
+    fireHeroAttack, updateWorld, updateTexts, updateVfx, render, addDamageText,
+    setTimeOverride, pushVfx, pickTarget, makeHero,
+};
+</script>
+</body>
+</html>

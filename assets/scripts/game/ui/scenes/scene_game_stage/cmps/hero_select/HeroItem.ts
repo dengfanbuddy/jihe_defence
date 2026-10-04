@@ -4,6 +4,7 @@ import { TbRoot } from 'db://assets/scripts/platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../../../../../excel_table/Tb_UnitConfig';
 import { AbilityCfgContainer } from '../../../../../excel_table/Tb_AbilityConfig';
 import { StageScopeEvents, StageScopeKeys } from '../StageScope';
+import { AtlasIcon } from '../../../../../common/AtlasIcon';
 import type { HeroSelectVM } from '../../../../../battle/HeroSelect';
 const { ccclass, property } = _decorator;
 
@@ -104,13 +105,13 @@ export class HeroItem extends UIWidget {
         // 不能走 loadBundleSprite（它会把路径首段 textures 当作分包名去加载，永远失败返回 null）
         this.loadIcon(cfg.head_icon, this.heroIcon, "英雄头像");
         // 技能图标：取本英雄配置的前两个技能（units.json 的 abilities，含被动，与 HUD 技能栏同一口径），
-        // 图标路径来自 abilities.json 的 icon 列（**该列现在还没填**，为空时保留预制件占位图）
+        // 图标路径来自 abilities.json 的 icon 列（为空的技能沿用上面的 `if (!icon) return`，保留预制件占位图）
         const skills = (cfg.abilities ?? []).slice(0, 2);
         const abilityTb = TbRoot.ins.getTbContainer(AbilityCfgContainer);
         skills.forEach((abilityId, index) => {
             const icon = abilityTb.getCfgById(abilityId)?.icon;
             if (!icon) return;
-            this.loadIcon(icon, index === 0 ? this.skill1Icon : this.skill2Icon, "技能图标");
+            this.loadSkillIcon(icon, index === 0 ? this.skill1Icon : this.skill2Icon, "技能图标");
         });
     }
 
@@ -120,6 +121,26 @@ export class HeroItem extends UIWidget {
         resources.load(`${path}/spriteFrame`, SpriteFrame, (err, spriteFrame) => {
             if (err || !spriteFrame) {
                 ezgame.error(`${label}加载失败：${path}`, err)
+                return
+            }
+            if (target.isValid) target.spriteFrame = spriteFrame
+        })
+    }
+
+    /**
+     * 加载**技能图标**并写入目标 Sprite（icon 列 → `textures/skills/<技能名>`）。
+     * 与上面的 `loadIcon` 只差一件事：**先试图集**（`textures/skills/skills`），
+     * 取不到再回落碎图 —— 三级降级与"命中哪条路"的日志都在共用的 `AtlasIcon` 里。
+     *
+     * ⚠ 头像（`textures/heros/*`）**故意不走这里**：那套目前是碎图、没有图集，
+     * 硬走图集只会多两条注定失败的子资源请求（构建版还会因此打红字），零收益。
+     * 将来 `textures/heros` 也打成图集时，把 `setHeroInfo` 里那行一起换成这个即可。
+     */
+    private loadSkillIcon(path: string, target: Sprite, label: string): void {
+        if (!path || !target) return;
+        AtlasIcon.loadIconFrame(path).then((spriteFrame) => {
+            if (!spriteFrame) {
+                ezgame.error(`${label}加载失败：${path}`)
                 return
             }
             if (target.isValid) target.spriteFrame = spriteFrame

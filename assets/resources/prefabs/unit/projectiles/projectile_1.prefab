@@ -158,13 +158,13 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 52,
-      "g": 218,
-      "b": 52,
+      "r": 20,
+      "g": 24,
+      "b": 27,
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
+      "__uuid__": "ad3ce0b3-ef4e-4ece-a1f1-50b513f34132@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,
@@ -244,17 +244,17 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 52,
-      "g": 218,
-      "b": 52,
-      "a": 255
+      "r": 20,
+      "g": 24,
+      "b": 27,
+      "a": 140
     },
     "_preview": true,
-    "_fadeTime": 0.1,
+    "_fadeTime": 0.08,
     "_minSeg": 1,
-    "_stroke": 5,
+    "_stroke": 4,
     "_texture": {
-      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@6c48a",
+      "__uuid__": "ad3ce0b3-ef4e-4ece-a1f1-50b513f34132@6c48a",
       "__expectedType__": "cc.Texture2D"
     },
     "_fastMode": true,

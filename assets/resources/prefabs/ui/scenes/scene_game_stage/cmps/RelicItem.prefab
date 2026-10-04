@@ -244,8 +244,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 50,
-      "height": 50
+      "width": 60,
+      "height": 60
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -281,7 +281,7 @@
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "fca27a57-f2ce-4859-8822-321fa73d5fda@f9941",
+      "__uuid__": "6cfa59ab-4ef1-4ffe-bf82-0520129318d1@2e695",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,
@@ -294,7 +294,7 @@
     },
     "_fillStart": 0,
     "_fillRange": 0,
-    "_isTrimmedMode": true,
+    "_isTrimmedMode": false,
     "_useGrayscale": false,
     "_atlas": null,
     "_id": ""
@@ -996,6 +996,7 @@
     "icon": {
       "__id__": 7
     },
+    "frame": null,
     "nameLabel": {
       "__id__": 18
     },
@@ -1026,6 +1027,7 @@
       "__id__": 0
     },
     "fileId": "fbWVZNr39KiK5s8jOGdm+e",
+    "instance": null,
     "targetOverrides": null
   }
 ]

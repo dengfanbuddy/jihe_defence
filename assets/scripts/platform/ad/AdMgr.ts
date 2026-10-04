@@ -18,9 +18,13 @@ import { LogMgr } from "../log/LogMgr";
  * })
  * ```
  *
- * **未注入 provider 时的开发兜底**：打一条 warn 并直接判定「看完」（`true`）。
- * 这样编辑器预览 / 单机调试也能把「看广告刷新」「看广告补选」整条流程跑通；
- * 真机上线前必须注入真 SDK，否则等于白送广告奖励 —— 所以这里用 warn 而不是静默。
+ * **未注入 provider 时的开发兜底：一律判「没看完」（false），即不发奖励。**
+ *
+ * ⚠ 这条兜底**曾经返回 true**（"编辑器里也能把广告流程跑通"），结果是一个真 bug：
+ *   遗物商店「金币不足 → 看广告免费刷新」在没有 SDK 时会被**静默白送**（点一下就直接刷新，
+ *   玩家根本没看到广告）。现在的口径是：**没有真 SDK = 没有广告 = 不发奖励**，
+ *   调用方（各商店）会按 `false` 正常拒绝本次操作，界面上的广告图标与置灰判据也是按这个语义画的。
+ *   真机上线前必须注入真 SDK，否则所有广告位都不可用 —— 所以这里用 warn 而不是静默。
  *
  * 用法：
  * ```ts
@@ -75,16 +79,16 @@ export class AdMgr {
         return !!this.provider;
     }
 
-    /** 该广告位当前能否拉起（未接入时按「可拉起」处理，见文件头兜底说明） */
+    /** 该广告位当前能否拉起（**未接入 SDK 时返回 false** —— 没有广告就没有奖励） */
     public isAvailable(placement: AdPlacement): boolean {
         if (this.playing) return false;
-        if (!this.provider) return true;
+        if (!this.provider) return false;
         return this.provider.isAvailable ? this.provider.isAvailable(placement) : true;
     }
 
     /**
      * 拉起激励视频。
-     * @returns true = 看完（可发奖励）；false = 中途关闭 / 拉不起来 / 已在播放
+     * @returns true = 看完（可发奖励）；false = 中途关闭 / 拉不起来 / 已在播放 / **未接入 SDK**
      */
     public showRewardVideo(placement: AdPlacement): Promise<boolean> {
         if (this.playing) {
@@ -92,8 +96,10 @@ export class AdMgr {
             return Promise.resolve(false);
         }
         if (!this.provider) {
-            LogMgr.warn(`[广告] ${placement}：未接入广告 SDK（AdMgr.setProvider 未调用）→ 开发兜底按「看完」处理`);
-            return Promise.resolve(true);
+            // ⚠ 兜底返回 false（**不发奖励**）：见文件头的说明 —— 这里曾经返回 true，
+            //   让"金币不足也能刷新"变成了一次静默白送
+            LogMgr.warn(`[广告] ${placement}：未接入广告 SDK（AdMgr.setProvider 未调用）→ 本次不发奖励`);
+            return Promise.resolve(false);
         }
         if (this.provider.isAvailable && !this.provider.isAvailable(placement)) {
             LogMgr.warn(`[广告] ${placement}：当前不可用（平台返回 false）`);

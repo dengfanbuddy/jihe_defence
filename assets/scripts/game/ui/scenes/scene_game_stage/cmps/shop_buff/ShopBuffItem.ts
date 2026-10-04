@@ -7,23 +7,23 @@ import type { BuffShopVM } from '../../../../../battle/BuffShop';
 
 const { ccclass, property } = _decorator;
 
-/** 不可购买（已满级 / 金币不够 / 空摊）时的灰化色 */
+/** 不可购买（已满级 / 击杀数不够 / 空摊）时的灰化色 */
 const DISABLED_GREY = new Color(124, 124, 124, 255);
 
 /**
  * 击杀商店（Buff 商店）里的**一个摊位**（内嵌 UI 小组件 → 继承 `UIWidget`，**不加 @uiview**）
  *
- * 职责只有三件（业务全在 `BuffShop`（game/battle/BuffShop.ts），本组件不知道金币怎么扣、更不知道别的摊位）：
+ * 职责只有三件（业务全在 `BuffShop`（game/battle/BuffShop.ts），本组件不知道击杀数怎么扣、更不知道别的摊位）：
  *   ① 渲染：按 Buff id 查 kill_buffs.json 出名字 / 效果文案，**层数、上限、下一层价格、能不能买一律问门面**
  *   ② 通知：点击 → `scope.emit(BuffShopBought, buffId)`，能不能买、买完层数怎么涨由宿主决定
- *   ③ 表现：已满级 / 金币不够 → 置灰
+ *   ③ 表现：已满级 / 击杀数不够 → 置灰
  *
  * ⚠ 这里**曾经自己重算**层数上限与价格（`Math.max(1, cfg.max_stack ?? 1)`），而 `BuffShop.maxStackOf`
  *   的缺省是 `shop_constants.killBuffMaxStackDefault`（10）—— 表里一旦有行不写 `max_stack`，
  *   UI 会在第 1 层就显示"已满"，而 `buy()` 其实允许买到 10 层。现在口径只有 `BuffShop` 一处。
  *
- * 通信：读门面 `BuffShop`（层数 / 价格 / 可买性）+ `useBattleStore().gold`（**只用于触发重算**，
- *   金币够不够由 `canBuy()` 回答）；只向上 `emit`。
+ * 通信：读门面 `BuffShop`（层数 / 价格 / 可买性）+ `useBattleStore().killPoints`（**只用于触发重算**，
+ *   击杀数够不够由 `canBuy()` 回答）；只向上 `emit`。
  *   → 层数一变（买成功）本 item 会自动重算价格与层数，不需要面板逐个通知。
  */
 @ccclass('ShopBuffItem')
@@ -61,9 +61,9 @@ export class ShopBuffItem extends UIWidget {
             ezgame.warn('ShopBuffItem 没注入到 BuffShop 门面（不在 Scene_Game_Stage 子树下？），层数与价格不会刷新');
         }
         this.buyBtn?.node.on(Button.EventType.CLICK, this.onClickItem, this);
-        // 层数（买成功）或金币（够不够买下一层）一变 → 重算价格 / 层数 / 置灰
+        // 层数（买成功）或击杀数余额（够不够买下一层）一变 → 重算价格 / 层数 / 置灰
         this.scope.watch(
-            [() => this.shop?.stacks.value, () => this.battleStore.gold],
+            [() => this.shop?.stacks.value, () => this.battleStore.killPoints],
             () => this.refresh(),
         );
     }
@@ -112,7 +112,8 @@ export class ShopBuffItem extends UIWidget {
         if (this.nameLabel) this.nameLabel.string = cfg.name ?? '';
         if (this.descLabel) {
             const lines = [cfg.per_desc ?? ''];
-            lines.push(maxed ? `${stack}/${maxStack} 层（已满）` : `${stack}/${maxStack} 层 · 价格 ${price}`);
+            // 价格单位是**击杀数**（不是金币）→ 文案里写明，免得玩家以为是金币
+            lines.push(maxed ? `${stack}/${maxStack} 层（已满）` : `${stack}/${maxStack} 层 · ${price} 击杀`);
             this.descLabel.string = lines.filter((s) => !!s).join('\n');
         }
 
@@ -127,7 +128,7 @@ export class ShopBuffItem extends UIWidget {
 
     /**
      * 可买状态 + 灰化表现。
-     * ⚠ 这里只是**展示判据**（层数/金币的同一套口径），真正扣钱与校验在 `BuffShop.buy` 里；
+     * ⚠ 这里只是**展示判据**（层数/击杀数的同一套口径），真正扣击杀数与校验在 `BuffShop.buy` 里；
      *   点不动时按钮就 interactable=false，玩家点不出"买了没反应"。
      */
     private applyBuyable(canBuy: boolean): void {

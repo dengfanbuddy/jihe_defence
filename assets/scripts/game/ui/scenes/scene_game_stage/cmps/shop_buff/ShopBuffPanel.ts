@@ -1,7 +1,7 @@
 import { _decorator, Button, Label, Node } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { StageScopeEvents, StageScopeKeys } from '../StageScope';
-import { applyRefreshButton } from '../RefreshButtonView';
+import { applyRefreshButton, KILL_ICON_PATH } from '../RefreshButtonView';
 import { ShopBuffItem } from './ShopBuffItem';
 import { refreshButtonKey } from '../../../../../battle/RefreshGate';
 import type { BuffShopVM } from '../../../../../battle/BuffShop';
@@ -16,6 +16,10 @@ const { ccclass, property } = _decorator;
  *   · **置灰**：刷新按钮可用性**不再自己算** —— 问门面 `buffShop.refreshGate()`（判据唯一真源）
  *   · **通知**：点刷新 → `emit(BuffShopRefresh)`；关面板 → 写门面的 `panelVisible=false`
  *   · 每个摊位的「买一层」由 item 自己 `emit(BuffShopBought, buffId)` 冒泡到宿主，**不经过本面板**
+ *
+ * ── 货币 = **击杀数**（不是金币）──
+ *   刷新费与 Buff 价格都以击杀数计价，所以费用图标传 `KILL_ICON_PATH`（击杀数图标）；
+ *   击杀数不够时会换成**广告图标** + 按钮文案「看广告」（由 `RefreshButtonView` 统一画）。
  *
  * 与遗物面板的差别：摊位是**可反复购买**的（层数封顶），所以没有"本次已选过"的置灰态 ——
  * 每格的可用性由 item 自己问门面（`stackOf / maxStackOf / nextPriceOf / canBuy`），买完成功会自动刷新。
@@ -32,7 +36,7 @@ export class ShopBuffPanel extends UIWidget {
     /** 刷新按钮（`pannel/refresh/refresh_btn`） */
     @property(Node)
     refreshBtnNode: Node = null;
-    /** 刷新按钮上的文字（`refresh_btn/Label`）：金币够 = 刷新、不够但有广告 = 看广告 */
+    /** 刷新按钮上的文字（`refresh_btn/Label`）：击杀数够 = 刷新、不够但有广告 = 看广告 */
     @property(Label)
     refreshBtnLabel: Label = null;
     /** 关闭按钮（`pannel/close`） */
@@ -105,7 +109,11 @@ export class ShopBuffPanel extends UIWidget {
      */
     private refreshRefreshButton(): void {
         applyRefreshButton(
-            { btnNode: this.refreshBtnNode, btnLabel: this.refreshBtnLabel, costLabel: this.refreshCostLabel },
+            {
+                btnNode: this.refreshBtnNode, btnLabel: this.refreshBtnLabel, costLabel: this.refreshCostLabel,
+                // 刷新费是**击杀数**（不是金币）→ 费用图标换成击杀数图标（与 HUD 的 money/kill/icon 同一张图）
+                costIconPath: KILL_ICON_PATH,
+            },
             this.shop ? this.shop.refreshGate() : null,
             this.shop ? this.shop.refreshCost.value : 0,
         );

@@ -12,7 +12,7 @@
         "type": "modify_attr",
         "attrs": [
           [
-            13,
+            12,
             0
           ]
         ]
@@ -422,6 +422,1178 @@
     "stack_mode": "refresh",
     "strongest_only": true,
     "script_id": "Modifier_ZeusThunder"
+  },
+  {
+    "id": 27,
+    "name": "幻影暴击",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            14,
+            25,
+            "add"
+          ],
+          [
+            15,
+            240,
+            "best"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "name": "霜冻之箭(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            6,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "apply_modifier",
+            "modifier": 2,
+            "duration": 2,
+            "kv": {
+              "slow": -40
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "name": "冰霜结界(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            7,
+            20,
+            "add"
+          ],
+          [
+            10,
+            3,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "apply_modifier",
+            "modifier": 7,
+            "duration": 0.8,
+            "chance": 0.2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "name": "炽热之魂(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            20,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "damage",
+            "value": 30,
+            "damage_type": "magical"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "name": "幽冥剧毒(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "apply_modifier",
+            "modifier": 32,
+            "duration": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "name": "剧毒",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "stack",
+    "max_stack": 5,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            5,
+            -30,
+            "add"
+          ]
+        ]
+      },
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 8,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "name": "黑洞(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            8,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "aoe_damage",
+            "radius": 130,
+            "value": 28,
+            "damage_type": "magical"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "name": "嗜血·一阶",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "lifesteal",
+            "ratio": 0.05
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "name": "嗜血·二阶",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "lifesteal",
+            "ratio": 0.09
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "name": "嗜血·三阶",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "events": [
+      {
+        "event": "on_attack_landed",
+        "actions": [
+          {
+            "type": "lifesteal",
+            "ratio": 0.14
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 40,
+    "name": "技能·分裂弹",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_SplitShot"
+  },
+  {
+    "id": 41,
+    "name": "技能·穿透弹",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_PiercingBolt"
+  },
+  {
+    "id": 42,
+    "name": "技能·铁壳格挡",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_IronShell"
+  },
+  {
+    "id": 43,
+    "name": "技能·首击",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_FirstStrike"
+  },
+  {
+    "id": 44,
+    "name": "技能·淘金",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_GoldRush"
+  },
+  {
+    "id": 45,
+    "name": "技能·圣盾",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_DivineShield"
+  },
+  {
+    "id": 46,
+    "name": "技能·回旋镖",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_Boomerang"
+  },
+  {
+    "id": 47,
+    "name": "技能·追踪弹",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_HomingShot"
+  },
+  {
+    "id": 48,
+    "name": "技能·榴弹",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_Grenade"
+  },
+  {
+    "id": 49,
+    "name": "技能·燃刃",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_FlameBlade"
+  },
+  {
+    "id": 50,
+    "name": "技能·灼烧",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "stack",
+    "max_stack": 6,
+    "script_id": "Modifier_Ignite"
+  },
+  {
+    "id": 51,
+    "name": "技能·毒刃",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_VenomBlade"
+  },
+  {
+    "id": 52,
+    "name": "技能·毒液",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "stack",
+    "max_stack": 6,
+    "script_id": "Modifier_Poison"
+  },
+  {
+    "id": 53,
+    "name": "技能·冰冻",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 3,
+    "stack_mode": "stack",
+    "max_stack": 3,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          {
+            "attr": 5,
+            "value": -60,
+            "var": "slow"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 54,
+    "name": "技能·寒刃",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_FrostBlade"
+  },
+  {
+    "id": 55,
+    "name": "技能·雷链",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_ChainLightning"
+  },
+  {
+    "id": 56,
+    "name": "技能·静电层数",
+    "is_debuff": true,
+    "is_hidden": true,
+    "dispel_level": 1,
+    "duration": 10,
+    "stack_mode": "stack",
+    "max_stack": 5
+  },
+  {
+    "id": 57,
+    "name": "技能·静电磁场",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_StaticField"
+  },
+  {
+    "id": 58,
+    "name": "技能·影剪",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_ShadowCut"
+  },
+  {
+    "id": 59,
+    "name": "技能·击杀回响",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_KillEcho"
+  },
+  {
+    "id": 60,
+    "name": "技能·哨兵炮台",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_SentryTurret"
+  },
+  {
+    "id": 61,
+    "name": "技能·镜像分身",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_MirrorImage"
+  },
+  {
+    "id": 62,
+    "name": "技能·元素军阵",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_ElementalLegion"
+  },
+  {
+    "id": 63,
+    "name": "技能·暴击连锁",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_CritChain"
+  },
+  {
+    "id": 64,
+    "name": "技能·闪避反击",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_EvadeCounter"
+  },
+  {
+    "id": 65,
+    "name": "技能·战旗光环",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_WarBanner"
+  },
+  {
+    "id": 66,
+    "name": "技能·破甲",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          {
+            "attr": 6,
+            "value": -3,
+            "var": "armorBreak"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 67,
+    "name": "技能·时间回廊",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "Modifier_TimeRewind"
+  },
+  {
+    "id": 200,
+    "name": "遗物·追击",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_HitFlat"
+  },
+  {
+    "id": 201,
+    "name": "遗物·重击",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_HitPct"
+  },
+  {
+    "id": 202,
+    "name": "遗物·点燃",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Ignite"
+  },
+  {
+    "id": 203,
+    "name": "遗物·剧毒",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Poison"
+  },
+  {
+    "id": 204,
+    "name": "遗物·冰霜",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Frost"
+  },
+  {
+    "id": 205,
+    "name": "遗物·破甲",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_ArmorBreak"
+  },
+  {
+    "id": 206,
+    "name": "遗物·溅射",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Splash"
+  },
+  {
+    "id": 207,
+    "name": "遗物·连锁",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Chain"
+  },
+  {
+    "id": 208,
+    "name": "遗物·穿透",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Pierce"
+  },
+  {
+    "id": 209,
+    "name": "遗物·斩杀",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Execute"
+  },
+  {
+    "id": 210,
+    "name": "遗物·首击",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_FirstStrike"
+  },
+  {
+    "id": 211,
+    "name": "遗物·暴击回响",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_CritEcho"
+  },
+  {
+    "id": 212,
+    "name": "遗物·连击",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_AtkSpeedStack"
+  },
+  {
+    "id": 213,
+    "name": "遗物·蓄力",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Charge"
+  },
+  {
+    "id": 214,
+    "name": "遗物·荆棘",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Thorns"
+  },
+  {
+    "id": 215,
+    "name": "遗物·格挡",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Block"
+  },
+  {
+    "id": 216,
+    "name": "遗物·护盾充能",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_ShieldCharge"
+  },
+  {
+    "id": 217,
+    "name": "遗物·闪避反击",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_EvadeCounter"
+  },
+  {
+    "id": 218,
+    "name": "遗物·背水",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_LowHpGuard"
+  },
+  {
+    "id": 219,
+    "name": "遗物·濒死守护",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_NearDeath"
+  },
+  {
+    "id": 220,
+    "name": "遗物·不屈",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_LastStand"
+  },
+  {
+    "id": 221,
+    "name": "遗物·坚韧",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_TakeHeal"
+  },
+  {
+    "id": 222,
+    "name": "遗物·灼烧光环",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Immolate"
+  },
+  {
+    "id": 223,
+    "name": "遗物·激怒",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_TakeStackAtk"
+  },
+  {
+    "id": 224,
+    "name": "遗物·法术屏障",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MagicBarrier"
+  },
+  {
+    "id": 225,
+    "name": "遗物·复苏",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_RegenTick"
+  },
+  {
+    "id": 226,
+    "name": "遗物·屠戮回血",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillHeal"
+  },
+  {
+    "id": 227,
+    "name": "遗物·汲取",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillMana"
+  },
+  {
+    "id": 228,
+    "name": "遗物·悬赏",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillGold"
+  },
+  {
+    "id": 229,
+    "name": "遗物·领悟",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillExp"
+  },
+  {
+    "id": 230,
+    "name": "遗物·嗜杀",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillStackAtk"
+  },
+  {
+    "id": 231,
+    "name": "遗物·死亡回响",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillBoom"
+  },
+  {
+    "id": 232,
+    "name": "遗物·处决节律",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_KillCdr"
+  },
+  {
+    "id": 233,
+    "name": "遗物·战意",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_TickStackAtk"
+  },
+  {
+    "id": 234,
+    "name": "遗物·阶段契约",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_PhaseBuff"
+  },
+  {
+    "id": 235,
+    "name": "遗物·迟滞光环",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_SlowAura"
+  },
+  {
+    "id": 236,
+    "name": "遗物·震荡",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_StunProc"
+  },
+  {
+    "id": 237,
+    "name": "遗物·冰封",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_FreezeProc"
+  },
+  {
+    "id": 238,
+    "name": "遗物·妖术",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_HexProc"
+  },
+  {
+    "id": 239,
+    "name": "遗物·静默",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_SilenceProc"
+  },
+  {
+    "id": 300,
+    "name": "遗物·减速",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          {
+            "attr": 5,
+            "value": -90,
+            "var": "slow"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 301,
+    "name": "遗物·沉默",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "silenced"
+      }
+    ]
+  },
+  {
+    "id": 302,
+    "name": "遗物·妖术",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 1.5,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "hexed"
+      }
+    ]
+  },
+  {
+    "id": 303,
+    "name": "遗物·破甲",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 2,
+    "stack_mode": "stack",
+    "max_stack": 3,
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          {
+            "attr": 6,
+            "value": -2,
+            "var": "armor"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 304,
+    "name": "遗物·冰封",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 1.5,
+    "stack_mode": "none",
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "stunned"
+      }
+    ]
+  },
+  {
+    "id": 306,
+    "name": "遗物·点燃（蓝）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 3,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 6,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 307,
+    "name": "遗物·点燃（黄）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 3,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 12,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 308,
+    "name": "遗物·点燃（红）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 3,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 20,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 309,
+    "name": "遗物·中毒（蓝）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "renew",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 4,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 310,
+    "name": "遗物·中毒（黄）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "renew",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 8,
+        "damage_type": "magical"
+      }
+    ]
+  },
+  {
+    "id": 311,
+    "name": "遗物·中毒（红）",
+    "is_debuff": true,
+    "is_hidden": false,
+    "dispel_level": 1,
+    "duration": 4,
+    "stack_mode": "renew",
+    "effects": [
+      {
+        "type": "tick_damage",
+        "interval": 1,
+        "value": 14,
+        "damage_type": "magical"
+      }
+    ]
   },
   {
     "id": 1000,

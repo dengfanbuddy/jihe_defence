@@ -1,0 +1,11 @@
+{
+    "name": "dsh-cocos-bridge",
+    "version": "0.1.0",
+    "private": true,
+    "description": "把 Cocos Creator 编辑器暴露成 DSH 原生工具（经 fork IPC，不走 HTTP/MCP）",
+    "type": "module",
+    "main": "index.js",
+    "peerDependencies": {
+        "@deepseek-ai/dsh-tools": "*"
+    }
+}

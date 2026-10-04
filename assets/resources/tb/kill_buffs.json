@@ -4,12 +4,12 @@
     "code": "kb_atk",
     "name": "狂怒",
     "stat": "atk",
+    "attr_id": 3,
     "per": 8,
     "per_desc": "攻击力 +8%",
     "max_stack": 10,
     "price": 20,
     "price_growth": 1.35,
-    "attr_id": 3,
     "tags": [
       "物理暴击"
     ],
@@ -20,12 +20,12 @@
     "code": "kb_atk_p",
     "name": "破军",
     "stat": "atk",
+    "attr_id": 3,
     "per": 6,
     "per_desc": "攻击力 +6%",
     "max_stack": 12,
     "price": 15,
     "price_growth": 1.3,
-    "attr_id": 3,
     "tags": [
       "远程点杀"
     ],
@@ -36,12 +36,12 @@
     "code": "kb_hp",
     "name": "磐石",
     "stat": "hp",
+    "attr_id": 1,
     "per": 10,
     "per_desc": "最大生命 +10%",
     "max_stack": 10,
     "price": 18,
     "price_growth": 1.35,
-    "attr_id": 1,
     "tags": [
       "坦克反伤"
     ],
@@ -52,12 +52,12 @@
     "code": "kb_hp_g",
     "name": "巨灵",
     "stat": "hp",
+    "attr_id": 1,
     "per": 6,
     "per_desc": "最大生命 +6%",
     "max_stack": 15,
     "price": 12,
     "price_growth": 1.3,
-    "attr_id": 1,
     "tags": [
       "坦克反伤"
     ],
@@ -68,12 +68,12 @@
     "code": "kb_range",
     "name": "超距鹰眼",
     "stat": "range",
+    "attr_id": 16,
     "per": 8,
     "per_desc": "攻击范围 +8%",
     "max_stack": 8,
     "price": 22,
     "price_growth": 1.4,
-    "attr_id": 16,
     "tags": [
       "远程点杀"
     ],
@@ -84,12 +84,12 @@
     "code": "kb_def",
     "name": "铁壁",
     "stat": "def",
+    "attr_id": 6,
     "per": 4,
     "per_desc": "护甲减伤 +4%",
     "max_stack": 12,
     "price": 16,
     "price_growth": 1.32,
-    "attr_id": 6,
     "tags": [
       "坦克反伤"
     ],
@@ -100,12 +100,12 @@
     "code": "kb_def_p",
     "name": "板甲",
     "stat": "def",
+    "attr_id": 6,
     "per": 3,
     "per_desc": "护甲减伤 +3%",
     "max_stack": 15,
     "price": 12,
     "price_growth": 1.3,
-    "attr_id": 6,
     "tags": [
       "坦克反伤"
     ],
@@ -116,12 +116,12 @@
     "code": "kb_aspd",
     "name": "迅捷",
     "stat": "aspd",
+    "attr_id": 4,
     "per": 7,
     "per_desc": "攻击速度 +7%",
     "max_stack": 8,
     "price": 24,
     "price_growth": 1.42,
-    "attr_id": 4,
     "tags": [
       "远程点杀"
     ],
@@ -132,12 +132,12 @@
     "code": "kb_aspd_g",
     "name": "急速",
     "stat": "aspd",
+    "attr_id": 4,
     "per": 5,
     "per_desc": "攻击速度 +5%",
     "max_stack": 10,
     "price": 18,
     "price_growth": 1.36,
-    "attr_id": 4,
     "tags": [
       "物理暴击"
     ],
@@ -148,12 +148,12 @@
     "code": "kb_crit",
     "name": "锐锋",
     "stat": "crit",
+    "attr_id": 14,
     "per": 5,
     "per_desc": "暴击率 +5%",
     "max_stack": 8,
     "price": 26,
     "price_growth": 1.45,
-    "attr_id": 14,
     "tags": [
       "物理暴击"
     ],
@@ -164,12 +164,12 @@
     "code": "kb_crit_p",
     "name": "精准",
     "stat": "crit",
+    "attr_id": 14,
     "per": 4,
     "per_desc": "暴击率 +4%",
     "max_stack": 10,
     "price": 20,
     "price_growth": 1.4,
-    "attr_id": 14,
     "tags": [
       "物理暴击"
     ],
@@ -180,12 +180,12 @@
     "code": "kb_dodge",
     "name": "灵动",
     "stat": "dodge",
+    "attr_id": 8,
     "per": 3,
     "per_desc": "闪避率 +3%",
     "max_stack": 8,
     "price": 28,
     "price_growth": 1.45,
-    "attr_id": 8,
     "tags": [
       "远程点杀"
     ],
@@ -196,12 +196,12 @@
     "code": "kb_dodge_g",
     "name": "轻身",
     "stat": "dodge",
+    "attr_id": 8,
     "per": 2,
     "per_desc": "闪避率 +2%",
     "max_stack": 12,
     "price": 20,
     "price_growth": 1.38,
-    "attr_id": 8,
     "tags": [
       "坦克反伤"
     ],
@@ -212,12 +212,12 @@
     "code": "kb_regen",
     "name": "复苏",
     "stat": "regen",
+    "attr_id": 9,
     "per": 0.6,
     "per_desc": "每秒回复 0.6% 最大生命",
     "max_stack": 12,
     "price": 15,
     "price_growth": 1.32,
-    "attr_id": 9,
     "tags": [
       "坦克反伤"
     ],
@@ -228,12 +228,12 @@
     "code": "kb_regen_p",
     "name": "滋养",
     "stat": "regen",
+    "attr_id": 9,
     "per": 0.4,
     "per_desc": "每秒回复 0.4% 最大生命",
     "max_stack": 15,
     "price": 12,
     "price_growth": 1.3,
-    "attr_id": 9,
     "tags": [
       "控制减速"
     ],
@@ -249,10 +249,10 @@
     "max_stack": 3,
     "price": 40,
     "price_growth": 1.5,
-    "script_id": "KillBuff_kb_skyfall",
     "tags": [
       "法术爆发"
     ],
+    "script_id": "KillBuff_kb_skyfall",
     "note": "击杀计数全局累计；每层 +50% 爆炸伤害"
   },
   {
@@ -265,10 +265,10 @@
     "max_stack": 5,
     "price": 30,
     "price_growth": 1.45,
-    "script_id": "KillBuff_kb_bloodbag",
     "tags": [
       "坦克反伤"
     ],
+    "script_id": "KillBuff_kb_bloodbag",
     "note": "血包落地存留 10 秒；每层概率 +15%、回复 +5%"
   },
   {
@@ -281,10 +281,10 @@
     "max_stack": 2,
     "price": 35,
     "price_growth": 1.5,
-    "script_id": "KillBuff_kb_waveheal",
     "tags": [
       "坦克反伤"
     ],
+    "script_id": "KillBuff_kb_waveheal",
     "note": "波次结算触发；2 级回复量提升至 100% 回满"
   },
   {
@@ -297,10 +297,10 @@
     "max_stack": 4,
     "price": 32,
     "price_growth": 1.45,
-    "script_id": "KillBuff_kb_critheal",
     "tags": [
       "物理暴击"
     ],
+    "script_id": "KillBuff_kb_critheal",
     "note": "随暴击频率触发；每层回复比例 +3%"
   },
   {
@@ -313,10 +313,10 @@
     "max_stack": 6,
     "price": 45,
     "price_growth": 1.55,
-    "script_id": "KillBuff_kb_snowball",
     "tags": [
       "经济成长"
     ],
+    "script_id": "KillBuff_kb_snowball",
     "note": "累计金币全局结算；叠满攻击力 +12%"
   }
 ]

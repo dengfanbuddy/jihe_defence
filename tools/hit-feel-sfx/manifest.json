@@ -1,0 +1,272 @@
+{
+  "generator": "tools/hit-feel-sfx/render.mjs",
+  "designTable": "tools/hit-feel-sfx/design.mjs",
+  "spec": "docs/打击反馈设计.md §12",
+  "settings": {
+    "sampleRate": 22050,
+    "channels": 1,
+    "bitsPerSample": 16,
+    "format": "PCM WAV (44-byte canonical header)",
+    "peakTarget": 0.8,
+    "attackMs": 4,
+    "decayFloor": 0.0001,
+    "taperMs": 1.5,
+    "silenceMs": 5
+  },
+  "totals": {
+    "files": 16,
+    "bytes": 142440,
+    "durationMs": 3213.97
+  },
+  "files": [
+    {
+      "key": "hit_light",
+      "file": "hit_light.wav",
+      "durationMs": 76.51,
+      "bytes": 3418,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.117924,
+      "sha256": "6a1b76e212ca7904f0a05f735233289688b5c529b846ef59ca061e37c1ae1fc4",
+      "layers": [
+        "BP 1100Hz Q1.0 70ms g0.22",
+        "SW square 260->120Hz 45ms g0.12"
+      ]
+    },
+    {
+      "key": "hit_crit",
+      "file": "hit_crit.wav",
+      "durationMs": 106.49,
+      "bytes": 4740,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.117089,
+      "sha256": "aa9fa3f027eea7564c270d8aecf41740f0a4251c26ee66c8ce076ea6300149d4",
+      "layers": [
+        "BP 2800Hz Q1.6 100ms g0.20",
+        "SW square 560->190Hz 90ms g0.14",
+        "BP 5200Hz Q3.0 25ms g0.10"
+      ]
+    },
+    {
+      "key": "kill_normal",
+      "file": "kill_normal.wav",
+      "durationMs": 126.49,
+      "bytes": 5622,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.126726,
+      "sha256": "0c7371e9558ee82c2152e2ff3b0778a5688c2b48bd8c4b00249b5b524f327cc8",
+      "layers": [
+        "BP 800Hz Q0.9 120ms g0.24",
+        "SW square 300->110Hz 80ms g0.12",
+        "BP 3000Hz Q1.2 90ms g0.08"
+      ]
+    },
+    {
+      "key": "hit_heavy",
+      "file": "hit_heavy.wav",
+      "durationMs": 116.51,
+      "bytes": 5182,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.131517,
+      "sha256": "fd00063d783cda8df57a45c0536f339b68671375a5f051d6d2f7a80ae12b888c",
+      "layers": [
+        "BP 600Hz Q1.4 110ms g0.26",
+        "SW square 200->85Hz 70ms g0.14",
+        "BP 4200Hz Q2.5 30ms g0.09"
+      ]
+    },
+    {
+      "key": "hit_boss",
+      "file": "hit_boss.wav",
+      "durationMs": 156.51,
+      "bytes": 6946,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.122601,
+      "sha256": "6ba01f6821a3014b534f7b8c26c43896331a1c77b93f27a46c29ee98b883023c",
+      "layers": [
+        "BP 380Hz Q1.2 150ms g0.28",
+        "SW square 150->60Hz 100ms g0.16",
+        "SW sine 160->90Hz 120ms g0.10"
+      ]
+    },
+    {
+      "key": "kill_big",
+      "file": "kill_big.wav",
+      "durationMs": 306.49,
+      "bytes": 13560,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.123725,
+      "sha256": "eeb6f821a8858891f2b9a22053d71c2405ffe870cdab0b14fe67ae688aec10a8",
+      "layers": [
+        "BP 320Hz Q0.8 300ms g0.26",
+        "SW square 180->60Hz 160ms g0.15",
+        "SW sine 165->70Hz 300ms g0.22"
+      ]
+    },
+    {
+      "key": "hero_hurt",
+      "file": "hero_hurt.wav",
+      "durationMs": 256.51,
+      "bytes": 11356,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.127227,
+      "sha256": "d4557e8ddd34e3bc715a747b1c7076e402f4fcc4042412cfe7cf1b229d11c0c5",
+      "layers": [
+        "SW sine 220->70Hz 220ms g0.30",
+        "BP 260Hz Q0.7 180ms g0.18",
+        "SW sine 150->65Hz 250ms g0.18"
+      ]
+    },
+    {
+      "key": "clear",
+      "file": "clear.wav",
+      "durationMs": 1356.51,
+      "bytes": 59866,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.074468,
+      "sha256": "e51732e9a180bae223759c525d744fdeeb6def7bede3fa351fbef5a42a84164c",
+      "layers": [
+        "BP 320Hz Q0.8 300ms g0.26",
+        "SW square 180->60Hz 160ms g0.15",
+        "SW sine 165->70Hz 300ms g0.22",
+        "@220ms SW sine 392->784Hz 300ms g0.16",
+        "@550ms SW sine 587->587Hz 450ms g0.14",
+        "@850ms SW sine 784->784Hz 500ms g0.14",
+        "@100ms BP 1200Hz Q0.7 900ms g0.06"
+      ]
+    },
+    {
+      "key": "attack_shot",
+      "file": "attack_shot.wav",
+      "durationMs": 76.51,
+      "bytes": 3418,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.137064,
+      "sha256": "f0afbf361e2af3318a8c87ef2889beecd4ab0d5d67bcc32e91f7091d78380235",
+      "layers": [
+        "BP 1400Hz Q1.2 70ms g0.20",
+        "SW square 400->180Hz 40ms g0.08"
+      ]
+    },
+    {
+      "key": "evade",
+      "file": "evade.wav",
+      "durationMs": 86.49,
+      "bytes": 3858,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.107699,
+      "sha256": "3f78416091ec2f43f20562c170a87c6d3a662146772a73766ff7392f33b755cc",
+      "layers": [
+        "BP 2000Hz Q2.0 80ms g0.16",
+        "SW sine 1800->600Hz 80ms g0.10",
+        "SW sine 300->150Hz 60ms g0.06"
+      ]
+    },
+    {
+      "key": "click",
+      "file": "click.wav",
+      "durationMs": 36.51,
+      "bytes": 1654,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.124219,
+      "sha256": "6e4f38d8b9a93686426504a07eacecf62ae282ded468eaade452e2e43ba483db",
+      "layers": [
+        "BP 2400Hz Q1.5 30ms g0.18",
+        "SW triangle 900->700Hz 25ms g0.10"
+      ]
+    },
+    {
+      "key": "hit_light_v2",
+      "file": "hit_light_v2.wav",
+      "durationMs": 76.51,
+      "bytes": 3418,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.154801,
+      "sha256": "1376b3e39576209e0ac95689c50e8e94a8197e5c597a589ce96b5f34193aa36f",
+      "layers": [
+        "BP 1045Hz Q1.0 70ms g0.22",
+        "SW square 247->114Hz 45ms g0.12"
+      ],
+      "variantOf": "hit_light",
+      "freqScale": 0.95
+    },
+    {
+      "key": "hit_light_v3",
+      "file": "hit_light_v3.wav",
+      "durationMs": 76.51,
+      "bytes": 3418,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.126628,
+      "sha256": "97324c1828ea9e887905f0a17e68ae0810baf1ce2877c438be0f29514bf63eae",
+      "layers": [
+        "BP 1155Hz Q1.0 70ms g0.22",
+        "SW square 273->126Hz 45ms g0.12"
+      ],
+      "variantOf": "hit_light",
+      "freqScale": 1.05
+    },
+    {
+      "key": "kill_normal_v2",
+      "file": "kill_normal_v2.wav",
+      "durationMs": 126.49,
+      "bytes": 5622,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.120321,
+      "sha256": "eed58e25976d6c5e1b17834ab89519d0941322cbcf4ac33be68d06df3f5546f4",
+      "layers": [
+        "BP 760Hz Q0.9 120ms g0.24",
+        "SW square 285->104.5Hz 80ms g0.12",
+        "BP 2850Hz Q1.2 90ms g0.08"
+      ],
+      "variantOf": "kill_normal",
+      "freqScale": 0.95
+    },
+    {
+      "key": "kill_normal_v3",
+      "file": "kill_normal_v3.wav",
+      "durationMs": 126.49,
+      "bytes": 5622,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.132552,
+      "sha256": "ba7f246f6fedd3f3e2fb133acc9dc6853678d9fd978f61f248913e48357f63ab",
+      "layers": [
+        "BP 840Hz Q0.9 120ms g0.24",
+        "SW square 315->115.5Hz 80ms g0.12",
+        "BP 3150Hz Q1.2 90ms g0.08"
+      ],
+      "variantOf": "kill_normal",
+      "freqScale": 1.05
+    },
+    {
+      "key": "hit_crit_v2",
+      "file": "hit_crit_v2.wav",
+      "durationMs": 106.49,
+      "bytes": 4740,
+      "sampleRate": 22050,
+      "peak": 0.799988,
+      "rms": 0.125593,
+      "sha256": "33b9ec55c6486f0431e8aa77c215e35084c7efde0a07b7fe5bc22004029633b3",
+      "layers": [
+        "BP 2940Hz Q1.6 100ms g0.20",
+        "SW square 588->199.5Hz 90ms g0.14",
+        "BP 5460Hz Q3.0 25ms g0.10"
+      ],
+      "variantOf": "hit_crit",
+      "freqScale": 1.05
+    }
+  ]
+}

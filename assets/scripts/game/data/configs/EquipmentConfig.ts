@@ -26,6 +26,7 @@
 
 import { TbRoot } from "../../../platform/excel_table/TbRoot";
 import { AttributeType, EquipmentConfig, OuterBonusGroup } from "../../battle/core/Types";
+import { AttributeCfgContainer } from "../../excel_table/Tb_AttributeConfig";
 import { RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers } from "../../excel_table/Tb_RelicConfig";
 import { DataCenter } from "../DataCenter";
 
@@ -227,4 +228,80 @@ export function getAllEquipmentBonuses(): OuterBonusGroup {
     }
 
     return total;
+}
+
+/* ===================================================================
+ * 「属性总览」的展示口径（UI 只读这一份，自己不做换算）
+ * =================================================================== */
+
+/**
+ * 该属性的**运行时值是不是「比例」**（`0.08` = 8%）—— 与 `AttributeScaling.SCALE` 的 8 项逐项对齐。
+ *
+ * 为什么要暴露它：UI 要把 `0.08` 显示成 `+8%`、把 `6 护甲` 显示成 `+6`，
+ * 这个判断散落到 UI 里就会与数据层的换算各写一套（改一处忘一处）。
+ */
+export function isRatioAttr(attrId: number): boolean {
+    return PERCENT_ATTR_IDS.indexOf(attrId) >= 0;
+}
+
+/** 一条属性的局外加成汇总（UI 的一行） */
+export interface OuterBonusTotal {
+    attrId: AttributeType;
+    /** 属性中文名（attributes.json 的 `name`） */
+    name: string;
+    /** 固定值层（**运行时值**：比例型属性是小数，如攻速 0.2 = +20%） */
+    flat: number;
+    /** 百分比层（**小数**：0.05 = 对基础属性 +5%） */
+    percent: number;
+}
+
+/** 属性中文名（取不到就回落 `属性 N`，绝不返回空串） */
+function attrNameOf(attrId: number): string {
+    const def = TbRoot.ins.getTbContainer(AttributeCfgContainer)?.getCfgById(attrId);
+    return def?.name || `属性 ${attrId}`;
+}
+
+/**
+ * 「属性总览」的数据行：把所有遗物的加成按属性**求和**，attrId 升序，两层都为 0 的不出现。
+ * @param group 不传则取 `getAllEquipmentBonuses()`（= 已收集遗物的总和）
+ */
+export function getOuterBonusTotals(group?: OuterBonusGroup): OuterBonusTotal[] {
+    const g = group ?? getAllEquipmentBonuses();
+    const ids = new Set<number>();
+    for (const k of Object.keys(g.flat)) ids.add(Number(k));
+    for (const k of Object.keys(g.percent)) ids.add(Number(k));
+
+    const rows: OuterBonusTotal[] = [];
+    for (const attrId of [...ids].sort((a, b) => a - b)) {
+        const flat = Number(g.flat[attrId as AttributeType] ?? 0);
+        const percent = Number(g.percent[attrId as AttributeType] ?? 0);
+        if (flat === 0 && percent === 0) continue;
+        rows.push({ attrId: attrId as AttributeType, name: attrNameOf(attrId), flat, percent });
+    }
+    return rows;
+}
+
+/** 保留两位小数并去掉多余的 0（0.1+0.2 这类浮点噪声不该显示成 0.30000000000000004） */
+function trim2(v: number): number {
+    return Math.round(v * 100) / 100;
+}
+
+/**
+ * **固定值层**的展示文案。
+ *   · 比例型属性（攻速/暴击率/闪避/暴击倍率…）→ `+20%`（配置 int 的口径：`20` 就是 +20%）
+ *   · 普通属性 → `+450`
+ *   · 0 → `—`
+ */
+export function formatFlatBonus(attrId: number, value: number): string {
+    if (!value) return '—';
+    const ratio = isRatioAttr(attrId);
+    const n = trim2(ratio ? value * 100 : value);
+    return `${n > 0 ? '+' : ''}${n}${ratio ? '%' : ''}`;
+}
+
+/** **百分比层**的展示文案：`0.05` → `+5%`；0 → `—` */
+export function formatPercentBonus(value: number): string {
+    if (!value) return '—';
+    const n = trim2(value * 100);
+    return `${n > 0 ? '+' : ''}${n}%`;
 }

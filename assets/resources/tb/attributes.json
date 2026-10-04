@@ -29,7 +29,7 @@
     "stack_mode": "multiply",
     "base": 100,
     "min": 10,
-    "max": 1000
+    "max": 500
   },
   {
     "id": 5,
@@ -45,7 +45,7 @@
     "stack_mode": "add",
     "base": 0,
     "min": -20,
-    "max": 100
+    "max": 200
   },
   {
     "id": 7,
@@ -61,7 +61,7 @@
     "stack_mode": "complement",
     "base": 0,
     "min": 0,
-    "max": 95
+    "max": 45
   },
   {
     "id": 9,
@@ -85,23 +85,15 @@
     "stack_mode": "multiply",
     "base": 100,
     "min": 0,
-    "max": 1000
+    "max": 5000
   },
   {
     "id": 12,
-    "name": "物理受伤倍率",
+    "name": "受伤减免倍率",
     "stack_mode": "multiply",
     "base": 100,
-    "min": 0,
-    "max": 1000
-  },
-  {
-    "id": 13,
-    "name": "魔法受伤倍率",
-    "stack_mode": "multiply",
-    "base": 100,
-    "min": 0,
-    "max": 1000
+    "min": 20,
+    "max": 300
   },
   {
     "id": 14,
@@ -117,7 +109,7 @@
     "stack_mode": "best",
     "base": 150,
     "min": 100,
-    "max": 1000
+    "max": 5000
   },
   {
     "id": 16,
@@ -126,5 +118,61 @@
     "base": 100,
     "min": 50,
     "max": 2000
+  },
+  {
+    "id": 21,
+    "name": "金币获取",
+    "stack_mode": "add",
+    "base": 0,
+    "min": -100,
+    "max": 1000
+  },
+  {
+    "id": 22,
+    "name": "经验获取",
+    "stack_mode": "add",
+    "base": 0,
+    "min": -100,
+    "max": 1000
+  },
+  {
+    "id": 23,
+    "name": "冷却缩减",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 50
+  },
+  {
+    "id": 24,
+    "name": "抽卡折扣",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 80
+  },
+  {
+    "id": 25,
+    "name": "吸血",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 1000
+  },
+  {
+    "id": 26,
+    "name": "攻击回复",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 9999
+  },
+  {
+    "id": 27,
+    "name": "攻击回蓝",
+    "stack_mode": "add",
+    "base": 0,
+    "min": 0,
+    "max": 9999
   }
 ]

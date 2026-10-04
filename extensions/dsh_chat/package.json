@@ -1,0 +1,154 @@
+{
+    "package_version": 2,
+    "name": "dsh_chat",
+    "version": "0.1.0",
+    "author": "dfan",
+    "editor": ">=3.8.6",
+    "description": "在编辑器里跟 DSH 智能体对话：面板用 fork IPC 托管一个独立 dsh profile，工具直接操作编辑器（不占端口、不走 MCP）。自带编辑器/场景代码沙箱，不依赖其它扩展。",
+    "main": "./dist/main.js",
+    "scripts": {
+        "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+        "watch": "node ./node_modules/typescript/bin/tsc -p tsconfig.json -w"
+    },
+    "devDependencies": {
+        "@types/node": "^18.17.1",
+        "typescript": "^5.8.2"
+    },
+    "panels": {
+        "default": {
+            "title": "DSH",
+            "type": "dockable",
+            "main": "dist/panels/default",
+            "size": {
+                "min-width": 380,
+                "min-height": 300,
+                "width": 520,
+                "height": 720
+            }
+        }
+    },
+    "contributions": {
+        "menu": [
+            {
+                "path": "i18n:menu.panel/dsh_chat",
+                "label": "打开 DSH 对话框（Inspector 旁）",
+                "message": "open-panel"
+            },
+            {
+                "path": "i18n:menu.panel/dsh_chat",
+                "label": "停靠到 Inspector 旁边",
+                "message": "dock-panel"
+            },
+            {
+                "path": "i18n:menu.panel/dsh_chat",
+                "label": "启动 agent",
+                "message": "start-agent"
+            },
+            {
+                "path": "i18n:menu.panel/dsh_chat",
+                "label": "停止 agent",
+                "message": "stop-agent"
+            }
+        ],
+        "messages": {
+            "open-panel": {
+                "methods": [
+                    "openPanel"
+                ]
+            },
+            "dock-panel": {
+                "methods": [
+                    "dockPanel"
+                ]
+            },
+            "start-agent": {
+                "methods": [
+                    "startAgent"
+                ]
+            },
+            "stop-agent": {
+                "methods": [
+                    "stopAgent"
+                ]
+            },
+            "interrupt": {
+                "methods": [
+                    "interrupt"
+                ]
+            },
+            "get-state": {
+                "methods": [
+                    "getState"
+                ]
+            },
+            "get-events": {
+                "methods": [
+                    "getEvents"
+                ]
+            },
+            "send-message": {
+                "methods": [
+                    "sendMessage"
+                ]
+            },
+            "new-session": {
+                "methods": [
+                    "newSession"
+                ]
+            },
+            "history-list": {
+                "methods": [
+                    "historyList"
+                ]
+            },
+            "history-open": {
+                "methods": [
+                    "historyOpen"
+                ]
+            },
+            "history-resume": {
+                "methods": [
+                    "historyResume"
+                ]
+            },
+            "get-settings": {
+                "methods": [
+                    "getSettings"
+                ]
+            },
+            "update-settings": {
+                "methods": [
+                    "updateSettings"
+                ]
+            },
+            "install-profile": {
+                "methods": [
+                    "installProfile"
+                ]
+            },
+            "panel-probe": {
+                "methods": [
+                    "panelProbe"
+                ]
+            },
+            "list-images": {
+                "methods": [
+                    "listImages"
+                ]
+            },
+            "read-image": {
+                "methods": [
+                    "readImage"
+                ]
+            }
+        },
+        "scene": {
+            "script": "./dist/scene.js",
+            "methods": [
+                "ping",
+                "runCode",
+                "describeApi"
+            ]
+        }
+    }
+}

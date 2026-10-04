@@ -1,4 +1,4 @@
-import { _decorator, Button, Label, Node, ProgressBar, resources, Sprite, SpriteFrame } from 'cc';
+import { _decorator, Button, Color, Label, Node, ProgressBar, resources, Sprite, SpriteFrame } from 'cc';
 import { useBattleStore } from '../../../../stores';
 import { EventBus } from '../../../../battle';
 import { EventNames } from '../../../../battle/core/EventBus';
@@ -10,11 +10,65 @@ import { showFloatText } from './skill_slot/FloatText';
 import { TbRoot } from 'db://assets/scripts/platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../../../../excel_table/Tb_UnitConfig';
 import { FINAL_BOSS_STAGE } from '../../../../common/EntityVisualConfig';
+import { HIT_FEEL_INFO } from '../../../../common/HitFeelConfig';
 import type { SkillSlotsVM } from '../../../../battle/SkillSlots';
 import type { HeroSelectVM } from '../../../../battle/HeroSelect';
 import type { BuffShopVM } from '../../../../battle/BuffShop';
+import type { BossSchedulerVM, BossSlotKey, BossSlotVM } from '../../../../battle/BossScheduler';
 
 const { ccclass, property } = _decorator;
+
+/** Boss 条目的倒计时在「充能 CD」与「场上限时」两种状态下的字色（限时 = 警示色，催玩家去处理） */
+const BOSS_TIME_CD_COLOR = new Color(255, 255, 255, 255);
+const BOSS_TIME_LIMIT_COLOR = new Color(255, 76, 76, 255);
+/** 库存为 0（点不动）时数量文案的灰度 */
+const BOSS_COUNT_IDLE_COLOR = new Color(160, 160, 160, 255);
+const BOSS_COUNT_READY_COLOR = new Color(0, 0, 0, 255);
+
+/** 预制件里 `bosses` 下的三个条目节点名 → 调度器的槽位键 */
+const BOSS_NODE_NAMES: [BossSlotKey, string][] = [
+    ['gold', 'gold_boss'],
+    ['kill', 'kill_boss'],
+    ['guard', 'enimy_guard'],
+];
+
+/** 一个正在弹跳的 HUD 节点（打击反馈 B3 / F10；只用帧计时，不用 tween） */
+interface HudPunch {
+    node: Node;
+    /** 剩余时长 / 总时长（秒） */
+    remain: number;
+    dur: number;
+}
+
+/**
+ * 在子树里按名字深度优先找节点。
+ *
+ * ⚠ 不用 `cc.find`：它遇到节点名里含 `/` 的情况会找不到（项目里踩过），
+ *   而且它会从场景根开始找、可能命中另一棵子树里的同名节点。
+ */
+function findNodeByName(root: Node, name: string): Node | null {
+    if (!root) return null;
+    if (root.name === name) return root;
+    for (const c of root.children) {
+        const hit = findNodeByName(c, name);
+        if (hit) return hit;
+    }
+    return null;
+}
+
+/** 一个 Boss 条目的运行时节点缓存（按名字找，**不改预制件**，同 `setupSkillSlots` 的做法） */
+interface BossEntryRefs {
+    key: BossSlotKey;
+    node: Node;
+    /** 倒计时数字（`time/value`） */
+    value: Label | null;
+    /** 数量（`count` / `count-001`；按前缀找，名字带序号后缀） */
+    count: Label | null;
+    /** 倒计时底圈（`time`）；无倒计时可显示时整块收起 */
+    timeNode: Node | null;
+    /** 点击回调（存起来用于成对 off —— 匿名闭包没法再 off 一次） */
+    onClick: () => void;
+}
 
 /**
  * 战斗 HUD（内嵌在 `Scene_Game_Stage.prefab` 里 → 继承 `UIWidget`，**不加 @uiview**）
@@ -23,7 +77,7 @@ const { ccclass, property } = _decorator;
  *   - 一辈子一次的事（节点事件、watcher 注册、图标预加载）→ `onInit()`
  *   - 每次显示（= 开新一局）按当前状态无条件刷一遍 → `onShow()`（缓存复用时不会再跑 `onInit`）
  *   - 节点事件在 `onDispose()` 里成对 `off`；watcher 交给 `this.scope` 托管（不再手写 watchHandles 数组）
- *   - **战斗真源的投影**（hp / gold / kills / level / phase…）读全局 store（场景写、UI 读）
+ *   - **战斗真源的投影**（hp / gold / killPoints / level / phase…）读全局 store（场景写、UI 读）
  *   - **功能页面状态**（选英雄 / Buff 商店 / 技能槽）读宿主 provide 的**功能门面**（`inject`）——
  *     门面就是 `HeroSelect` / `BuffShop` / `SkillSlots` 的只读面（`panelVisible` 等）；
  *     退出战斗走宿主注入的动作 —— 判据与键见 `StageScope.ts` 顶部注释
@@ -55,8 +109,13 @@ export class View_Game_Stage extends UIWidget {
     @property(ProgressBar)
     progress_bar: ProgressBar = null;
     /* ===== 货币节点 ===== */
+    /** 金币余额（`battleStore.gold`）：选英雄刷新 + 遗物抽取的货币 */
     @property(Label)
     money_gold_value: Label = null;
+    /**
+     * **击杀数余额**（`battleStore.killPoints`）：击杀商店（Buff）的货币。
+     * 与金币并排的第二条经济线 —— 图标是 `textures/common/monster`（`money/kill/icon`）。
+     */
     @property(Label)
     money_kill_value: Label = null;
 
@@ -137,6 +196,10 @@ export class View_Game_Stage extends UIWidget {
     private buffShop: BuffShopVM = null;
     /** 宿主注入的**技能槽功能门面**：格子组件自己 inject 了一份；HUD 读它只为弹详情面板 */
     private skillSlotStates: SkillSlotsVM = null;
+    /** 宿主注入的**Boss 调度门面**：本 HUD 只读它渲染 `bosses` 三个条目；点击向上发 `BossDeploy` */
+    private bossScheduler: BossSchedulerVM = null;
+    /** `bosses` 三个条目的运行时节点缓存（`setupBossEntries` 里按名字找，不改预制件） */
+    private bossEntries: BossEntryRefs[] = [];
 
     /* ===================================================================
      * UIWidget 生命周期（Cocos 原生回调由基类接管，不要重写）
@@ -148,6 +211,7 @@ export class View_Game_Stage extends UIWidget {
         this.heroSelect = this.inject<HeroSelectVM>(StageScopeKeys.HeroSelect, null);
         this.buffShop = this.inject<BuffShopVM>(StageScopeKeys.BuffShop, null);
         this.skillSlotStates = this.inject<SkillSlotsVM>(StageScopeKeys.SkillSlots, null);
+        this.bossScheduler = this.inject<BossSchedulerVM>(StageScopeKeys.BossScheduler, null);
 
         // 暂停 / 继续按钮的两种图标（异步加载，点到按钮时才用得到）
         resources.load("textures/common/pause/spriteFrame", SpriteFrame, (err, data) => {
@@ -169,6 +233,10 @@ export class View_Game_Stage extends UIWidget {
 
         // 技能栏：给预制件里摆好的 4 个槽位节点逐个挂上 SkillSlot（运行时挂，不用改预制件）
         this.setupSkillSlots();
+
+        // Boss 面板：预制件里 `bosses` 下已经摆好三个条目（gold_boss / kill_boss / enimy_guard），
+        // 每个都挂了 Button —— 这里只做「找到节点 + 绑点击」，不改预制件
+        this.setupBossEntries();
 
         // 长按技能槽 → 弹详情面板；松手 → 收起（面板节点在 HUD 名下 → 由 HUD 写它的显隐）
         // ⚠ 这两行必须排在「挂面板组件」**之前**：面板初始化万一抛异常，也不会把事件订阅一起吞掉
@@ -197,12 +265,14 @@ export class View_Game_Stage extends UIWidget {
             () => this.refreshHp(),
         );
         this.scope.watch(() => this.battleStore.gold, () => this.refreshGold());
-        this.scope.watch(() => this.battleStore.kills, () => this.refreshKills());
+        this.scope.watch(() => this.battleStore.killPoints, () => this.refreshKills());
         // 局内英雄等级 / 经验（升级 → 属性成长，HUD 同步）
         this.scope.watch(
             [() => this.battleStore.level, () => this.battleStore.exp, () => this.battleStore.expToNext],
             () => this.refreshLevel(),
         );
+        // 本局难度（难度选择弹窗决定，场景换局时写；HUD 只读）
+        this.scope.watch(() => this.battleStore.difficulty, () => this.refreshDifficulty());
         // 阶段 / 剩余时间：单一来源是 store（场景写），取代 BATTLE_REMAINTIME 事件推送
         this.scope.watch(
             [() => this.battleStore.phase, () => this.battleStore.phaseRemainTime],
@@ -214,6 +284,13 @@ export class View_Game_Stage extends UIWidget {
             [() => this.battleStore.heroId, () => this.battleStore.heroSkills],
             () => this.refreshHeroInfo(),
         );
+        // Boss 面板：门面里的 `slots` 已经是**整秒粒度**的快照（功能类只在真的变了时才换新数组），
+        // 所以这里直接 watch 数组引用即可，不会每帧重画
+        if (this.bossScheduler) {
+            this.scope.watch(() => this.bossScheduler.slots.value, () => this.refreshBosses());
+        } else {
+            ezgame.warn("View_Game_Stage 没注入到 BossScheduler 门面（不在 Scene_Game_Stage 子树下？），Boss 面板不会刷新");
+        }
     }
 
     /**
@@ -240,6 +317,11 @@ export class View_Game_Stage extends UIWidget {
         this.offNodeEvent(this.pauseBtn, Button.EventType.CLICK, this.pauseCheck, this);
         this.offNodeEvent(this.exitBtn, Button.EventType.CLICK, this.exit, this);
         this.offNodeEvent(this.endBtnNode, Button.EventType.CLICK, this.exit, this);
+        // Boss 条目的点击回调是逐条目现造的闭包，没法用方法名 off —— 存在 bossEntries 里成对摘
+        for (const e of this.bossEntries) {
+            this.offNodeEvent(e.node, Button.EventType.CLICK, e.onClick, this);
+        }
+        this.bossEntries = [];
     }
 
     /* ===================================================================
@@ -247,6 +329,8 @@ export class View_Game_Stage extends UIWidget {
      * =================================================================== */
 
     private refreshAll(): void {
+        // 打击反馈 F10：换局先把弹跳清干净（上一局弹到一半的节点别把缩放带进新一局）
+        this.resetPunches();
         this.refreshHeroSelectPanel();
         this.refreshBuffShopPanel();
         this.refreshHeroInfo();
@@ -254,7 +338,9 @@ export class View_Game_Stage extends UIWidget {
         this.refreshGold();
         this.refreshKills();
         this.refreshLevel();
+        this.refreshDifficulty();
         this.updateProgress();
+        this.refreshBosses();
     }
 
     private refreshHeroSelectPanel(): void {
@@ -341,6 +427,101 @@ export class View_Game_Stage extends UIWidget {
         }
     }
 
+    /* ===================================================================
+     * Boss 面板（预制件里的 `bosses` 子树）
+     *
+     * ── 节点契约（预制件已摆好，**本 HUD 不改预制件**）──
+     *   bosses/                        容器（Widget + Layout）
+     *     ├─ gold_boss/    [Sprite + Button]   金币怪
+     *     ├─ kill_boss/    [Sprite + Button]   击杀怪
+     *     └─ enimy_guard/  [Sprite + Button]   敌方守卫
+     *   每个条目下：
+     *     · name       Label            类型名（预制件里已写好，本 HUD **不覆写**，留给策划改文案）
+     *     · time       Sprite（底圈）
+     *       └─ value   Label            倒计时数字
+     *     · count*     Label            数量（节点名带序号后缀，如 `count` / `count-001`，按前缀找）
+     *
+     * ── 一栏两用（预制件只给了 `time/value` 一个位置）──
+     *   场上有这只 Boss → 显示**最快到期的那只的剩余限时**（并把数字染成警示红）
+     *   场上没有        → 显示 **CD 充能倒计时**（白字）
+     *   两者都没有（守卫无 CD 且没放出去）→ 把 `time` 整块收起
+     *
+     * ── 职责边界 ──
+     *   **能不能点由门面的 `canDeploy` 说了算**（判据在 `BossScheduler` 里只有一份），
+     *   本 HUD 只负责画（写字 + 染色 + 设 `Button.interactable`）与上报点击。
+     * =================================================================== */
+
+    /**
+     * 按名字找到 `bosses` 三个条目并绑上点击。
+     *
+     * ⚠ 用自写的 DFS 找节点，**不用 `cc.find`** —— 它遇到节点名里含 `/` 的情况会找不到；
+     *   也不假设 `bosses` 挂在哪一层（策划挪位置不用改代码）。
+     */
+    private setupBossEntries(): void {
+        this.bossEntries = [];
+        const root = findNodeByName(this.node, 'bosses');
+        if (!root) {
+            ezgame.warn('[HUD] 预制件里找不到 `bosses` 节点，Boss 面板不会显示');
+            return;
+        }
+        for (const [key, nodeName] of BOSS_NODE_NAMES) {
+            const node = root.getChildByName(nodeName);
+            if (!node) {
+                ezgame.warn(`[HUD] \`bosses\` 下找不到 \`${nodeName}\`，该 Boss 条目不会显示`);
+                continue;
+            }
+            const timeNode = node.getChildByName('time');
+            const value = timeNode ? (timeNode.getChildByName('value')?.getComponent(Label) ?? null) : null;
+            // 数量节点的名字带序号后缀（`count` / `count-001`）→ 按前缀找，不然第二个条目永远找不到
+            let count: Label = null;
+            for (const c of node.children) {
+                if (c.name.indexOf('count') === 0) { count = c.getComponent(Label); break; }
+            }
+            if (!value || !count) {
+                ezgame.warn(`[HUD] \`${nodeName}\` 的节点契约不完整（time/value=${!!value}, count=${!!count}），跳过该条目`);
+                continue;
+            }
+            const onClick = () => this.onBossClicked(key);
+            node.on(Button.EventType.CLICK, onClick, this);
+            this.bossEntries.push({ key, node, value, count, timeNode, onClick });
+        }
+        if (!this.bossEntries.length) ezgame.warn('[HUD] Boss 面板一个条目都没接上');
+        this.refreshBosses();
+    }
+
+    /** 把门面的快照画到三个条目上（onShow / 门面变化 / watcher 的公共出口） */
+    private refreshBosses(): void {
+        if (!this.bossEntries.length) return;
+        const rows: BossSlotVM[] = this.bossScheduler ? this.bossScheduler.slots.value : [];
+        for (const e of this.bossEntries) {
+            const row = rows.find((r) => r.key === e.key);
+            if (!row) continue;
+
+            if (e.timeNode) e.timeNode.active = row.showTime;
+            if (e.value) {
+                e.value.string = row.showTime ? `${row.timeLeft}` : '';
+                // 限时 = 警示红（催玩家去处理）；CD = 白（等就行）
+                e.value.color = (row.showingLimit ? BOSS_TIME_LIMIT_COLOR : BOSS_TIME_CD_COLOR).clone();
+            }
+            if (e.count) {
+                // 库存 = 还能点几次（"cd 好后数量 +1，点击后数量 −1"）
+                e.count.string = `x${row.stock}`;
+                e.count.color = (row.stock > 0 ? BOSS_COUNT_READY_COLOR : BOSS_COUNT_IDLE_COLOR).clone();
+            }
+            // 点不动时把按钮置灰（判据与调度器同一份；置灰后也不会再触发点击）
+            const btn = e.node.getComponent(Button);
+            if (btn) btn.interactable = row.canDeploy;
+        }
+    }
+
+    /**
+     * 点了某个 Boss 条目 → **只往上发键**，能不能放由宿主转交的 `BossScheduler.deploy` 判。
+     * （被拒的三种情形：库存 0 / 场上已满 / 配表缺单位 —— 都在那边打日志并飘提示）
+     */
+    private onBossClicked(key: BossSlotKey): void {
+        this.scope.emit(StageScopeEvents.BossDeploy, key);
+    }
+
     /**
      * 长按某个技能槽 → 弹详情面板。
      * 面板位置是**预制件里摆好的**（`skill_details` 就在技能栏上方居中），不按长按的槽挪位置。
@@ -412,14 +593,21 @@ export class View_Game_Stage extends UIWidget {
         const maxHp = this.battleStore.maxHp;
         if (this.hp_value) this.hp_value.string = `${hp}/${maxHp}`;
         if (this.hp_bar) this.hp_bar.progress = maxHp > 0 ? Math.min(1, this.battleStore.hp / maxHp) : 0;
+        // 打击反馈 F10：自己的血量变化也弹一下（挨打是最该被看见的信息）
+        this.punch(this.hp_value?.node);
     }
 
     private refreshGold(): void {
         if (this.money_gold_value) this.money_gold_value.string = `${this.battleStore.gold}`;
+        this.punch(this.money_gold_value?.node);
     }
 
     private refreshKills(): void {
-        if (this.money_kill_value) this.money_kill_value.string = `${this.battleStore.kills}`;
+        // ⚠ 显示的是**击杀数余额**（`killPoints`，击杀商店的货币，买东西会减少），
+        //   不是累计击杀数（那是 `kills`，只进结算面板与成就）。
+        if (this.money_kill_value) this.money_kill_value.string = `${this.battleStore.killPoints}`;
+        // 打击反馈 F10 + F8 的 HUD 侧：击杀计数弹一下（配合屏幕层的击杀落款）
+        this.punch(this.money_kill_value?.node);
     }
 
     private refreshLevel(): void {
@@ -427,6 +615,86 @@ export class View_Game_Stage extends UIWidget {
         if (this.lv_value) this.lv_value.string = `Lv.${level}`;
         if (this.lv__exp_value) this.lv__exp_value.string = `${Math.trunc(exp)}/${expToNext}`;
         if (this.lv_exp_bar && expToNext > 0) this.lv_exp_bar.progress = Math.min(1, exp / expToNext);
+        // 打击反馈 F10：经验每跳一次弹一下；**升级**是更大的事件 → 等级数字也弹
+        this.punch(this.lv__exp_value?.node);
+        if (this.lastPunchLevel !== level) {
+            if (this.lastPunchLevel !== 0) this.punch(this.lv_value?.node);
+            this.lastPunchLevel = level;
+        }
+    }
+
+    /**
+     * 左上角信息条的「难度 N」（`info/name`）。
+     *
+     * ⚠ 这个格子原来是预制件里的**死文案**（写死的「难度 99」，全工程没有任何写入方）——
+     *   本局难度是响应式的（`battleStore.difficulty`，场景在 `resetRun` 里按难度弹窗的选择写入），
+     *   所以换一档进游戏就会跟着变。想改文案格式就改这一行。
+     */
+    private refreshDifficulty(): void {
+        if (this.info_name) this.info_name.string = `难度 ${this.battleStore.difficulty}`;
+    }
+
+    /* ===================================================================
+     * 打击反馈 B3（F10）：HUD 数值弹跳
+     *
+     * 「静态数字是最容易被忽略的信息」—— 数字变化时让节点弹一下（1.25× 起手、线性回到 1）。
+     * 三条口径：
+     *   ① **帧驱动**，不用 tween/定时器（与工程里 HitFlash/HpBar/印痕层同一条纪律：
+     *      Cocos 的 tween 与 schedule 在节点被缓存复用时容易残留）；
+     *   ② 同一个节点重复触发只**刷新剩余时长**（不叠倍率）—— 连击时金币每 0.3s 跳一次，
+     *      叠加会把数字吹成气球；
+     *   ③ **收尾必须复位 scale**（否则下一次弹跳从 1.25 起算，越弹越大）。
+     * =================================================================== */
+
+    /** 正在弹的 HUD 节点（数据表；节点本身不池化 —— HUD 一辈子都在） */
+    private punches: HudPunch[] = [];
+    /** 上一次弹过的等级（0 = 还没刷过）：只有**真的升级**才弹等级数字，不是每次加经验都弹 */
+    private lastPunchLevel = 0;
+
+    /** 让一个 HUD 节点弹一下（同一节点重复调用只刷新时长；null / 已销毁 = 无操作） */
+    private punch(node: Node | null | undefined): void {
+        if (!node?.isValid) return;
+        const dur = HIT_FEEL_INFO.hudPopMs / 1000;
+        if (!(dur > 0)) return;
+        for (let i = 0; i < this.punches.length; i++) {
+            if (this.punches[i].node === node) {
+                this.punches[i].remain = dur;
+                return;
+            }
+        }
+        // 上限：HUD 上同时在弹的节点不会超过这么多（存量拒绝，不做淘汰 —— 弹跳不值得为它建池）
+        if (this.punches.length >= 8) return;
+        this.punches.push({ node, remain: dur, dur });
+    }
+
+    /** 清掉全部弹跳并复位缩放（换局 / 全量刷新时调） */
+    private resetPunches(): void {
+        for (let i = 0; i < this.punches.length; i++) {
+            const p = this.punches[i];
+            if (p.node?.isValid) p.node.setScale(1, 1, 1);
+        }
+        this.punches.length = 0;
+        this.lastPunchLevel = 0;
+    }
+
+    /**
+     * 每帧推进弹跳（Cocos 会在组件定义了 `update` 时自动调用；
+     * `UIComponent` 基类没有 `update`，所以这里不覆盖任何东西）
+     */
+    update(dt: number): void {
+        if (this.punches.length === 0) return;
+        for (let i = this.punches.length - 1; i >= 0; i--) {
+            const p = this.punches[i];
+            p.remain -= dt;
+            if (p.remain > 0 && p.node?.isValid) {
+                // 起手最大 → 线性回到 1（"弹一下"，不是"弹几下"：多段回弹在浅底 HUD 上会读成抖动）
+                const s = 1 + HIT_FEEL_INFO.hudPopPct * (p.remain / p.dur);
+                p.node.setScale(s, s, 1);
+                continue;
+            }
+            if (p.node?.isValid) p.node.setScale(1, 1, 1);
+            this.punches.splice(i, 1);
+        }
     }
 
     /** 秒 → `mm:ss`（HUD 倒计时统一格式） */

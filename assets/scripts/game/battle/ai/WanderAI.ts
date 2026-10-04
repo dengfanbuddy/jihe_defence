@@ -11,6 +11,12 @@ import { MonsterAI } from './MonsterAI';
  *   - wanderSpeedMul: 闲逛速度倍率（默认 0.5）
  *   - aggroRange: 警戒半径，英雄进入后追击（默认 400）
  *   - chaseSpeedMul: 追击速度倍率（默认 1.2）
+ *   - aggroAfter: **兜底**——闲逛满这么多秒后无条件进入追击（默认 0 = 关闭）
+ *
+ * ⚠ 为什么需要 `aggroAfter`：本作的英雄**固定居中不动**，怪却从 650~800px 的外圈刷新。
+ *   只靠 `aggroRange`（从「怪 → 英雄」的距离判定）永远触发不了 —— 怪就在屏幕边缘闲逛，
+ *   英雄打不到它、它也打不到英雄，变成**完全不可交互的装饰**。
+ *   想让"闲逛"在这个结构下仍然成立，就必须给一个时间兜底。
  */
 export class WanderAI extends MonsterAI {
     /** 出生点（闲逛中心）——延迟到首次 update 记录（实体位置可能由外部在挂载后才设置） */
@@ -22,10 +28,14 @@ export class WanderAI extends MonsterAI {
     private dirY = 0;
     /** 是否已进入追击状态 */
     private aggro = false;
+    /** 已经闲逛了多久（`aggroAfter` 兜底用） */
+    private wanderElapsed = 0;
 
     override onAttach(): void {
         // 位置可能尚未由外部设置（如 spawnWave 在创建后才赋 position），延迟初始化 home
         this.homeInited = false;
+        this.wanderElapsed = 0;
+        this.aggro = false;
         this.timer = Math.random() * this.getParam('changeDirInterval', 2);
     }
 
@@ -49,7 +59,13 @@ export class WanderAI extends MonsterAI {
         const dist = this.distanceTo(target);
 
         // 英雄进入警戒范围 → 追击
-        if (!this.aggro && dist <= this.getParam('aggroRange', 400)) {
+        // 兜底：闲逛满 aggroAfter 秒也强制追击（见类注释 —— 英雄不动 + 外圈刷新时，
+        // 只靠 aggroRange 会让怪永远待在屏幕边缘，变成不可交互的装饰）
+        this.wanderElapsed += dt;
+        const aggroAfter = this.getParam('aggroAfter', 0);
+        if (!this.aggro
+            && (dist <= this.getParam('aggroRange', 400)
+                || (aggroAfter > 0 && this.wanderElapsed >= aggroAfter))) {
             this.aggro = true;
         }
 

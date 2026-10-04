@@ -10,6 +10,12 @@ import { UnitKind, UnitVisualStyle, getUnitVisualStyle } from '../../common/Enti
  *   1. 缩放：node.setScale(style.scale)（逻辑侧的碰撞半径用同一倍率，见 Entity.SetUnitKind）
  *   2. 底色：style.color（null = 保留预制件原色，英雄走这条）
  *   3. 受击闪烁：被伤害时染成 style.hitColor，停留 hitFlashDuration 秒后恢复底色
+ *   4. 受击膨胀 `deform()`：放大一点再弹回（打击反馈 B1，见 `docs/打击反馈设计.md`）
+ *
+ * ---- 缩放只有一个所有者（口径，别绕过它）----
+ *   基准 scale（= `UNIT_VISUALS.scale`，同时是**碰撞半径倍率**）与瞬时的**受击膨胀**
+ *   **必须乘法叠加**：`最终 scale = 基准 scale × 膨胀倍率`。
+ *   谁要改节点缩放都从这里走 —— 各写各的会让"看起来多大"和"被推开多远"脱钩。
  *
  * 用**帧计时**而不是 scheduleOnce：
  *   节点是对象池复用的，定时器会跨生命周期残留（回收后仍回调），
@@ -19,6 +25,7 @@ import { UnitKind, UnitVisualStyle, getUnitVisualStyle } from '../../common/Enti
  *   this.flash = new HitFlash(this.node);
  *   this.flash.apply(UnitKind.Elite);  // 绑定时初始化外观
  *   this.flash.hit();                  // 收到受击事件时
+ *   this.flash.deform(0.13, 150);      // 受击膨胀（幅度比例 / 毫秒）
  *   this.flash.tick(dt);               // 每帧（View.update）
  *   this.flash.reset();                // 解绑/回收：恢复原色与原缩放
  */
@@ -40,6 +47,13 @@ export class HitFlash {
     /** 是否已 apply 过外观（未 apply 前 reset 不动节点，避免把预制件原色误写成白色） */
     private applied = false;
 
+    /** 基准缩放（= UNIT_VISUALS.scale；形变在它之上乘算） */
+    private baseScale = 1;
+    /** 受击膨胀：当前倍率与总时长/剩余时长（秒） */
+    private deformAmp = 0;
+    private deformDur = 0;
+    private deformRemain = 0;
+
     constructor(node: Node, sprite?: Sprite | null) {
         this.node = node;
         this.sprite = sprite ?? node.getComponent(Sprite) ?? node.getComponentInChildren(Sprite);
@@ -48,6 +62,11 @@ export class HitFlash {
     /** 是否正在受击闪烁中 */
     get isFlashing(): boolean {
         return this.remain > 0;
+    }
+
+    /** 当前是否处于受击膨胀中 */
+    get isDeforming(): boolean {
+        return this.deformRemain > 0;
     }
 
     /**
@@ -60,14 +79,18 @@ export class HitFlash {
         this.duration = s.hitFlashDuration;
 
         // 缩放：表现层节点放大（逻辑层实体分离用同一个倍率乘半径，保证推距与体型一致）
-        this.node.setScale(s.scale, s.scale, 1);
+        this.baseScale = s.scale;
+        this.applyScale();
 
         // 底色：color=null → 保留预制件原色（英雄等美术自带配色的单位）
         this.baseColor = s.color === null ? this.copyPrefabColor() : toColor(s.color);
         this.hitColor = toColor(s.hitColor);
 
-        // 复位闪烁状态并立刻回到本色（池化复用时不会残留上一只怪的受击色）
+        // 复位闪烁/膨胀状态并立刻回到本色（池化复用时不会残留上一只怪的状态）
         this.remain = 0;
+        this.deformAmp = 0;
+        this.deformDur = 0;
+        this.deformRemain = 0;
         this.applied = true;
         this.paint(this.baseColor);
     }
@@ -79,8 +102,33 @@ export class HitFlash {
         this.paint(this.hitColor);
     }
 
-    /** 每帧推进（由 View.update 驱动）：到时自动恢复底色 */
+    /**
+     * 受击膨胀（打击反馈）：瞬间放大 `pct` 再线性弹回。
+     *
+     * @param pct  膨胀比例（0.13 = 放大 13%）；<= 0 或已销毁 = 无操作
+     * @param ms   回落时长（毫秒）
+     *
+     * 与 `hit()` 一样是**表现层**的事：不写 `entity.position`、不改任何逻辑数值。
+     * 连击时取**更强的一次**（不叠加，否则 3 次/秒的普攻会把怪吹成气球）。
+     */
+    deform(pct: number, ms: number): void {
+        if (!(pct > 0) || !(ms > 0) || !this.node?.isValid) return;
+        this.deformAmp = Math.max(this.deformAmp, pct);
+        this.deformDur = ms / 1000;
+        this.deformRemain = this.deformDur;
+        this.applyScale();
+    }
+
+    /** 每帧推进（由 View.update 驱动）：到时恢复底色与基准缩放 */
     tick(dt: number): void {
+        if (this.deformRemain > 0) {
+            this.deformRemain -= dt;
+            if (this.deformRemain <= 0) {
+                this.deformRemain = 0;
+                this.deformAmp = 0;
+            }
+            this.applyScale();
+        }
         if (this.remain <= 0) return;
         this.remain -= dt;
         if (this.remain <= 0) {
@@ -89,9 +137,12 @@ export class HitFlash {
         }
     }
 
-    /** 解绑/回收：恢复底色与原缩放，清空闪烁状态（对象池复用必须调用） */
+    /** 解绑/回收：恢复底色与原缩放，清空闪烁/膨胀状态（对象池复用必须调用） */
     reset(): void {
         this.remain = 0;
+        this.deformAmp = 0;
+        this.deformDur = 0;
+        this.deformRemain = 0;
         if (!this.applied) return; // 从未 apply 过 → 节点外观不属于本控制器，不动它
         this.paint(this.baseColor);
         // 节点可能正处于销毁流程（如 releasePrefabs 直接 destroy 节点）：已销毁的节点不再动
@@ -99,6 +150,20 @@ export class HitFlash {
     }
 
     // ============ 内部 ============
+
+    /**
+     * 写节点缩放 = 基准 × 当前膨胀倍率
+     *
+     * 膨胀曲线：起手即最大 → 线性回落到 1（"被打得鼓一下"，起手猛、收得快）。
+     */
+    private applyScale(): void {
+        if (!this.node?.isValid) return;
+        let mul = 1;
+        if (this.deformRemain > 0 && this.deformDur > 0) {
+            mul = 1 + this.deformAmp * (this.deformRemain / this.deformDur);
+        }
+        this.node.setScale(this.baseScale * mul, this.baseScale * mul, 1);
+    }
 
     /**
      * 写色：每次传入独立的 Color 实例（Cocos 的 setter 内部做 set 拷贝，不共享引用）

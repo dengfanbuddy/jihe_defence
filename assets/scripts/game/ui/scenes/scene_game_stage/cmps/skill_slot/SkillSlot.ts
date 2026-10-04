@@ -2,6 +2,7 @@ import { _decorator, Color, Label, Node, Sprite, SpriteFrame, resources } from '
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { StageScopeEvents, StageScopeKeys } from '../StageScope';
 import { ShopConfig, type ShopRarity } from '../../../../../data/configs/ShopConfig';
+import { AtlasIcon } from '../../../../../common/AtlasIcon';
 import type { SkillSlotState, SkillSlotsVM } from '../../../../../battle/SkillSlots';
 
 const { ccclass, property } = _decorator;
@@ -9,7 +10,7 @@ const { ccclass, property } = _decorator;
 /** 长按判定阈值（秒）——手按住超过这么久才弹详情面板 */
 const LONG_PRESS_SECONDS = 0.4;
 
-/** 没有配 `icon` 时的兜底图（单位技能与肉鸽技能现在都没配图标，见 abilities.json 的 icon 列） */
+/** 没有配 `icon` 时的兜底图（abilities.json 的 `icon` 列已有 43 条，其余 15 条回落这张） */
 const PLACEHOLDER_ICON = 'textures/skills/bullet';
 
 /** 锁定 / 未锁定两张图（`lock` 节点的 Sprite 会在这两张之间切） */
@@ -240,7 +241,7 @@ export class SkillSlot extends UIWidget {
 
         if (path === this.iconPath) return;
         this.iconPath = path;
-        this.loadSpriteFrame(path, (sf) => {
+        this.loadSkillIcon(path, (sf) => {
             if (this.iconSprite?.isValid && this.iconPath === path) this.iconSprite.spriteFrame = sf;
         });
     }
@@ -370,7 +371,32 @@ export class SkillSlot extends UIWidget {
         if (!this.cdMask) ezgame.warn(`[技能槽] 槽 ${this.slotIndex} 找不到 ${CD_MASK_NODE} 子节点，冷却圈不会显示`);
     }
 
-    /** 加载 `path/spriteFrame`（resources 内置资源；静态缓存，失败只报错不动节点） */
+    /**
+     * 加载**技能图标**（abilities.json 的 `icon`，图集优先 → 直取帧 → 旧碎图。
+     * 三级降级与"命中哪条路"的日志都在共用的 `AtlasIcon` 里，本组件只管缓存与写节点）。
+     */
+    private loadSkillIcon(path: string, onLoaded: (sf: SpriteFrame) => void): void {
+        if (!path) return;
+        const cached = SkillSlot.iconCache.get(path);
+        if (cached) {
+            onLoaded(cached);
+            return;
+        }
+        AtlasIcon.loadIconFrame(path).then((sf) => {
+            if (!sf) {
+                ezgame.error(`[技能槽] 技能图标加载失败：${path}`);
+                return;
+            }
+            SkillSlot.iconCache.set(path, sf);
+            onLoaded(sf);
+        });
+    }
+
+    /**
+     * 加载 `path/spriteFrame`（resources 内置资源；静态缓存，失败只报错不动节点）。
+     * ⚠ 只给**碎图**用（`textures/common/lock`、`textures/common/unlock` 这类不在图集里的图）——
+     * 技能图标走上面的 `loadSkillIcon`（要先试图集），别把这条当成通用图标加载器。
+     */
     private loadSpriteFrame(path: string, onLoaded: (sf: SpriteFrame) => void): void {
         if (!path) return;
         const cached = SkillSlot.iconCache.get(path);

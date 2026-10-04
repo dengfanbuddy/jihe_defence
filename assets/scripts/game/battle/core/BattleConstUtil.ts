@@ -25,6 +25,10 @@ const DEFAULTS: Record<string, number> = {
     initialPhase: 1,
     heroExpFormulaBase: 100,
     heroExpFormulaRatio: 1.12,
+    heroUnlockCostBase: 500,
+    heroUnlockCostGrowth: 1.35,
+    heroLevelUpGoldBase: 50,
+    heroLevelUpGoldRatio: 1.25,
     playerExpFormulaBase: 100,
     playerExpFormulaRatio: 1.15,
     battleExpFormulaBase: 60,
@@ -99,6 +103,39 @@ export class BattleConstUtil {
     /** 英雄经验公式增长率 */
     static getHeroExpFormulaRatio(): number {
         return BattleConstUtil.getNumber('heroExpFormulaRatio', 1.12);
+    }
+
+    /**
+     * **英雄解锁**的金币基准价 —— 英雄列表（`units.json` 里 `category=hero`、按 id 升序）里
+     * **序号最靠前**那一位的价格；每靠后一位 × `getHeroUnlockCostGrowth()`。
+     *
+     * 价格公式（唯一落点：`data/configs/HeroConfig.getUnlockCost`）：
+     *   `cost(英雄) = round(基准 × 涨价系数 ^ 该英雄在英雄列表里的下标)`
+     *
+     * ⚠ 为什么按「序号」而不是每个英雄单独定价：本表是全局 KV 表，没有「一行一英雄」的位置；
+     *   真要逐个定价，就在 `units` 表加一列 `unlock_cost`，并让 `HeroConfig.getUnlockCost` 优先读它。
+     *   默认解锁的那位（`HeroData.defaultData` 里的 1001）即使算出来也不消耗。
+     */
+    static getHeroUnlockCostBase(): number {
+        return BattleConstUtil.getNumber('heroUnlockCostBase', 500);
+    }
+
+    /** 英雄解锁的涨价系数（每靠后一位 ×该值；1 = 都一样贵） */
+    static getHeroUnlockCostGrowth(): number {
+        return BattleConstUtil.getNumber('heroUnlockCostGrowth', 1.35);
+    }
+
+    /** **英雄升级**（Lv.1 → 2）所需金币 */
+    static getHeroLevelUpGoldBase(): number {
+        return BattleConstUtil.getNumber('heroLevelUpGoldBase', 50);
+    }
+
+    /**
+     * 英雄升级的涨价系数：`Lv.N → N+1` 的消耗 = `基数 × 系数^(N-1)`
+     * （口径与 `heroExpFormulaRatio` 那套"指数递增"一致，只是这里换成了金币）。
+     */
+    static getHeroLevelUpGoldRatio(): number {
+        return BattleConstUtil.getNumber('heroLevelUpGoldRatio', 1.25);
     }
     /** 局内战斗等级经验公式基数 */
     static getBattleExpFormulaBase(): number {

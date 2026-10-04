@@ -64,6 +64,36 @@ export const BattleEvents = {
     OnModifierRemoved: 'on_modifier_removed',
     OnModifierRefreshed: 'on_modifier_refreshed',
     OnStateChanged: 'on_state_changed',
+    /**
+     * 闪避成功（2026-10 新增，**会派发给 Modifier**）。
+     *
+     * 在此之前「闪避」是**完全静默**的：`Entity.resolveAttackHit` 里
+     * `if (evasion > 0 && Math.random() < evasion) return 0;` 直接返回，
+     * 近战连总线事件都没有；远程虽然会经 `Projectile` 发 `on_projectile_miss`，
+     * 但那只发总线、且 `reason` 只有一个 `'evaded_or_blocked'`（分不清闪避还是格挡）。
+     * 现在补齐了，并且与「格挡」（`on_block_damage`）彻底分开。
+     *
+     * 载荷：`{ attacker, target, dodger }`（`target` === `dodger` === 闪避者）。
+     */
+    OnEvade: 'on_evade',
+    /** 局内金币变化（脚本加金后必须发它，场景层据此把 hero.gold 投影到 HUD） */
+    OnGoldGained: 'on_gold_gained',
+    /**
+     * 局内经验入账（2026-10 遗物重做新增）。
+     *
+     * 为什么需要：遗物钩子「领悟（killExpFlat）」要按击杀额外发经验，而局内经验的唯一入口是
+     * `Scene_Game_Stage.addBattleExp`（私有，且要处理升级/成长/HUD 投影）—— 战斗层不能直接调。
+     * 所以由脚本 `publish({ target, amount, source })`，场景层订阅后折算成局内经验。
+     */
+    OnExpGained: 'on_exp_gained',
+    /**
+     * 阶段切换（2026-10 遗物重做新增）。
+     *
+     * 为什么需要：遗物钩子「阶段契约（phaseBuff）」的语义是「每进入新阶段叠一层」，
+     * 而阶段切换的唯一决策点是 `Scene_Game_Stage.checkStage` —— 原先那里只投影 store，没有事件。
+     * 场景层在**阶段号真的变了**之后 publish（载荷 `{ from, to }`），钩子自行订阅。
+     */
+    OnPhaseChanged: 'on_phase_changed',
     OnRelicAdded: 'on_relic_added',
     OnRelicRemoved: 'on_relic_removed',
     OnKill: 'on_kill',

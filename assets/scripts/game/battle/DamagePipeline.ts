@@ -10,7 +10,7 @@ import { Entity } from './Entity';
  *   1. 攻击者增伤（所有 Modifier 的 damage_out 加成，乘法叠加）
  *   2. 暴击（优者生效：取最高倍率，PRD 概率可选）
  *   3. 目标护盾/格挡（Modifier 事件拦截，可吞掉伤害）
- *   4. 目标受伤增减（incoming_damage 加成）
+ *   4. 目标受伤增减（受伤减免 12，**全能减免**：物理与法术都减）
  *   5. 护甲/魔抗减免
  *   6. 扣血（先扣血，事件监听者才能看到扣血后的 HP 与真实死亡状态）
  *   7. 发布事件 → 吸血/反伤/荆棘 等 Modifier 响应
@@ -152,10 +152,15 @@ export class DamagePipeline {
         return 1;
     }
 
-    /** 目标受伤增减（按伤害类型区分：incoming_physical / incoming_magical） */
-    private collectIncomingMultiplier(target: any, damageType: DamageType): number {
-        const attrId = damageType === DamageType.Physical ? AttributeType.IncomingPhysical : AttributeType.IncomingMagical;
-        if (target.attrs?.has(attrId)) return target.attrs.get(attrId);
+    /**
+     * 目标受伤增减
+     *
+     * 2026-10 口径：**受伤减免是"全能减免"** —— 物理与法术都减，只有一条属性
+     * `AttributeType.IncomingDamage(12)`（原 12 物理受伤 / 13 魔法受伤 已合并，13 退役）。
+     * 所以这里不再按 `damageType` 分支：物理、法术、纯粹伤害都吃这一条。
+     */
+    private collectIncomingMultiplier(target: any, _damageType: DamageType): number {
+        if (target.attrs?.has(AttributeType.IncomingDamage)) return target.attrs.get(AttributeType.IncomingDamage);
         return 1;
     }
 

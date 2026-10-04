@@ -35,7 +35,8 @@ export interface UnitCfg {
      *
      * ⚠️ 本字段**只在"重新索敌"时生效**：普攻是粘性锁定（resolveAttackTarget），
      * 一旦锁定就一直打同一个目标，直到它死亡/被回收/离开射程（且射程内有别的敌人）；
-     * 唯一例外是嘲讽（Entity.forcedTarget）会立刻改打嘲讽者。
+     * 两个例外：① 嘲讽（Entity.forcedTarget）会立刻改打嘲讽者；
+     * ② 玩家点选的目标（Scene_Game_Stage.manualTarget）在射程内时优先于本字段挑出来的那个。
      *
      * 语义：先在**攻击范围内**过滤候选，再按策略挑选 ——
      * 即 farthest = 攻击范围内最远的敌人（不是全图最远，射程外一律不索敌）。

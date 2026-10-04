@@ -51,6 +51,22 @@ const ROOT = path.resolve(HERE, '../../..');
 const DESIGN_DIR = path.join(ROOT, 'docs/hero-design/assets');
 const OUT_DIR = path.join(ROOT, 'assets/resources/tb');
 
+/**
+ * ⚠ **2026-10 起本脚本默认拒绝运行**（局内遗物效果重做落地的连带处理）。
+ *
+ * 原因：它按 `docs/hero-design`（Dota2 道具库）重写 `relics.json` 的**局内版**
+ * （`name`/`icon`/`rarity`/`description_inner`/`modifiers_inner`），而局内遗物的效果重做已经落地 ——
+ * 设计真源 = `scripts/lib/relic-inner-design.mjs`，落表脚本 = `gen-relics-inner-from-design.mjs`，
+ * 钩子实现 = `assets/scripts/game/battle/RelicHooks.ts`。**重跑本脚本会把整套设计覆盖回 Dota2 老效果**
+ * （砍树 / 天神下凡 / 冰霜光环…），所以它现在只剩考古用途，要跑必须显式声明。
+ */
+if (!process.argv.includes('--legacy-dota2')) {
+    console.error('✖ gen-shop-from-hero-design 已停用：重跑会覆盖 2026-10 落地的局内遗物设计。');
+    console.error('  · 要改局内遗物：npm run gen:relic-design → gen:relic-hooks → gen:relics-inner（再回灌 xlsx）');
+    console.error('  · 确实要跑老管线（考古/对比）：显式加 --legacy-dota2');
+    process.exit(1);
+}
+
 // ============================ 设计稿加载 ============================
 
 /** 在沙箱里执行设计稿脚本，取出挂在 window 上的数据 */

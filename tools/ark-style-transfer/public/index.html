@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>火山方舟 · 图片风格迁移（透明背景）</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <b>火山方舟 · 图片风格迁移</b>
+    <span class="muted">参考图 + 目标图 → 同风格图标 · 透明背景 · 无水印</span>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="single">单图调试台</button>
+    <button class="tab" data-tab="batch">批量处理</button>
+  </nav>
+  <div class="topright">
+    <span id="keyBadge" class="badge">API Key …</span>
+    <button id="btnSettings" class="btn ghost">设置</button>
+  </div>
+</header>
+
+<main>
+<!-- ============================= 单图调试台 ============================= -->
+<section id="tab-single" class="tabpane active">
+  <div class="split">
+
+    <!-- ---------------- 左：输入 ---------------- -->
+    <div class="col scroll">
+      <div class="card">
+        <div class="card-h">
+          <h3>1. 选图</h3>
+          <div class="row gap">
+            <button class="btn tiny ghost" id="btnSwap">互换</button>
+            <button class="btn tiny ghost" id="btnClearImgs">清空</button>
+          </div>
+        </div>
+        <div class="imgpick">
+          <div class="pick" id="pickRef">
+            <div class="pick-t">参考图 <span class="muted">（只取画风 / 材质 / 配色）</span></div>
+            <div class="checker dropzone" data-kind="ref">
+              <img class="thumb hidden" data-preview="ref" alt="参考图" />
+              <div class="ph" data-ph="ref">点击选择 / 拖入图片<br /><span class="muted">或把本地路径粘到下面</span></div>
+            </div>
+            <input class="inp path" data-path="ref" placeholder="E:\...\参考图.png" />
+          </div>
+          <div class="pick" id="pickTarget">
+            <div class="pick-t">目标图 <span class="muted">（只取造型 / 结构）</span></div>
+            <div class="checker dropzone" data-kind="target">
+              <img class="thumb hidden" data-preview="target" alt="目标图" />
+              <div class="ph" data-ph="target">点击选择 / 拖入图片<br /><span class="muted">支持整个文件夹批量</span></div>
+            </div>
+            <input class="inp path" data-path="target" placeholder="E:\...\目标图.png" />
+          </div>
+        </div>
+        <div class="hintline muted">图片顺序固定为：<code>图1 = 参考图</code>（风格）→ <code>图2 = 目标图</code>（内容）。
+          关闭「使用参考图」就是单图重绘。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3>2. 提示词</h3>
+          <div class="row gap">
+            <select class="inp" id="presetSel" style="width:auto"></select>
+            <button class="btn tiny ghost" id="btnResetPrompt">还原默认</button>
+          </div>
+        </div>
+        <textarea id="f_prompt" class="area" rows="9" spellcheck="false"></textarea>
+        <label class="fld mt8"><span>风格描述（可选，<b>但强烈建议填</b>：实测模型更听文字，而不是参考图的像素 —— 换参考图只能让输出动 ~17/255，把画风写成文字才明显改变它）</span>
+          <textarea id="f_styleDesc" class="area" rows="3" spellcheck="false" placeholder="例：厚涂写实、金属高光锐利、暗部偏紫、边缘有一圈暖色轮廓光；不要扁平化、不要矢量感"></textarea></label>
+        <div class="row wrap gap mt6">
+          <label class="chk"><input type="checkbox" id="f_labelImages" /> 自动声明「图1/图2 各取什么」</label>
+          <label class="chk"><input type="checkbox" id="f_appendKeyInstruction" /> 自动追加「纯色背景」要求（抠图用）</label>
+          <span class="muted tiny">提示词里的 <code>{keyHex}</code> 会替换成下面的键色</span>
+        </div>
+        <details class="mt8">
+          <summary>最终发送给模型的提示词</summary>
+          <pre id="promptPreview" class="pre"></pre>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>3. 模型与出图</h3><span id="modelCaps" class="chips"></span></div>
+        <div class="grid2">
+          <label class="fld"><span>模型
+              <button class="btn tiny ghost" id="btnFetchModels" type="button" title="列出你的 API Key 能看到的模型。注意：列表里不带日期的别名其实不能用于生图，仍需用「校验模型 ID」确认">拉取账户模型</button>
+              <button class="btn tiny ghost" id="btnProbeModel" type="button" title="免费校验当前模型 ID 能否用于图片生成：发一个不可能成功的请求（尺寸 1x1 + 坏图），按报错类型判断 —— 不会出图、不计费">校验模型 ID（免费）</button>
+            </span>
+            <select class="inp" id="f_model"></select></label>
+          <label class="fld"><span>自定义模型 ID / Endpoint ID（填了就覆盖上面的选择；从控制台复制的模型 ID 粘这里）</span>
+            <input class="inp" id="f_customModel" placeholder="doubao-seedream-5-0-flash-260915" /></label>
+          <label class="fld"><span>图片尺寸</span>
+            <div class="row gap">
+              <select class="inp" id="f_sizeMode">
+                <option value="tier">按档位（模型决定宽高）</option>
+                <option value="custom">自定义宽×高</option>
+              </select>
+              <select class="inp" id="f_sizeTier"></select>
+            </div>
+          </label>
+          <label class="fld" id="wrapCustomSize"><span>自定义宽 × 高（总像素须在该模型允许区间内）</span>
+            <div class="row gap">
+              <input class="inp num" type="number" id="f_sizeW" min="16" max="6000" />
+              <span class="muted">×</span>
+              <input class="inp num" type="number" id="f_sizeH" min="16" max="6000" />
+            </div>
+          </label>
+          <label class="fld"><span>图片品质（提示词优化）</span>
+            <select class="inp" id="f_optimizePrompt">
+              <option value="none">不优化（原样发送，最可控）</option>
+              <option value="fast">极速优化（fast）</option>
+              <option value="standard">标准优化（standard，质量更好）</option>
+            </select>
+          </label>
+          <label class="fld"><span>输出格式</span>
+            <select class="inp" id="f_outputFormat">
+              <option value="png">png（支持透明通道，推荐）</option>
+              <option value="jpeg">jpeg（更小，无透明通道）</option>
+            </select>
+          </label>
+          <label class="fld"><span>JPEG 质量（仅「不处理透明 + jpeg」时生效）</span>
+            <input class="inp num" type="number" id="f_jpegQuality" min="50" max="100" /></label>
+          <label class="fld"><span>输入图最长边（送进接口前缩放；<b>只缩小不放大</b>，0 = 原尺寸）</span>
+            <input class="inp num" type="number" id="f_inputMaxEdge" min="0" max="2048" step="64" /></label>
+          <label class="fld"><span>组图模式</span>
+            <select class="inp" id="f_sequential">
+              <option value="disabled">关闭（一次出 1 张，推荐）</option>
+              <option value="auto">开启（一次出一组，会多花钱）</option>
+            </select>
+          </label>
+          <label class="chk span2"><input type="checkbox" id="f_useRef" /> 使用参考图（双图风格迁移；关闭 = 只把目标图重绘成高清版）</label>
+          <label class="chk span2"><input type="checkbox" id="f_inputUpscale" /> 把小图放大后再送接口（<b>默认关闭</b>：放大不增加细节，实测参考图细节量掉 82% → 风格被抹平）</label>
+          <label class="chk"><input type="checkbox" id="f_watermark" /> 加水印（<b>默认关闭 → 无水印</b>）</label>
+          <label class="fld"><span>单次超时（秒）</span><input class="inp num" type="number" id="f_timeoutMs" min="30000" max="900000" step="10000" /></label>
+          <label class="fld"><span>失败重试次数</span><input class="inp num" type="number" id="f_retries" min="0" max="6" /></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>4. 透明背景</h3><span class="chips" id="alphaChips"></span></div>
+        <label class="fld"><span>处理方式</span>
+          <select class="inp" id="f_alphaMode">
+            <option value="chroma">色键抠图（推荐：提示词要求纯色背景，本地抠干净）</option>
+            <option value="api">接口直出透明（background=transparent：仅 1 张输入图，且输入图本身要已有透明像素）</option>
+            <option value="source">沿用目标图 alpha（目标图本身是抠好的透明 PNG 时用）</option>
+            <option value="none">不处理（保留模型直出的不透明图）</option>
+          </select>
+        </label>
+        <div class="hintline" id="alphaTip"></div>
+        <div id="chromaBox">
+          <div class="grid3">
+            <label class="fld"><span>键色（要求模型用的背景色）</span>
+              <div class="row gap">
+                <input type="color" id="f_keyColorPick" class="color" />
+                <input class="inp" id="f_keyColor" />
+              </div>
+            </label>
+            <label class="fld"><span>容差 <b id="tolVal">88</b>（边缘留色边就加大，啃到主体就减小）</span>
+              <input type="range" id="f_keyTolerance" min="0" max="200" step="1" /></label>
+            <label class="fld"><span>渐变生长 <b id="growVal">14</b>（吃掉渐变/暗角背景）</span>
+              <input type="range" id="f_localGrow" min="0" max="80" step="1" /></label>
+            <label class="fld"><span>边缘收边 <b id="shrinkVal">1</b> px</span>
+              <input type="range" id="f_shrinkEdge" min="0" max="4" step="1" /></label>
+          </div>
+          <div class="row wrap gap mt6">
+            <label class="chk"><input type="checkbox" id="f_keyAuto" /> 自动探测背景色（推荐：模型没照做也能抠）</label>
+            <label class="chk"><input type="checkbox" id="f_despill" /> 去溢色（边缘反混合，消除键色描边）</label>
+          </div>
+        </div>
+        <hr class="sep" />
+        <div class="grid3">
+          <label class="chk"><input type="checkbox" id="f_trim" /> 裁掉透明边</label>
+          <label class="fld"><span>裁边留白（px）</span><input class="inp num" type="number" id="f_trimMargin" min="0" max="200" /></label>
+          <label class="chk"><input type="checkbox" id="f_padSquare" /> 补成正方形（居中）</label>
+          <label class="fld"><span>留白比例</span><input class="inp num" type="number" id="f_padSquarePad" min="0" max="0.5" step="0.01" /></label>
+          <label class="fld"><span>最终边长（0 = 不缩放）</span>
+            <select class="inp" id="f_outSize">
+              <option value="0">保持原尺寸</option>
+              <option value="128">128</option>
+              <option value="256">256</option>
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>5. 输出</h3></div>
+        <label class="fld"><span>输出文件夹（成品图 + <code>_raw/</code> 模型直出 + <code>_thumb/</code> 缩略图）</span>
+          <div class="row gap">
+            <input class="inp" id="f_outDir" />
+            <button class="btn tiny ghost" id="btnOpenOut">打开</button>
+          </div>
+        </label>
+      </div>
+
+      <div class="actions sticky">
+        <button class="btn primary" id="btnGenerate">生成</button>
+        <button class="btn" id="btnRealpha" title="用上一次模型直出图重跑抠图，不再调接口、不再计费">只重跑抠图</button>
+        <span class="muted tiny" id="genStatus"></span>
+      </div>
+    </div>
+
+    <!-- ---------------- 右：结果 ---------------- -->
+    <div class="col scroll">
+      <div class="card">
+        <div class="card-h"><h3>结果</h3><span class="muted tiny" id="resMeta"></span></div>
+        <div class="stage checker">
+          <img id="resMain" class="hidden" alt="结果" />
+          <div id="resEmpty" class="ph">还没有结果 —— 选好两张图、点左下角「生成」</div>
+        </div>
+        <div class="row wrap gap mt8">
+          <button class="btn tiny" id="btnDownload" disabled>下载 PNG</button>
+          <button class="btn tiny ghost" id="btnReveal" disabled>在文件夹中显示</button>
+          <button class="btn tiny ghost" id="btnCopyPath" disabled>复制路径</button>
+        </div>
+      </div>
+
+      <div class="card" id="cardCompare">
+        <div class="card-h"><h3>对比</h3><span class="muted tiny">点图放大</span></div>
+        <div class="compare">
+          <figure><div class="checker"><img data-cmp="target" /></div><figcaption>目标图（原图）</figcaption></figure>
+          <figure><div class="checker"><img data-cmp="raw" /></div><figcaption>模型直出（未抠图）</figcaption></figure>
+          <figure><div class="checker"><img data-cmp="out" /></div><figcaption>成品（已抠图/裁边）</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="card" id="cardQC">
+        <div class="card-h"><h3>质检 / 请求信息</h3></div>
+        <div id="qcBody" class="kv"><span class="muted">—</span></div>
+      </div>
+
+      <div class="card hidden" id="cardError">
+        <div class="card-h"><h3 class="err">失败</h3>
+          <button class="btn tiny ghost hidden" id="btnFetchModels2">拉取账户可用模型</button>
+        </div>
+        <div id="errBody"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= 批量处理 ============================= -->
+<section id="tab-batch" class="tabpane">
+  <div class="split">
+    <div class="col scroll">
+      <div class="card">
+        <div class="card-h"><h3>1. 输入 / 输出</h3>
+          <span class="muted tiny">输入不会被修改；输出文件与输入同名</span></div>
+        <label class="fld"><span>输入文件夹（要处理的一批图）</span>
+          <div class="row gap">
+            <input class="inp" id="b_inDir" placeholder="E:\project2\AI\dota2_equip\output\icons" />
+            <button class="btn tiny ghost" id="btnScan">扫描</button>
+          </div>
+        </label>
+        <label class="fld"><span>输出文件夹</span>
+          <div class="row gap">
+            <input class="inp" id="b_outDir" />
+            <button class="btn tiny ghost" id="btnOpenOut2">打开</button>
+          </div>
+        </label>
+        <div class="grid3 mt6">
+          <label class="chk"><input type="checkbox" id="b_recursive" /> 包含子文件夹</label>
+          <label class="chk" title="「只重跑抠图」会自动取消勾选：否则改了抠图参数也会被全部跳过"><input type="checkbox" id="b_skipExisting" /> 跳过已生成（断点续跑）</label>
+          <label class="fld"><span>只处理前 N 张（0 = 全部）</span>
+            <input class="inp num" type="number" id="b_limit" min="0" /></label>
+        </div>
+        <div id="scanResult" class="scan muted">还没扫描。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>2. 参考图</h3><span class="muted tiny">批量时所有目标图共用这一张参考图</span></div>
+        <div class="row gap wrap">
+          <div class="checker refmini"><img id="b_refThumb" class="hidden" /><span class="ph" id="b_refPh">未选</span></div>
+          <div class="col2">
+            <div class="muted tiny" id="b_refName">未选择参考图（会用「单图调试台」里选的那张）</div>
+            <div class="row gap mt6">
+              <button class="btn tiny ghost" id="btnPickRef2">选择参考图</button>
+              <button class="btn tiny ghost" id="btnLoadFirst">载入输入夹第 1 张到调试台试跑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>3. 运行</h3></div>
+        <div class="grid3">
+          <label class="fld"><span>模式</span>
+            <select class="inp" id="b_mode">
+              <option value="generate">重新生成（调接口，会计费）</option>
+              <option value="realpha">只重跑抠图（用 _raw 直出图，不计费）</option>
+            </select>
+          </label>
+          <label class="fld"><span>并发（限流就调到 1）</span>
+            <input class="inp num" type="number" id="b_concurrency" min="1" max="8" /></label>
+          <label class="fld"><span>单张失败重试</span>
+            <input class="inp num" type="number" id="b_retries" min="0" max="6" /></label>
+        </div>
+        <div class="warnbox" id="costBox">—</div>
+        <div class="actions">
+          <button class="btn primary" id="btnStart">开始批量</button>
+          <button class="btn" id="btnCancel" disabled>取消</button>
+          <button class="btn ghost" id="btnZip" disabled>打包下载 ZIP</button>
+          <button class="btn ghost" id="btnReport" disabled>导出报告</button>
+        </div>
+        <div class="progress mt8"><div class="bar" id="bar"></div><span id="barText">0 / 0</span></div>
+        <div class="muted tiny mt6" id="jobMeta"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>4. 实时列表</h3><span class="muted tiny" id="listMeta"></span></div>
+        <div class="list" id="itemList"><div class="muted">还没有任务。</div></div>
+      </div>
+    </div>
+
+    <div class="col scroll">
+      <div class="card">
+        <div class="card-h"><h3>结果网格</h3>
+          <div class="row gap">
+            <label class="chk tiny"><input type="checkbox" id="gridFailOnly" /> 只看失败</label>
+          </div>
+        </div>
+        <div class="grid" id="resultGrid"><div class="muted">批量跑完后这里会显示「原图 → 成品」对照。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- 设置弹窗 -->
+<div class="modal hidden" id="modal">
+  <div class="modal-box">
+    <div class="card-h"><h3>设置</h3><button class="btn tiny ghost" id="btnCloseModal">关闭</button></div>
+    <label class="fld"><span>火山方舟 API Key（保存在本工具 <code>.data/config.json</code>，不会外传）</span>
+      <input class="inp" id="s_apiKey" type="password" placeholder="粘贴长效 API Key（控制台 → API Key 管理）" autocomplete="off" />
+    </label>
+    <label class="fld"><span>API 端点（默认北京区；用 BytePlus 就改这里）</span>
+      <input class="inp" id="s_baseUrl" /></label>
+    <div class="muted tiny">环境变量 <code>ARK_API_KEY</code> / <code>ARK_BASE_URL</code> 也生效，界面里填的优先。</div>
+    <div class="actions"><button class="btn primary" id="btnSaveSettings">保存</button>
+      <button class="btn ghost" id="btnClearKey">清除已保存的 Key</button></div>
+  </div>
+</div>
+
+<!-- 大图查看 -->
+<div class="modal hidden" id="lightbox"><img id="lightImg" /></div>
+<div id="toasts" class="toasts"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

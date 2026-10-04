@@ -258,8 +258,28 @@ export class Entity {
         // 满血才补：非满血刻意不补（否则"残血买血"等于白送一次治疗）
         if (wasFull && afterMax > beforeMax) {
             this.hp = Math.min(afterMax, this.hp + (afterMax - beforeMax));
+        } else if (afterMax < beforeMax) {
+            // 上限**下降**（如「恶魔契约」-40% 最大生命）→ 当前生命必须跟着钳回，
+            // 否则留下 `hp > maxHp` 的脏数据（实测满血买 130 三级后是 320/192，
+            // HUD 会显示成"超过上限"，且要等到下一次 ChangeHp 才被钳回）。
+            this.ClampHpToMax();
         }
         return result;
+    }
+
+    /**
+     * 把当前生命钳到最大生命以内（上限下降后的收尾）。
+     *
+     * ⚠ 单独抽出来是因为它有三个必须调用的时机，漏一个就出 `hp > maxHp`：
+     *   ① 永久上限下降（`ApplyWithMaxHpCarry` 的 else 分支）；
+     *   ② **技能被顶掉时**（`Ability.removeOwnModifiers`）—— 例：挂着「强健 +22% 生命」
+     *      满血，换成「迅捷」后上限回落，当前生命不钳就会 1.22B / B；
+     *   ③ 临时上限**到期**（Modifier 自然结束）—— **目前没接**，见 `ApplyWithMaxHpCarry`
+     *      的警告：那条要动 `ModifierSystem`（拿到"上限变了"的时机），属既有缺口。
+     */
+    ClampHpToMax(): void {
+        const max = this.getMaxHp();
+        if (this.hp > max) this.hp = max;
     }
 
     /** 改变生命（负数为受伤，正数为治疗）。死亡判定由管线负责。 */
@@ -370,9 +390,44 @@ export class Entity {
         if (!target || target.IsDead?.()) return 0;
         // 命中判定：闪避（弹道模式下在到达时才算）
         const evasion = target.attrs?.get(AttributeType.Evasion) ?? 0;
-        if (evasion > 0 && Math.random() < evasion) return 0;
+        if (evasion > 0 && Math.random() < evasion) {
+            /**
+             * 闪避事件（2026-10 补）。
+             *
+             * 为什么必须补这一处：闪避原本**什么都不发**，于是所有「闪避之后……」的技能
+             * （127 闪避反击）都不可达；而格挡（`on_block_damage`，见 `DamagePipeline` 第 3 阶段）
+             * 与闪避用的是同一条 `on_projectile_miss` 总线事件、`reason` 都是
+             * `'evaded_or_blocked'`，**分不清是谁**。
+             *
+             * 派发对象是**闪避者**（`target`）—— 与 `on_take_damage` 派发给受击者同口径，
+             * 挂在英雄身上的「闪避反击」才能收到（攻击者在 `event.attacker`）。
+             */
+            const evadeEvent = { attacker: this, target, dodger: target };
+            this.ctx.bus.publish(BattleEvents.OnEvade, evadeEvent);
+            target.modifiers?.DispatchEvent('on_evade', evadeEvent);
+            return 0;
+        }
 
         const finalDamage = this.ctx.damagePipeline.ApplyDamage(target, this, damage, damageType, { ability });
+
+        /**
+         * 普攻命中回复（2026-10 遗物重做新增属性 25/26/27）。
+         *
+         * 口径（三处一起定死，改口径只改这里）：
+         *   · **只对普攻生效** —— `ability` 为空才是普攻；技能伤害（含技能弹道）不吃吸血。
+         *     （近战即时命中与远程弹道命中都收敛到本方法，所以这里是唯一消费点。）
+         *   · 25 吸血 = 本次结算后的**实际伤害** × 吸血比例（0.09 = 9%）；
+         *   · 26 攻击回复 / 27 攻击回蓝 = **固定值**，不吃暴击倍率、不按伤害缩放；
+         *   · 被闪避 / 完全格挡（`finalDamage <= 0`）时不给回复，避免"打空气也回血"。
+         */
+        if (finalDamage > 0 && !ability) {
+            const lifesteal = this.attrs?.get(AttributeType.Lifesteal) ?? 0;
+            const hitHeal = this.attrs?.get(AttributeType.HitHeal) ?? 0;
+            const heal = finalDamage * lifesteal + hitHeal;
+            if (heal > 0) this.Heal(heal, this);
+            const hitMana = this.attrs?.get(AttributeType.HitMana) ?? 0;
+            if (hitMana > 0) this.mana = Math.min(this.getMaxMana(), this.mana + hitMana);
+        }
 
         const landedEvent = { attacker: this, target, damage: finalDamage, damageType };
         this.ctx.bus.publish(BattleEvents.OnAttackLanded, landedEvent);

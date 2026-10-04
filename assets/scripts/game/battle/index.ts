@@ -21,7 +21,7 @@ export { DamagePipeline } from './DamagePipeline';
 export { Projectile } from './Projectile';
 export { EffectExecutor } from './EffectExecutor';
 export type { ActionContext } from './EffectExecutor';
-export { pickTarget, pickTargets } from './Targeting';
+export { pickTarget, pickTargets, pickTargetAtPoint } from './Targeting';
 export type { TargetingStrategy } from './Targeting';
 export { BattleContext, ScriptRegistry } from './BattleContext';
 export { SpatialGrid } from './SpatialGrid';

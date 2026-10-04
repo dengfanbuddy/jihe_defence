@@ -50,8 +50,8 @@ export const TABLES: TableSchema[] = [
             { key: 'goldReward', type: 'number', desc: '击杀金币基数（缺省取 battle_constants.enemyDropGoldDefault）' },
             { key: 'expReward', type: 'number', desc: '击杀经验基数（缺省取 battle_constants.enemyDropExpDefault）' },
             {
-                key: 'rewardType', type: 'enum', desc: '奖励类型（gold_boss/exp_boss 为经济BOSS）',
-                enumValues: ['normal', 'elite', 'boss', 'gold_boss', 'exp_boss'],
+                key: 'rewardType', type: 'enum', desc: '奖励类型（gold_boss/exp_boss 为经济BOSS，kill_boss 为击杀BOSS）',
+                enumValues: ['normal', 'elite', 'boss', 'gold_boss', 'exp_boss', 'kill_boss'],
             },
             { key: 'ai', type: 'json', desc: 'AI 配置 JSON：{"type":"chase","params":{...}}' },
             { key: 'collision_radius', type: 'number', desc: '碰撞半径（像素，缺省 26）' },
@@ -314,11 +314,12 @@ export const TABLES: TableSchema[] = [
             pickCount: '每次抽取可选择的选项数（选 1 后其余置灰，只能再次付费抽取）',
             drawCostBase: '首次抽取费用（金币）',
             drawCostStep: '每次抽取后的费用增量（金币）',
-            drawCostCap: '抽取费用上限（金币）；到达后保持不再增长',
+            drawCostCap: '抽取费用上限（金币）；到达后保持不再增长（0 = 不封顶）',
             drawCostResetEachPhase: '是否每阶段重置抽取次数（1=重置回 drawCostBase，0=整局累计）',
             stageMaxByPhase: '各阶段可抽取的最高 stage（数组，索引 0 = 阶段 1）；越阶判定见 shop_draw.upgrade_chance',
-            itemSkillPoolWeight: '混合池内「道具(遗物) : 技能」的抽取权重（{"relic":1,"skill":1}）',
-            guaranteeSkillPerDraw: '每次抽取至少包含的技能选项数（0 = 不保证）',
+            skillMaxPerDraw: '每次抽取里的技能选项数上限（0~2：抽到的技能个数不会超过它；0 = 永不出技能）',
+            skillDrawChance: '每次抽取「出技能」的概率 %（默认 20 = 20% 有技能 / 80% 一个技能都不出）；品质概率不受它影响',
+            skillCountWeight: '出技能时抽到几个的权重（{"1":70,"2":30} = 1 个 70% / 2 个 30%；只认 1 ~ skillMaxPerDraw 的键，未配即 1 个）',
             duplicateSkillUpgrade: '抽到已拥有技能时是否转为升级（1=是，满级后不可选；0=不可选）',
             maxSkillSlots: '技能槽上限（技能型选项超过该数量后不可再选新技能）',
             adFreeDrawEnabled: '是否开放「看广告免费抽一次」（1=开放）',
@@ -328,7 +329,126 @@ export const TABLES: TableSchema[] = [
             adRefreshEnabled: '是否开放「看广告免费刷新本次抽取」（1=开放，重抽但选项数不变）',
             killBuffPriceGrowth: '击杀商店 Buff 默认价格系数（单个 Buff 的 price_growth 优先）',
             killBuffMaxStackDefault: '击杀商店 Buff 默认层数上限（单个 Buff 的 max_stack 优先）',
+            killBuffRefreshCost: '击杀商店刷新一次摊位的费用（单位 = **击杀数**，不是金币；金币只用于选英雄刷新与遗物抽取）',
         },
+    },
+
+    // ==================== tasks：任务表（日/周任务，完成后发账号经验 + 金币） ====================
+    //  奖励口径（2026-09 改）：**不再由对局结束统一发放**，而是「完成任务 → 领奖」时发
+    //  （账号经验进 DataCenter.playerInfo / 金币进 DataCenter.itemData.Gold）。
+    //  对局只负责上报进度：击杀 / 通关 / 阶段 / 英雄等级…见 `game/data/funcs/TaskData.ts` 的 TargetMode。
+    {
+        name: 'tasks',
+        label: '任务表（日/周）',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/tasks.json`,
+        excelFile: 'tasks.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '任务ID（日任务 1001 段 / 周任务 2001 段）', required: true },
+            {
+                key: 'type', type: 'enum', required: true,
+                desc: '任务类型：决定重置周期与所在页签（daily=每日 0 点重置 / weekly=每周一重置）',
+                enumValues: ['daily', 'weekly'],
+            },
+            { key: 'name', type: 'string', desc: '任务名（列表项标题）', required: true },
+            { key: 'desc', type: 'string', desc: '任务描述（列表项副标题，可换行 \\n）' },
+            {
+                key: 'target', type: 'enum', required: true,
+                desc: '完成条件（程序按它把对局事件换算成进度；模式见 TaskData.TargetMode）',
+                enumValues: [
+                    'login', 'play_games', 'victory', 'kill_enemies', 'gold_earned', 'spend_gold',
+                    'relics_picked', 'skills_used', 'buffs_bought', 'stage_reached', 'hero_level', 'level_reached',
+                ],
+            },
+            { key: 'param', type: 'string', desc: '条件参数（预留：如指定英雄/关卡 id，留空 = 不限）' },
+            { key: 'count', type: 'int', desc: '目标数量（进度 ≥ count 即可领奖）', required: true },
+            { key: 'reward_exp', type: 'int', desc: '奖励·**账号经验**（进 PlayerInfo，升级判定见等级表）', required: true },
+            { key: 'reward_gold', type: 'int', desc: '奖励·**金币**（进 ItemData.currencies.gold）', required: true },
+            { key: 'unlock_level', type: 'int', desc: '解锁所需账号等级（留空/1 = 不限制；高于当前等级的任务不展示）' },
+            { key: 'sort', type: 'int', desc: '同页签内排序（升序）' },
+        ],
+    },
+
+    // ==================== achievements：成就表（一次性永久目标，分档给金币 + 特殊效果） ====================
+    //  与 tasks 的分工（设计稿 `docs/成就系统设计.md`）：
+    //    · tasks = 日/周**周期性**任务，奖励账号经验 + 金币，周期到了会重置；
+    //    · achievements = **一次性永久**目标，奖励金币，**核心成就的末档**额外给 1 个特殊效果。
+    //  **一行 = 一档**（不是一行一成就）：同一条成就的多档用 `group` 串起来，
+    //  好处是每档能写各自的 `count` / `reward_gold` / `effect_code`，且"已领到第几档"天然是一个游标。
+    //  id 段位：31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战。
+    //  门禁（`npm run check` 校验）：同 group 的 tier 从 1 连续、count 与 reward_gold 严格递增、
+    //  `effect_code` **只允许出现在该 group 的最大 tier**、且同一 effect_code 全表最多 1 个来源。
+    {
+        name: 'achievements',
+        label: '成就表',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/achievements.json`,
+        excelFile: 'achievements.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '成就ID（31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战）', required: true },
+            { key: 'group', type: 'string', desc: '成就组（**同一条成就的多档共用**，如 st_clear；程序按它归并成一条展示）', required: true },
+            { key: 'tier', type: 'int', desc: '档位：1=铜 / 2=银 / 3=金（同一 group 内必须从 1 连续）', required: true },
+            {
+                key: 'category', type: 'enum', required: true,
+                desc: '分类（界面页签）',
+                enumValues: ['level', 'stage', 'combat', 'economy', 'collect', 'challenge'],
+            },
+            { key: 'name', type: 'string', desc: '成就名（同一 group 三行写同一个名字）', required: true },
+            { key: 'desc', type: 'string', desc: '成就描述（列表副标题，可换行 \\n）' },
+            { key: 'icon', type: 'string', desc: '图标资源路径（textures/achievements/<group>，不带扩展名）；空 = 回落占位图' },
+            {
+                key: 'target', type: 'enum', required: true,
+                desc: '完成条件（程序按它把对局事件换算成进度；模式见 docs/成就系统设计.md §3.3）',
+                enumValues: [
+                    // 与 tasks 共用的 12 个
+                    'login', 'play_games', 'victory', 'kill_enemies', 'gold_earned', 'spend_gold',
+                    'relics_picked', 'skills_used', 'buffs_bought', 'stage_reached', 'hero_level', 'level_reached',
+                    // 成就新增
+                    'level_up_count', 'login_streak', 'survive_time', 'kill_in_run', 'gold_in_run',
+                    'clear_no_damage', 'clear_fast', 'clear_low_hp', 'run_no_relic_clear', 'clear_one_skill',
+                    'damage_dealt', 'crit_hits', 'draw_count', 'relic_collected', 'buff_types', 'skills_picked',
+                ],
+            },
+            { key: 'param', type: 'string', desc: '条件参数（预留：如指定英雄/分类 id，留空 = 不限）' },
+            { key: 'count', type: 'int', desc: '目标数量（累加型 = 累计到这么多；峰值型 = 达到这么多），必须 > 0', required: true },
+            { key: 'reward_gold', type: 'int', desc: '奖励·**局外金币**（进 ItemData.currencies.gold；**不发账号经验**）', required: true },
+            {
+                key: 'effect_code', type: 'enum',
+                desc: '**特殊效果**标识（只允许出现在该 group 的最大 tier 上；留空 = 该档纯金币）',
+                enumValues: [
+                    'run_start_gold', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw', 'kill_buff_discount',
+                    'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free', 'relic_start_gift',
+                ],
+            },
+            { key: 'effect_value', type: 'int', desc: '效果数值（effect_code 非空时必填；百分比类填**百分数**：10 = 10%）' },
+            { key: 'silent', type: 'int', desc: '1 = 隐藏成就（达成前不展示）；缺省 0' },
+            { key: 'sort', type: 'int', desc: '同分类内排序（升序）' },
+        ],
+    },
+
+    // ==================== player_levels：账号等级表 ====================
+    //  等级经验口径的唯一来源（替代 battle_constants 里的 playerExpFormulaBase/Ratio 公式）：
+    //  `exp` = 从本级升到下一级所需经验；满级行的 `exp` 填 0（不再升级）。
+    //  与等级挂钩的口子都放这里（升级金币奖励 / 解锁的功能标识），后续新功能加列即可。
+    {
+        name: 'player_levels',
+        label: '账号等级表',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/player_levels.json`,
+        excelFile: 'player_levels.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '**等级**（1 起，主键；与 PlayerInfo.level 对应）', required: true },
+            { key: 'exp', type: 'int', desc: '从本级升到下一级所需经验（**0 = 满级**，满级后经验不再累积）', required: true },
+            { key: 'reward_gold', type: 'int', desc: '升到本级时发放的一次性金币奖励（1 级通常为 0）' },
+            {
+                key: 'unlock_features', type: 'stringarray',
+                desc: '该等级解锁的功能标识（程序用 LevelConfig.hasFeature(level, code) 判定；空 = 无新解锁）',
+            },
+            { key: 'desc', type: 'string', desc: '等级展示文案（如「解锁：每周任务」，可留空）' },
+        ],
     },
 
     // ==================== battle_constants：全局常量（KV 表） ====================
@@ -369,13 +489,17 @@ export const TABLES: TableSchema[] = [
             initialPhase: '初始阶段序号',
             heroExpFormulaBase: '英雄升级经验基数',
             heroExpFormulaRatio: '英雄升级经验系数',
-            playerExpFormulaBase: '玩家升级经验基数',
-            playerExpFormulaRatio: '玩家升级经验系数',
+            heroUnlockCostBase: '英雄解锁·金币基准价（英雄列表里**序号最靠前**的那位；默认解锁的英雄不消耗）',
+            heroUnlockCostGrowth: '英雄解锁·每靠后一位的涨价系数（按 units.json 英雄条目 id 升序的序号：价 = 基准 × 系数^序号）',
+            heroLevelUpGoldBase: '英雄升级（Lv.1→2）所需金币',
+            heroLevelUpGoldRatio: '英雄升级·每级涨价系数（Lv.N→N+1 消耗 = 基数 × 系数^(N-1)）',
+            playerExpFormulaBase: '玩家升级经验基数（⚠ 等级经验现在以 player_levels 等级表为准，本值只在等级表不可用时回落）',
+            playerExpFormulaRatio: '玩家升级经验系数（⚠ 同上：等级表不可用时的回落值）',
             battleExpFormulaBase: '局内升级经验基数',
             battleExpFormulaRatio: '局内升级经验系数',
             battleLevelMax: '局内等级上限',
-            clearRewardPlayerExpBase: '通关奖励·玩家经验基数',
-            clearRewardHeroExpBase: '通关奖励·英雄经验基数',
+            clearRewardPlayerExpBase: '通关奖励·玩家经验基数（⚠ 已无消费方：奖励改为「完成任务发放」，见 tasks.json）',
+            clearRewardHeroExpBase: '通关奖励·英雄经验基数（⚠ 已无消费方：奖励改为「完成任务发放」，见 tasks.json）',
             enemyDropExpDefault: '怪物掉落经验默认值',
             enemyDropGoldDefault: '怪物掉落金币默认值',
             rewardTimeBasePerSec: '时间通胀系数（每秒）',

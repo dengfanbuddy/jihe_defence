@@ -41,13 +41,16 @@ export interface ShopOption {
  *
  * ── 规则口径（改表即改玩法，本文件不含任何数值）──
  *   · 池子是**混合池**：遗物（relics.json 有局内版的那些）+ 肉鸽额外技能（abilities.json 里 scope=shop）
- *   · **先 roll 品质，再在同品质里按种类加权 + 同种类等权/权重随机**
- *     （遗物没有单件权重列 → 等权；技能读自己的 `weight` 列）
- *   · 种类之间按 `shop_constants.relicSkillPoolWeight` 加权（默认遗物 1 : 技能 1）
- *   · 品质权重随英雄等级变化（`shop_draw`：白/蓝/黄/红）
+ *   · **本轮出几个技能由技能配额决定**（与品质无关的独立一掷）：
+ *     ① `skillDrawChance` 先掷「这轮有没有技能」（默认 20%，即 80% 一个技能都不出）；
+ *     ② 有技能时按 `skillCountWeight`（默认 `{"1":70,"2":30}`）加权掷具体个数 `n`，`n` ∈ [0, `skillMaxPerDraw`]
+ *     → 一轮里的技能选项数**最多 `skillMaxPerDraw`（默认 2）**，其余格子全是遗物
+ *   · **品质仍是逐格 roll，口径与之前完全一致**：品质权重随英雄等级变化（`shop_draw`：白/蓝/黄/红），
+ *     同品质内遗物等权、技能读自己的 `weight` 列
  *   · 阶段门槛：品质对应 stage 超过当前阶段上限时，按 `upgrade_chance` 决定是否越阶，否则降到本阶段最高品质
  *   · 本轮内不重复；遗物本局唯一（已拥有不再出）；**技能满级后才不出**（没满级仍会出现 = 可升级）
- *   · **技能保底** `guaranteeSkillPerDraw`：一轮里技能少于该数时，把遗物候选换成技能（池子空了就放弃）
+ *   · **配额补齐**：某格掷到的品质里没有技能可选（或格子被阶段门槛降过档）时配额可能没排满 →
+ *     把遗物候选换成阶段内任意技能，直到配额用满（技能池空了就放弃，不硬塞）
  *   · 池子抽干时补位：先阶段内全品质、再全池；全都空了就少出一个槽位
  *
  * 费用 / 广告额度这类「商店级」规则也在这里读（`drawCost` / `adFreeDrawLimit` / `adExtraPickLimit`），
@@ -59,9 +62,15 @@ export class RelicDraw {
      * 商店级规则（薄封装 ShopConfig，业务只认这里的方法名）
      * =================================================================== */
 
-    /** 一次刷新展示几个槽位（缺省 shop_constants.optionCount = 4） */
-    static optionCount(): number {
-        return Math.max(1, ShopConfig.getOptionCount());
+    /**
+     * 一次刷新展示几个槽位（缺省 `shop_constants.optionCount` = 4）。
+     *
+     * @param bonus 成就效果 `shop_option_plus` 的**额外选项数**（宿主从**开局快照**取；
+     *              0 / 缺省 = 不加）。放在这里而不是改配置：配置是"基础档位"，
+     *              成就效果是"本局的额外加成"，两者分开才不会互相污染（改表不会覆盖掉成就效果）。
+     */
+    static optionCount(bonus = 0): number {
+        return Math.max(1, ShopConfig.getOptionCount() + Math.max(0, Math.floor(bonus)));
     }
 
     /** 第 drawIndex 次付费刷新的费用（0 起；50 → 100 → … 封顶 200） */
@@ -69,10 +78,16 @@ export class RelicDraw {
         return ShopConfig.getDrawCost(Math.max(0, drawIndex));
     }
 
-    /** 一局内可用的「广告免费刷新」次数（配置关闭时为 0） */
-    static adFreeDrawLimit(): number {
+    /**
+     * 一局内可用的「广告免费刷新」次数（配置关闭时为 0）。
+     *
+     * @param bonus 成就效果 `ad_free_draw` 的**额外次数**（宿主从**开局快照**取；
+     *              按 hook 的口径**叠加**在配置的 `adFreeDrawPerRun` 之上）。
+     *              `adFreeDrawEnabled` 关掉时它同样不生效（免费抽这条通道整个是关的）。
+     */
+    static adFreeDrawLimit(bonus = 0): number {
         if (!ShopConfig.getBool('adFreeDrawEnabled', true)) return 0;
-        return Math.max(0, ShopConfig.getNumber('adFreeDrawPerRun', 3));
+        return Math.max(0, ShopConfig.getNumber('adFreeDrawPerRun', 3) + Math.max(0, Math.floor(bonus)));
     }
 
     /** 一轮抽取里可用的「广告补选」次数（配置关闭时为 0） */
@@ -81,16 +96,34 @@ export class RelicDraw {
         return Math.max(0, ShopConfig.getNumber('adExtraPickCount', 1));
     }
 
-    /** 混合池的种类权重（`shop_constants.relicSkillPoolWeight`） */
-    static poolWeight(kind: ShopOptionKind): number {
-        const w = ShopConfig.getObject('relicSkillPoolWeight', { relic: 1, skill: 1 });
-        const v = Number(w[kind]);
-        return Number.isFinite(v) && v >= 0 ? v : 1;
+    /** 一轮里技能选项数的上限（`shop_constants.skillMaxPerDraw`；0 = 永不出技能） */
+    static skillMaxPerDraw(): number {
+        return Math.max(0, Math.floor(ShopConfig.getNumber('skillMaxPerDraw', 2)));
     }
 
-    /** 一轮里至少给几个技能候选（`shop_constants.guaranteeSkillPerDraw`；0 = 不保底） */
-    static skillGuarantee(): number {
-        return Math.max(0, Math.floor(ShopConfig.getNumber('guaranteeSkillPerDraw', 0)));
+    /** 一轮里「出技能」的概率（`shop_constants.skillDrawChance`，百分数：20 = 20%；0 = 永不出技能） */
+    static skillDrawChance(): number {
+        return Math.max(0, Math.min(100, ShopConfig.getNumber('skillDrawChance', 20)));
+    }
+
+    /**
+     * 掷本轮该出几个技能（0 ~ `skillMaxPerDraw`）。
+     *
+     * 两步走，缺一不可：① 先按 `skillDrawChance` 掷「这轮到底有没有技能」——
+     * 默认 20%，所以 **80% 的刷新一个技能都不出**；② 有技能时按 `skillCountWeight`
+     * （`{"1":70,"2":30}`）加权掷具体个数。权重只认 `1 ~ 上限` 的键，一个都没配就退化成 1 个。
+     */
+    static rollSkillCount(): number {
+        const max = RelicDraw.skillMaxPerDraw();
+        if (max <= 0) return 0;
+        if (Math.random() * 100 >= RelicDraw.skillDrawChance()) return 0;
+        const weights = ShopConfig.getObject('skillCountWeight', { '1': 70, '2': 30 });
+        const list: { n: number; w: number }[] = [];
+        for (let n = 1; n <= max; n++) {
+            const w = Number(weights[String(n)]);
+            if (Number.isFinite(w) && w > 0) list.push({ n, w });
+        }
+        return RelicDraw.pickWeighted(list)?.n ?? 1;
     }
 
     /* ===================================================================
@@ -167,6 +200,9 @@ export class RelicDraw {
     /**
      * 抽 count 个候选（遗物 + 技能混合池）。
      *
+     * 技能个数由 `rollSkillCount()` 在前一步定好（默认 80% 出 0 个 / 14% 出 1 个 / 6% 出 2 个），
+     * 剩下的格子全是遗物；**品质仍是逐格 roll**，口径与旧版一致。
+     *
      * @param heroLevel 英雄等级（决定品质概率档位）
      * @param phase 当前阶段（1 起，决定 stage 门槛）
      * @param count 抽几个
@@ -214,25 +250,32 @@ export class RelicDraw {
             return { relic: relics, skill: skills };
         };
 
-        /** 按种类权重 + 种类内权重取一个候选（种类全空返回 null） */
-        const pickFrom = (byKind: Record<ShopOptionKind, ShopOption[]>): ShopOption | null => {
-            const kinds = (['relic', 'skill'] as ShopOptionKind[]).filter((k) => byKind[k].length > 0);
-            if (!kinds.length) return null;
-            const kindWeights = kinds.map((k) => ({ k, w: RelicDraw.poolWeight(k) }));
-            const positive = kindWeights.filter((x) => x.w > 0);
-            const chosen = RelicDraw.pickWeighted(positive.length ? positive : kindWeights)?.k ?? kinds[0];
-            // 遗物同品质等权（表里没有单件权重列）；技能读自己的 weight 列
-            const list = byKind[chosen];
-            const weighted = chosen === 'skill'
-                ? list.map((o) => ({ o, w: RelicDraw.skillWeight(o.id) }))
-                : list.map((o) => ({ o, w: 1 }));
-            const hit = RelicDraw.pickWeighted(weighted)?.o ?? list[0];
-            if (hit.kind === 'relic') usedRelic.add(hit.id);
-            else usedSkill.add(hit.id);
-            return hit;
+        /**
+         * 按种类取一个候选：`preferSkill` = 本轮技能配额还没用满 → 先拿技能、没有才退回遗物；
+         * 否则先遗物、遗物空才退回技能（回退只为「别让格子空着」，不会突破配额上限）。
+         */
+        const pickFrom = (byKind: Record<ShopOptionKind, ShopOption[]>, preferSkill: boolean): ShopOption | null => {
+            const order: ShopOptionKind[] = preferSkill ? ['skill', 'relic'] : ['relic', 'skill'];
+            for (const k of order) {
+                const list = byKind[k];
+                if (!list.length) continue;
+                // 遗物同品质等权（表里没有单件权重列）；技能读自己的 weight 列
+                const weighted = k === 'skill'
+                    ? list.map((o) => ({ o, w: RelicDraw.skillWeight(o.id) }))
+                    : list.map((o) => ({ o, w: 1 }));
+                const hit = RelicDraw.pickWeighted(weighted)?.o ?? list[0];
+                if (hit.kind === 'relic') usedRelic.add(hit.id);
+                else usedSkill.add(hit.id);
+                return hit;
+            }
+            return null;
         };
 
-        // ① 主循环：先 roll 品质，再在同品质里混合取
+        // ① 本轮技能配额：先掷「有没有技能」（默认 20%），再掷「几个」（默认 1 个 70% / 2 个 30%）
+        //    —— 品质链路完全不变：每个格子还是先 roll 品质、再过阶段门槛/越阶
+        let skillBudget = RelicDraw.rollSkillCount();
+
+        // ② 主循环：先 roll 品质，再按「配额还剩几个技能」定种类
         for (let i = 0; i < count; i++) {
             let rarity = RelicDraw.rollRarity(weights);
             // 阶段门槛：超出当前阶段的品质，按 upgrade_chance 决定是否越阶，否则降到当前阶段最高品质
@@ -240,14 +283,14 @@ export class RelicDraw {
                 rarity = SHOP_RARITY_ORDER[Math.max(0, stageCap - 1)] ?? 'common';
             }
             const allowedStage = Math.max(stageCap, ShopConfig.getStageOfRarity(rarity));
-            const option = pickFrom(candidates(rarity, allowedStage, false));
-            if (option) picked.push(option);
+            const option = pickFrom(candidates(rarity, allowedStage, false), skillBudget > 0);
+            if (!option) continue;
+            if (option.kind === 'skill') skillBudget--;
+            picked.push(option);
         }
 
-        // ② 技能保底：技能不够就把遗物候选换成技能（池子空了就放弃，不硬塞）
-        const guarantee = RelicDraw.skillGuarantee();
-        let skillCount = picked.filter((p) => p.kind === 'skill').length;
-        while (skillCount < guarantee) {
+        // ③ 配额补齐：该品质里没有技能可选时配额会剩下来 → 把遗物候选换成技能（池子空了就放弃，不硬塞）
+        while (skillBudget > 0) {
             const pool = skillPool.filter((s) => (s.stage ?? 1) <= stageCap
                 && !usedSkill.has(s.id)
                 && (ownedSkills.get(s.id) ?? 0) < abilityMaxLevel(s));
@@ -259,14 +302,15 @@ export class RelicDraw {
             const skill = RelicDraw.pickWeighted(pool.map((s) => ({ o: s, w: s.weight ?? 1 })))?.o ?? pool[0];
             usedSkill.add(skill.id);
             picked[at] = RelicDraw.makeSkillOption(skill, ownedSkills.get(skill.id) ?? 0);
-            skillCount++;
+            skillBudget--;
         }
 
-        // ③ 补位：主循环因池子变窄少抽了格子时，忽略品质先阶段内后全池补齐
+        // ④ 补位：主循环因池子变窄少抽了格子时，忽略品质先阶段内后全池补齐
         for (let guard = 0; picked.length < count && guard < count * 2; guard++) {
-            const inStage = pickFrom(candidates(null, stageCap, true));
-            const option = inStage ?? pickFrom(candidates(null, SHOP_RARITY_ORDER.length, true));
+            const inStage = pickFrom(candidates(null, stageCap, true), skillBudget > 0);
+            const option = inStage ?? pickFrom(candidates(null, SHOP_RARITY_ORDER.length, true), skillBudget > 0);
             if (!option) break;
+            if (option.kind === 'skill') skillBudget--;
             picked.push(option);
         }
 

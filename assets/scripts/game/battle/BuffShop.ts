@@ -23,6 +23,11 @@ import type { Entity } from './Entity';
  *   ModifierSystem / AttributeSystem  统一结算（本类不做任何属性计算）
  * ```
  *
+ * ── 货币（**击杀数，不是金币**）──
+ *   刷新摊位与买 Buff 都花**击杀数**（`useBattleStore().killPoints`，每杀 1 只 +1），
+ *   金币只用于选英雄刷新与遗物抽取 —— 两条经济线互不抢资源（设计稿 §7.1 / §12.6）。
+ *   真源与扣费口都由宿主注入（`deps.getKillPoints` / `deps.spendKillPoints`），本类不认识 store。
+ *
  * ── 叠加方式（**唯一的属性口径**，见 `STAT_MODE`）──
  *   · `percent`：对**英雄基础属性**的百分比加成（`final = base × (1 + Σv/100)`），
  *     用于 base 非 0 的属性（攻击/生命/攻速/射程/回血）—— 语义就是「+8% 攻击力」
@@ -35,10 +40,10 @@ import type { Entity } from './Entity';
  *   `panelVisible` 面板开关（宿主/HUD 按它写面板节点 active）
  *   `slots`        4 个摊位的 Buff id（0 = 空摊）
  *   `stacks`       每个 Buff 已购层数（`{ [buffId]: 层数 }`，item 据此显示层数与下一层价格）
- *   `refreshCost`  刷新一次摊位的金币费用
+ *   `refreshCost`  刷新一次摊位的**击杀数**费用
  *   `adFreeLeft`   剩余「广告免费刷新」次数
  *
- * 规则常量（`shop_constants`，缺省走内置默认值）：`killBuffRefreshCost`（默认 100）、
+ * 规则常量（`shop_constants`，缺省走内置默认值）：`killBuffRefreshCost`（默认 50 击杀数）、
  *   `killBuffRefreshAdFreePerRun`（默认 1）、`killBuffMaxStackDefault`（默认 10，表里有 `max_stack` 以表为准）。
  *
  * ⚠ `stat = special` 的条目（走 `script_id` 的复杂机制）**不进摊位池**：行为尚未实现，
@@ -47,12 +52,24 @@ import type { Entity } from './Entity';
 export interface BuffShopDeps {
     /** 本局英雄实体（属性/效果的施加目标）；还没选英雄时为 null */
     getHero(): Entity | null;
-    /** 读本局金币（击杀点与金币目前是同一个经济口径，换货币只改宿主这一处） */
-    getGold(): number;
-    /** 扣金币；返回 false = 余额不足（宿主负责同步 HUD / store） */
-    spendGold(amount: number): boolean;
+    /** 读本局**击杀数余额**（击杀商店的唯一货币；真源 = `useBattleStore().killPoints`） */
+    getKillPoints(): number;
+    /** 扣击杀数；返回 false = 余额不足（宿主负责同步 HUD / store） */
+    spendKillPoints(amount: number): boolean;
     /** 拉激励视频（宿主实现，通常包一层"播放期间暂停战斗"） */
     playAd(placement: AdPlacement): Promise<boolean>;
+    /**
+     * 成就效果 `kill_buff_discount` —— 击杀商店价格的折扣**比例**
+     * （宿主从**开局快照**取：配表百分数 / 100，`10` → `0.1` = 打 9 折；未注入 / 未生效 = 0）。
+     *
+     * ⚠ 本类**不许**自己调 `AchievementData.getEffects()`（实时值会让"打到一半价格突然变了"）。
+     */
+    getAchPriceDiscount?(): number;
+    /**
+     * 真的买成一个 Buff 之后回调（宿主用它上报成就进度 `buff_types` 的「种类数」）。
+     * 走回调而不是 `import DataCenter`：本类是纯 TS 战斗功能类，分层口径同 `SkillSlots.onSkillGranted`。
+     */
+    onBuffBought?(buffId: number): void;
 }
 
 /** 每个 stat 的叠加方式（`percent` = 相对基础值；`add` = 固定值，用于 base=0 的属性） */
@@ -101,7 +118,7 @@ export interface BuffShopVM {
     readonly slots: Ref<number[]>;
     /** 每个 Buff 的已购层数（item 据此显示层数/上限与下一层价格） */
     readonly stacks: Ref<Record<number, number>>;
-    /** 刷新一次摊位的金币费用 */
+    /** 刷新一次摊位的**击杀数**费用 */
     readonly refreshCost: Ref<number>;
     /** 剩余「广告免费刷新」次数 */
     readonly adFreeLeft: Ref<number>;
@@ -113,7 +130,7 @@ export interface BuffShopVM {
     maxStackOf(cfg: KillBuffCfg | undefined): number;
     /** 该 Buff **下一层**的价格（已满级返回 0） */
     nextPriceOf(buffId: number): number;
-    /** 现在能不能买（未满级 且 金币够） */
+    /** 现在能不能买（未满级 且 击杀数够） */
     canBuy(buffId: number): boolean;
 }
 
@@ -127,15 +144,15 @@ export class BuffShop {
     readonly slots: Ref<number[]> = ref<number[]>([]);
     /** 每个 Buff 的已购层数（`{ [buffId]: 层数 }`） */
     readonly stacks: Ref<Record<number, number>> = ref<Record<number, number>>({});
-    /** 刷新一次摊位的金币费用 */
+    /** 刷新一次摊位的**击杀数**费用 */
     readonly refreshCost: Ref<number> = ref(0);
     /** 剩余「广告免费刷新」次数 */
     readonly adFreeLeft: Ref<number> = ref(0);
 
     /** 已用掉的广告免费刷新次数（属于一局） */
     private adFreeUsed = 0;
-    /** 本局累计花掉的金币（统计/日志用） */
-    private spentGold = 0;
+    /** 本局累计花掉的击杀数（统计/日志用） */
+    private spentPoints = 0;
 
     private deps: BuffShopDeps;
 
@@ -154,7 +171,7 @@ export class BuffShop {
             console.warn('[Buff商店] 还没选英雄，忽略打开面板');
             return;
         }
-        // 首次打开先白送一摊（**首次摆摊不收费**；之后点「刷新」才花金币/看广告）
+        // 首次打开先白送一摊（**首次摆摊不收费**；之后点「刷新」才花击杀数/看广告）
         if (!this.slots.value.some((id) => id > 0)) this.rollStalls();
         this.panelVisible.value = true;
     }
@@ -169,11 +186,11 @@ export class BuffShop {
      * =================================================================== */
 
     /**
-     * 刷新按钮的判据（**唯一真源**）：金币够 → 直接扣钱；不够但还有广告免费次数 → 看广告；都没有 → 置灰。
+     * 刷新按钮的判据（**唯一真源**）：击杀数够 → 直接扣；不够但还有广告免费次数 → 看广告；都没有 → 置灰。
      * 面板拿它画按钮，`refresh()` 拿它做准入。
      */
     refreshGate(): RefreshGate {
-        return evaluateRefreshGate(this.deps.getGold(), this.refreshCost.value, this.adFreeLeft.value);
+        return evaluateRefreshGate(this.deps.getKillPoints(), this.refreshCost.value, this.adFreeLeft.value);
     }
 
     /** 现在能不能刷新（= 判据的 `enabled`；给日志/宿主查询用） */
@@ -183,21 +200,22 @@ export class BuffShop {
 
     /**
      * 刷新 4 个摊位 —— 准入用的就是 `refreshGate()` 那一份判据：
-     *   ① 金币 ≥ 费用 → 扣费重抽；② 金币不够但还有广告免费次数 → 看广告重抽；③ 都不行 → 拒绝并打日志
+     *   ① 击杀数 ≥ 费用 → 扣费重抽；② 击杀数不够但还有广告免费次数 → 看广告重抽；③ 都不行 → 拒绝并打日志
      */
     refresh(): void {
         const cost = this.refreshCost.value;
         const gate = this.refreshGate();
         if (gate.canPay) {
-            if (!this.deps.spendGold(cost)) {
-                console.warn(`[Buff商店] 金币不足，刷新失败（${this.deps.getGold()}/${cost}）`);
+            if (!this.deps.spendKillPoints(cost)) {
+                console.warn(`[Buff商店] 击杀数不足，刷新失败（${this.deps.getKillPoints()}/${cost}）`);
                 return;
             }
+            this.spentPoints += cost;
             this.rollStalls();
             return;
         }
         if (!gate.viaAd) {
-            console.warn(`[Buff商店] 金币不足（${this.deps.getGold()}/${cost}）且没有广告免费次数，刷新被拒`);
+            console.warn(`[Buff商店] 击杀数不足（${this.deps.getKillPoints()}/${cost}）且没有广告免费次数，刷新被拒`);
             return;
         }
         this.deps.playAd('buff_shop_refresh').then((ok) => {
@@ -240,25 +258,39 @@ export class BuffShop {
         return Math.max(1, cfg.max_stack ?? ShopConfig.getNumber('killBuffMaxStackDefault', 10));
     }
 
+    /**
+     * 第 `stack` 层（1 起）的**实付价格** = 配置价 × (1 − 成就折扣)，四舍五入取整。
+     *
+     * ⚠ **价格只有这一条口径**：面板显示（`nextPriceOf`）与实际扣费（`buy`）都走它 ——
+     *   只改一处会出现「面板显示 90、实际扣 100」。
+     * ⚠ 折扣是**比例**（配表百分数 / 100：`10` → `0.1` = 打 9 折），不是"减多少钱"。
+     */
+    private priceOf(cfg: KillBuffCfg, stack: number): number {
+        const base = ShopConfig.getKillBuffPrice(cfg, stack);
+        const raw = this.deps.getAchPriceDiscount?.() ?? 0;
+        const discount = Math.max(0, Math.min(1, raw));
+        return Math.max(0, Math.round(base * (1 - discount)));
+    }
+
     /** 该 Buff **下一层**的价格（当前层数 + 1；已满级返回 0） */
     nextPriceOf(buffId: number): number {
         const cfg = ShopConfig.getKillBuff(buffId);
         if (!cfg) return 0;
         const stack = this.stackOf(buffId);
         if (stack >= this.maxStackOf(cfg)) return 0;
-        return ShopConfig.getKillBuffPrice(cfg, stack + 1);
+        return this.priceOf(cfg, stack + 1);
     }
 
-    /** 该 Buff 现在能不能买（未满级 且 金币够） */
+    /** 该 Buff 现在能不能买（未满级 且 击杀数够） */
     canBuy(buffId: number): boolean {
         const price = this.nextPriceOf(buffId);
-        return price > 0 && this.deps.getGold() >= price;
+        return price > 0 && this.deps.getKillPoints() >= price;
     }
 
     /**
      * 购买一层（item 点选冒泡上来）。
      *
-     * 校验顺序：摊位里确实有这个 Buff → 未满级 → 金币够 → 扣钱 → **属性当场生效** → 层数 +1（UI 自动刷新价格）。
+     * 校验顺序：摊位里确实有这个 Buff → 未满级 → 击杀数够 → 扣掉击杀数 → **属性当场生效** → 层数 +1（UI 自动刷新价格）。
      * @returns 是否购买成功
      */
     buy(buffId: number): boolean {
@@ -284,19 +316,22 @@ export class BuffShop {
             return false;
         }
 
-        const price = ShopConfig.getKillBuffPrice(cfg, stack + 1);
-        if (!this.deps.spendGold(price)) {
-            console.warn(`[Buff商店] 金币不足（${this.deps.getGold()}/${price}），买不了 ${cfg.name}`);
+        const price = this.priceOf(cfg, stack + 1);
+        if (!this.deps.spendKillPoints(price)) {
+            console.warn(`[Buff商店] 击杀数不足（${this.deps.getKillPoints()}/${price}），买不了 ${cfg.name}`);
             return false;
         }
 
         const level = stack + 1;
         this.applyStack(cfg, level, hero);
-        this.spentGold += price;
+        this.spentPoints += price;
         // 换新对象：面板/item 靠 watch(stacks) 刷新层数与价格
         this.stacks.value = { ...this.stacks.value, [buffId]: level };
 
-        console.log(`[Buff商店] 获得「${cfg.name}」${level}/${maxStack} 层（${cfg.per_desc ?? ''}），花费 ${price} 金`);
+        console.log(`[Buff商店] 获得「${cfg.name}」${level}/${maxStack} 层（${cfg.per_desc ?? ''}），花费 ${price} 击杀数`);
+        // 成就进度：买过的击杀商店 Buff **种类**（target=buff_types；只记新种类，重复购买同一 Buff 不推进）
+        // —— 上报交给宿主（本类不认识数据层，见 deps.onBuffBought 的注释）
+        this.deps.onBuffBought?.(buffId);
         return true;
     }
 
@@ -328,7 +363,7 @@ export class BuffShop {
     /** 换局复位：摊位清空、层数归零、面板收起、广告次数归零（**已生效的 Modifier 随旧实体一起作废**） */
     reset(): void {
         this.adFreeUsed = 0;
-        this.spentGold = 0;
+        this.spentPoints = 0;
         this.slots.value = [];
         this.stacks.value = {};
         this.panelVisible.value = false;
@@ -337,7 +372,8 @@ export class BuffShop {
 
     /** 把费用与广告剩余次数同步给面板（构造 / 刷新后 / 换局后） */
     syncCost(): void {
-        this.refreshCost.value = Math.max(0, ShopConfig.getNumber('killBuffRefreshCost', 100));
+        // 费用单位 = **击杀数**（配置键 `killBuffRefreshCost`，缺省 50）
+        this.refreshCost.value = Math.max(0, ShopConfig.getNumber('killBuffRefreshCost', 50));
         const limit = Math.max(0, ShopConfig.getNumber('killBuffRefreshAdFreePerRun', 1));
         this.adFreeLeft.value = Math.max(0, limit - this.adFreeUsed);
     }
@@ -351,8 +387,8 @@ export class BuffShop {
         return Object.keys(this.stacks.value).map(Number).filter((id) => this.stackOf(id) > 0);
     }
 
-    /** 本局在 Buff 商店花掉的金币（统计用） */
-    getSpentGold(): number { return this.spentGold; }
+    /** 本局在 Buff 商店花掉的**击杀数**（刷新 + 购买；统计用） */
+    getSpentKillPoints(): number { return this.spentPoints; }
 
     /* ===================================================================
      * 内部：属性施加

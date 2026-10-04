@@ -125,6 +125,7 @@
     "id": 7,
     "name": "偷钱(被动)",
     "scope": "unit",
+    "icon": "textures/skills/shangjin_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -335,6 +336,7 @@
     "id": 16,
     "name": "爆头冲击(被动)",
     "scope": "unit",
+    "icon": "textures/skills/huoqiang_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -353,13 +355,14 @@
         }
       }
     ],
-    "lv1": "普攻附带 5% 攻击力的额外伤害；15% 概率击退敌人 1m",
-    "max_level": 1
+    "max_level": 1,
+    "lv1": "普攻附带 5% 攻击力的额外伤害；15% 概率击退敌人 1m"
   },
   {
     "id": 17,
     "name": "反击风暴(被动)",
     "scope": "unit",
+    "icon": "textures/skills/fuwang_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -402,6 +405,7 @@
     "id": 19,
     "name": "雷霆之核·一阶(被动)",
     "scope": "unit",
+    "icon": "textures/skills/zhousi_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -429,6 +433,7 @@
     "id": 20,
     "name": "雷霆之核·二阶(被动)",
     "scope": "unit",
+    "icon": "textures/skills/zhousi_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -456,6 +461,7 @@
     "id": 21,
     "name": "雷霆之核·三阶(被动)",
     "scope": "unit",
+    "icon": "textures/skills/zhousi_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -483,6 +489,7 @@
     "id": 22,
     "name": "雷霆之核·四阶(被动)",
     "scope": "unit",
+    "icon": "textures/skills/zhousi_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -506,15 +513,152 @@
     "max_level": 1
   },
   {
+    "id": 23,
+    "name": "恩赐解脱(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/huanci_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 27,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "暴击率 +25%，暴击倍率提升至 240%"
+  },
+  {
+    "id": 24,
+    "name": "霜冻之箭(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/zhuoer_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 28,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "攻击力 +6；普攻命中使敌人移速 -40%、持续 2 秒"
+  },
+  {
+    "id": 25,
+    "name": "冰霜结界(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/shuijing_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 29,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "魔抗 +20、每秒回蓝 +3；普攻命中 20% 概率冰封敌人 0.8 秒"
+  },
+  {
+    "id": 26,
+    "name": "神灭斩(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/lina_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 30,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "伤害输出 +20%；普攻命中额外造成 30 点法术伤害"
+  },
+  {
+    "id": 27,
+    "name": "幽冥剧毒(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/viper_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 31,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "普攻命中施加剧毒：每秒 8 点法术伤害，每层使敌人移速 -10%（可叠 5 层）、持续 4 秒"
+  },
+  {
+    "id": 28,
+    "name": "黑洞(被动)",
+    "scope": "unit",
+    "icon": "textures/skills/mituan_skill",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 33,
+        "duration": -1
+      }
+    ],
+    "max_level": 1,
+    "lv1": "攻击力 +8；普攻命中在目标处撕裂暗影，对 130 半径内敌人造成 28 点法术伤害"
+  },
+  {
     "id": 101,
     "name": "分裂弹",
     "code": "split_shot",
     "name_en": "Split Shot",
     "scope": "shop",
+    "icon": "textures/skills/split_shot",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 40,
+        "duration": -1,
+        "kv": {
+          "count": 1,
+          "pct": 0.5
+        }
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -522,9 +666,31 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "普攻额外射出 1 枚子弹，造成 50% 伤害",
-    "lv2": "额外子弹增至 2 枚，伤害提升至 60%",
-    "lv3": "额外子弹增至 3 枚，且可触发暴击",
+    "lv1": "普攻额外追加 1 段 50% 攻击力的伤害",
+    "lv2": "额外追加 2 段，每段 60% 攻击力",
+    "lv3": "额外追加 3 段，每段 70% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 40,
+        "duration": -1,
+        "kv": {
+          "count": 2,
+          "pct": 0.6
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 40,
+        "duration": -1,
+        "kv": {
+          "count": 3,
+          "pct": 0.7
+        }
+      }
+    ],
     "synergy": "联动「暴击连锁」，分裂弹暴击快速叠层"
   },
   {
@@ -533,10 +699,22 @@
     "code": "pierce_round",
     "name_en": "Pierce Round",
     "scope": "shop",
+    "icon": "textures/skills/piercing_bolt",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 41,
+        "duration": -1,
+        "kv": {
+          "count": 1,
+          "pct": 0.6,
+          "spread": 0.6
+        }
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -544,9 +722,33 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "普攻穿透 1 个敌人，穿透伤害 60%",
+    "lv1": "普攻穿透 1 个身后的敌人，造成 60% 攻击力伤害",
     "lv2": "穿透 2 个敌人，穿透伤害 72%",
     "lv3": "穿透 3 个敌人，穿透伤害 85%",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 41,
+        "duration": -1,
+        "kv": {
+          "count": 2,
+          "pct": 0.72,
+          "spread": 0.6
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 41,
+        "duration": -1,
+        "kv": {
+          "count": 3,
+          "pct": 0.85,
+          "spread": 0.6
+        }
+      }
+    ],
     "synergy": "与「分裂弹」复合弹道，一穿一片清群"
   },
   {
@@ -555,10 +757,17 @@
     "code": "bloodlust",
     "name_en": "Bloodlust",
     "scope": "shop",
+    "icon": "textures/skills/bloodthirst",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 34,
+        "duration": -1
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -567,8 +776,22 @@
       "坦克反伤"
     ],
     "lv1": "普攻回复造成伤害 5% 的生命",
-    "lv2": "回复量提升至 9%",
-    "lv3": "回复量提升至 14%，过量回复转化 30% 护盾",
+    "lv2": "普攻回复造成伤害 9% 的生命",
+    "lv3": "普攻回复造成伤害 14% 的生命",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 35,
+        "duration": -1
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 36,
+        "duration": -1
+      }
+    ],
     "synergy": "配合「战旗」增伤，吸血收益翻倍提高"
   },
   {
@@ -577,10 +800,22 @@
     "code": "swift_hands",
     "name_en": "Swift Hands",
     "scope": "shop",
+    "icon": "textures/skills/swiftness",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            4,
+            8,
+            "add"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -590,7 +825,31 @@
     ],
     "lv1": "攻击速度 +8%",
     "lv2": "攻击速度 +15%",
-    "lv3": "攻击速度 +25%，攻速≥2.5 时首次命中必暴击",
+    "lv3": "攻击速度 +35%",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            4,
+            15,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            4,
+            35,
+            "add"
+          ]
+        ]
+      }
+    ],
     "synergy": "联动「暴击连锁」，高速高频触发连锁"
   },
   {
@@ -599,10 +858,22 @@
     "code": "long_range",
     "name_en": "Hawk Eye",
     "scope": "shop",
+    "icon": "textures/skills/eagle_eye",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            16,
+            12,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -612,7 +883,31 @@
     ],
     "lv1": "攻击范围 +12%",
     "lv2": "攻击范围 +20%",
-    "lv3": "攻击范围 +32%，射程内无敌人时攻速 +10%",
+    "lv3": "攻击范围 +45%",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            16,
+            20,
+            "percent"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            16,
+            45,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "synergy": "与「追踪弹」配合，超远距离定点击杀"
   },
   {
@@ -621,10 +916,22 @@
     "code": "vitality",
     "name_en": "Vitality",
     "scope": "shop",
+    "icon": "textures/skills/fortitude",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            1,
+            12,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -634,7 +941,36 @@
     ],
     "lv1": "最大生命 +12%",
     "lv2": "最大生命 +22%",
-    "lv3": "最大生命 +35%，并每秒回复 1% 最大生命",
+    "lv3": "最大生命 +35%，生命恢复 +2/秒",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            1,
+            22,
+            "percent"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            1,
+            35,
+            "percent"
+          ],
+          [
+            9,
+            2,
+            "add"
+          ]
+        ]
+      }
+    ],
     "synergy": "配合「圣盾」，高血量叠加更高护盾量"
   },
   {
@@ -643,10 +979,22 @@
     "code": "crit_engine",
     "name_en": "Crit Core",
     "scope": "shop",
+    "icon": "textures/skills/crit_core",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            14,
+            8,
+            "add"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -657,6 +1005,35 @@
     "lv1": "暴击率 +8%",
     "lv2": "暴击率 +15%",
     "lv3": "暴击率 +24%，暴击伤害 +20%",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            14,
+            15,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            14,
+            24,
+            "add"
+          ],
+          [
+            15,
+            170,
+            "best"
+          ]
+        ]
+      }
+    ],
     "synergy": "与「暴击连锁」联动，暴击触发连锁更频繁"
   },
   {
@@ -665,10 +1042,22 @@
     "code": "iron_shell",
     "name_en": "Iron Shell",
     "scope": "shop",
+    "icon": "textures/skills/iron_shell",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            6,
+            2,
+            "add"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -676,9 +1065,42 @@
     "tags": [
       "坦克反伤"
     ],
-    "lv1": "护甲减伤 +6%",
-    "lv2": "护甲减伤 +10%",
-    "lv3": "护甲减伤 +18%，受击有 10% 几率格挡 50% 伤害",
+    "lv1": "护甲 +2（约 10.7% 物理减伤）",
+    "lv2": "护甲 +4（约 19.4% 物理减伤）",
+    "lv3": "护甲 +7（约 29.6% 物理减伤），受击有 10% 几率格挡 50% 伤害",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            6,
+            4,
+            "add"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            6,
+            7,
+            "add"
+          ]
+        ]
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 42,
+        "duration": -1,
+        "kv": {
+          "chance": 0.1,
+          "pct": 0.5
+        }
+      }
+    ],
     "synergy": "配合「圣盾」，减伤与护盾双重叠加"
   },
   {
@@ -687,10 +1109,20 @@
     "code": "first_blood",
     "name_en": "First Blood",
     "scope": "shop",
+    "icon": "textures/skills/first_strike",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 43,
+        "duration": -1,
+        "kv": {
+          "pct": 0.25
+        }
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -698,9 +1130,31 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "对满生命敌人首击伤害 +25%",
-    "lv2": "首击伤害 +45%",
-    "lv3": "首击伤害 +65%，击杀后攻速 +15%（持续 2 秒）",
+    "lv1": "对满生命敌人的首次命中追加 25% 攻击力伤害",
+    "lv2": "首击追加伤害提升至 45% 攻击力",
+    "lv3": "首击追加伤害提升至 65% 攻击力，击杀后攻速 +15%（持续 2 秒）",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 43,
+        "duration": -1,
+        "kv": {
+          "pct": 0.45
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 43,
+        "duration": -1,
+        "kv": {
+          "pct": 0.65,
+          "haste": 15,
+          "hasteSec": 2
+        }
+      }
+    ],
     "synergy": "配合「分裂弹」，第一时间打出爆发"
   },
   {
@@ -709,10 +1163,22 @@
     "code": "overdrive",
     "name_en": "Overdrive",
     "scope": "shop",
+    "icon": "textures/skills/overload",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            6,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -720,9 +1186,43 @@
     "tags": [
       "法术爆发"
     ],
-    "lv1": "技能伤害 +10%",
-    "lv2": "技能伤害 +18%",
-    "lv3": "技能伤害 +30%，技能冷却 -12%",
+    "lv1": "伤害输出 +6%",
+    "lv2": "伤害输出 +10%",
+    "lv3": "伤害输出 +16%，受到的所有伤害 -12%",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            10,
+            "percent"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            16,
+            "percent"
+          ],
+          [
+            12,
+            -12,
+            "percent"
+          ],
+          [
+            13,
+            -12,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "synergy": "配合「雷链」，技能爆发伤害与频率协同"
   },
   {
@@ -731,10 +1231,20 @@
     "code": "gold_rush",
     "name_en": "Gold Rush",
     "scope": "shop",
+    "icon": "textures/skills/gold_rush",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 44,
+        "duration": -1,
+        "kv": {
+          "gold": 1
+        }
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -743,8 +1253,28 @@
       "经济成长"
     ],
     "lv1": "击杀敌人额外 +1 金币",
-    "lv2": "额外 +2 金币，金币加成 +8%",
-    "lv3": "额外 +3 金币，金币加成 +16%，波次利息 +5%",
+    "lv2": "击杀敌人额外 +2 金币",
+    "lv3": "击杀敌人额外 +3 金币",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 44,
+        "duration": -1,
+        "kv": {
+          "gold": 2
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 44,
+        "duration": -1,
+        "kv": {
+          "gold": 3
+        }
+      }
+    ],
     "synergy": "配合「商契」，金币滚雪球加速成型"
   },
   {
@@ -753,10 +1283,22 @@
     "code": "aegis",
     "name_en": "Aegis",
     "scope": "shop",
+    "icon": "textures/skills/divine_shield",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 45,
+        "duration": -1,
+        "kv": {
+          "pct": 0.08,
+          "reflect": 0,
+          "recharge": 6
+        }
+      }
+    ],
     "rarity": "common",
     "stage": 1,
     "weight": 50,
@@ -764,9 +1306,33 @@
     "tags": [
       "坦克反伤"
     ],
-    "lv1": "受击获得护盾（最大生命 8%），持续 6 秒",
-    "lv2": "护盾提升至 13%",
-    "lv3": "护盾提升至 20%，破碎时反弹 60% 伤害",
+    "lv1": "受击时以护盾吸收伤害（护盾值 = 最大生命 8%，破碎后 6 秒充能）",
+    "lv2": "护盾值提升至最大生命 13%",
+    "lv3": "护盾值提升至最大生命 20%，破碎时对伤害来源反弹 60% 已吸收伤害",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 45,
+        "duration": -1,
+        "kv": {
+          "pct": 0.13,
+          "reflect": 0,
+          "recharge": 6
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 45,
+        "duration": -1,
+        "kv": {
+          "pct": 0.2,
+          "reflect": 0.6,
+          "recharge": 6
+        }
+      }
+    ],
     "synergy": "配合「时间回廊」，构成双重保命手段"
   },
   {
@@ -775,10 +1341,20 @@
     "code": "ricochet",
     "name_en": "Ricochet",
     "scope": "shop",
+    "icon": "textures/skills/boomerang",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 46,
+        "duration": -1,
+        "kv": {
+          "pct": 0.6
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -786,9 +1362,29 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "普攻弹道命中后回旋，返程造成 60% 伤害",
-    "lv2": "回旋伤害 75%，返程可再命中同一目标",
-    "lv3": "回旋可暴击，返程命中范围 +0.5m",
+    "lv1": "普攻命中后弹向最近的另一个敌人，造成 60% 攻击力伤害",
+    "lv2": "回旋伤害提升至 75% 攻击力",
+    "lv3": "回旋伤害提升至 90% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 46,
+        "duration": -1,
+        "kv": {
+          "pct": 0.75
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 46,
+        "duration": -1,
+        "kv": {
+          "pct": 0.9
+        }
+      }
+    ],
     "synergy": "配合「分裂弹」，去程返程双重弹幕"
   },
   {
@@ -797,10 +1393,22 @@
     "code": "homing_bolt",
     "name_en": "Homing Bolt",
     "scope": "shop",
+    "icon": "textures/skills/homing_shot",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 47,
+        "duration": -1,
+        "kv": {
+          "jumps": 1,
+          "pct": 0.55,
+          "range": 260
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -808,9 +1416,33 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "普攻变为追踪弹，自动锁定最近敌人",
-    "lv2": "追踪弹命中后弹向次近敌人，造成 55%",
-    "lv3": "追踪链增至 3 目标，伤害 55% 递减",
+    "lv1": "普攻命中后弹向次近敌人，造成 55% 攻击力伤害",
+    "lv2": "弹射链增至 2 跳，每跳 55% 攻击力",
+    "lv3": "弹射链增至 3 跳，每跳 55% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 47,
+        "duration": -1,
+        "kv": {
+          "jumps": 2,
+          "pct": 0.55,
+          "range": 260
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 47,
+        "duration": -1,
+        "kv": {
+          "jumps": 3,
+          "pct": 0.55,
+          "range": 260
+        }
+      }
+    ],
     "synergy": "配合「穿透弹」，自动追踪贯穿前排"
   },
   {
@@ -819,10 +1451,21 @@
     "code": "lob_explode",
     "name_en": "Lob Grenade",
     "scope": "shop",
+    "icon": "textures/skills/grenade",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 48,
+        "duration": -1,
+        "kv": {
+          "radiusM": 1.5,
+          "pct": 0.8
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -830,9 +1473,33 @@
     "tags": [
       "法术爆发"
     ],
-    "lv1": "普攻变为抛射弹，落地爆炸半径 1.5m，溅射 80%",
-    "lv2": "爆炸半径 2.0m，溅射 100%",
-    "lv3": "爆炸半径 2.5m，溅射 130%，命中附加灼烧",
+    "lv1": "普攻命中后爆炸（半径 1.5m），对范围内敌人造成 80% 攻击力伤害",
+    "lv2": "爆炸半径 2.0m，伤害提升至 100% 攻击力",
+    "lv3": "爆炸半径 2.5m，伤害提升至 130% 攻击力，并附加每秒 15% 攻击力的灼烧",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 48,
+        "duration": -1,
+        "kv": {
+          "radiusM": 2,
+          "pct": 1
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 48,
+        "duration": -1,
+        "kv": {
+          "radiusM": 2.5,
+          "pct": 1.3,
+          "burnPct": 0.15,
+          "burnSec": 4
+        }
+      }
+    ],
     "synergy": "配合「雷链」，爆炸后雷链进一步扩散"
   },
   {
@@ -841,10 +1508,22 @@
     "code": "burn_infuse",
     "name_en": "Blazing Edge",
     "scope": "shop",
+    "icon": "textures/skills/flame_blade",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 49,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 2,
+          "dpsPct": 0.15,
+          "duration": 4
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -852,9 +1531,33 @@
     "tags": [
       "元素持续"
     ],
-    "lv1": "普攻附加灼烧（每秒 15% 攻击力），叠 2 层",
-    "lv2": "灼烧叠 4 层",
-    "lv3": "灼烧叠 6 层，灼烧可触发暴击",
+    "lv1": "普攻附加灼烧（每层每秒 15% 攻击力），最多叠 2 层",
+    "lv2": "灼烧最多叠 4 层",
+    "lv3": "灼烧最多叠 6 层",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 49,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 4,
+          "dpsPct": 0.15,
+          "duration": 4
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 49,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 6,
+          "dpsPct": 0.15,
+          "duration": 4
+        }
+      }
+    ],
     "synergy": "配合「元素军阵」，多单位快速叠灼烧"
   },
   {
@@ -863,10 +1566,22 @@
     "code": "frost_infuse",
     "name_en": "Frost Edge",
     "scope": "shop",
+    "icon": "textures/skills/frost_blade",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 54,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 1,
+          "slow": -60,
+          "duration": 3
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -874,9 +1589,34 @@
     "tags": [
       "控制减速"
     ],
-    "lv1": "普攻附加冰冻（每层减速 20%），叠 1 层",
-    "lv2": "冰冻叠 2 层",
-    "lv3": "冰冻叠 3 层，满层冻结 1.5 秒",
+    "lv1": "普攻附加冰冻（每层减速 20%），最多叠 1 层",
+    "lv2": "冰冻最多叠 2 层",
+    "lv3": "冰冻最多叠 3 层，叠满时冻结 1.5 秒",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 54,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 2,
+          "slow": -60,
+          "duration": 3
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 54,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 3,
+          "slow": -60,
+          "duration": 3,
+          "freezeSec": 1.5
+        }
+      }
+    ],
     "synergy": "配合「战旗」，冻结期间承受增伤"
   },
   {
@@ -885,10 +1625,22 @@
     "code": "venom_infuse",
     "name_en": "Venom Edge",
     "scope": "shop",
+    "icon": "textures/skills/venom_blade",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 51,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 2,
+          "dpsPct": 0.1,
+          "duration": 4
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -896,9 +1648,35 @@
     "tags": [
       "元素持续"
     ],
-    "lv1": "普攻附加毒液（每秒 10% 攻击力），叠 2 层",
-    "lv2": "毒液叠 4 层",
-    "lv3": "毒液叠 6 层，中毒目标死亡时传染",
+    "lv1": "普攻附加毒液（每层每秒 10% 攻击力），最多叠 2 层",
+    "lv2": "毒液最多叠 4 层",
+    "lv3": "毒液最多叠 6 层，中毒目标死亡时向周围 2m 传染",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 51,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 4,
+          "dpsPct": 0.1,
+          "duration": 4
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 51,
+        "duration": -1,
+        "kv": {
+          "maxLayers": 6,
+          "dpsPct": 0.1,
+          "duration": 4,
+          "spread": 1,
+          "spreadRadiusM": 2
+        }
+      }
+    ],
     "synergy": "配合「燃刃」，毒燃双持续快速叠层"
   },
   {
@@ -907,10 +1685,22 @@
     "code": "chain_storm",
     "name_en": "Chain Storm",
     "scope": "shop",
+    "icon": "textures/skills/chain_lightning",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 55,
+        "duration": -1,
+        "kv": {
+          "jumps": 2,
+          "decay": 0.5,
+          "range": 260
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -918,9 +1708,34 @@
     "tags": [
       "法术爆发"
     ],
-    "lv1": "技能释放附加连锁闪电，弹跳 2 次，衰减 50%",
-    "lv2": "弹跳 3 次，衰减 40%",
-    "lv3": "弹跳 4 次，衰减 30%，弹跳终点爆炸",
+    "lv1": "普攻命中后向最近敌人链式弹射 2 跳，首跳 100% 攻击力，每跳衰减 50%",
+    "lv2": "弹射 3 跳，每跳衰减 40%",
+    "lv3": "弹射 4 跳，每跳衰减 30%，弹跳终点再爆炸一次（50% 攻击力 / 半径 1m）",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 55,
+        "duration": -1,
+        "kv": {
+          "jumps": 3,
+          "decay": 0.6,
+          "range": 260
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 55,
+        "duration": -1,
+        "kv": {
+          "jumps": 4,
+          "decay": 0.7,
+          "range": 260,
+          "endBurstPct": 0.5
+        }
+      }
+    ],
     "synergy": "配合「静电磁场」，雷链快速叠满层数"
   },
   {
@@ -929,10 +1744,23 @@
     "code": "static_field",
     "name_en": "Static Field",
     "scope": "shop",
+    "icon": "textures/skills/static_field",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 57,
+        "duration": -1,
+        "kv": {
+          "threshold": 5,
+          "burstPct": 1.5,
+          "radiusM": 1.5,
+          "stackSec": 10
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -940,9 +1768,36 @@
     "tags": [
       "法术爆发"
     ],
-    "lv1": "普攻命中叠 1 层静电，满 5 层引爆 150% 伤害",
-    "lv2": "引爆伤害 200%，范围 +0.5m",
-    "lv3": "引爆伤害 280%，引爆附带一次雷链",
+    "lv1": "普攻命中叠 1 层静电（最多 5 层），满层引爆造成 150% 攻击力范围伤害（半径 1.5m）",
+    "lv2": "引爆伤害 200% 攻击力，半径 2.0m",
+    "lv3": "引爆伤害 280% 攻击力，半径 2.5m，引爆后再附带一次 2 跳雷链",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 57,
+        "duration": -1,
+        "kv": {
+          "threshold": 5,
+          "burstPct": 2,
+          "radiusM": 2,
+          "stackSec": 10
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 57,
+        "duration": -1,
+        "kv": {
+          "threshold": 5,
+          "burstPct": 2.8,
+          "radiusM": 2.5,
+          "stackSec": 10,
+          "chain": 2
+        }
+      }
+    ],
     "synergy": "配合「雷链」，静电引爆触发连锁弹跳"
   },
   {
@@ -951,10 +1806,21 @@
     "code": "shadow_reap",
     "name_en": "Shadow Reap",
     "scope": "shop",
+    "icon": "textures/skills/shadow_cut",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 58,
+        "duration": -1,
+        "kv": {
+          "threshold": 0.3,
+          "pct": 0.3
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -962,9 +1828,32 @@
     "tags": [
       "物理暴击"
     ],
-    "lv1": "对生命<30% 的敌人伤害 ×1.3 斩杀",
+    "lv1": "对生命低于 30% 的敌人额外造成 30% 攻击力伤害",
     "lv2": "斩杀阈值提升至 40%",
     "lv3": "斩杀阈值 45%，斩杀后回复 8% 最大生命",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 58,
+        "duration": -1,
+        "kv": {
+          "threshold": 0.4,
+          "pct": 0.3
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 58,
+        "duration": -1,
+        "kv": {
+          "threshold": 0.45,
+          "pct": 0.3,
+          "healPct": 0.08
+        }
+      }
+    ],
     "synergy": "配合「暴击机芯」，斩杀必定触发暴击"
   },
   {
@@ -973,10 +1862,21 @@
     "code": "kill_echo",
     "name_en": "Kill Echo",
     "scope": "shop",
+    "icon": "textures/skills/kill_echo",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 59,
+        "duration": -1,
+        "kv": {
+          "pct": 1.25,
+          "radiusM": 1.5
+        }
+      }
+    ],
     "rarity": "rare",
     "stage": 2,
     "weight": 30,
@@ -984,9 +1884,32 @@
     "tags": [
       "远程点杀"
     ],
-    "lv1": "击杀触发 125% 范围伤害（半径 1.5m）",
-    "lv2": "回响伤害 150%，半径 2.0m",
-    "lv3": "回响伤害 185%，半径 2.5m，20% 概率掉 1 金币",
+    "lv1": "击杀敌人时在其位置引发回响（半径 1.5m），造成 125% 攻击力伤害",
+    "lv2": "回响伤害 150% 攻击力，半径 2.0m",
+    "lv3": "回响伤害 185% 攻击力，半径 2.5m，并有 20% 概率掉 1 金币",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 59,
+        "duration": -1,
+        "kv": {
+          "pct": 1.5,
+          "radiusM": 2
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 59,
+        "duration": -1,
+        "kv": {
+          "pct": 1.85,
+          "radiusM": 2.5,
+          "goldChance": 0.2
+        }
+      }
+    ],
     "synergy": "配合「淘金」，击杀连锁加金币回流"
   },
   {
@@ -995,10 +1918,22 @@
     "code": "sentinel_turret",
     "name_en": "Sentinel Turret",
     "scope": "shop",
+    "icon": "textures/skills/sentry_turret",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 60,
+        "duration": -1,
+        "kv": {
+          "interval": 1,
+          "pct": 0.5,
+          "shots": 1
+        }
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1006,9 +1941,33 @@
     "tags": [
       "召唤增殖"
     ],
-    "lv1": "召唤哨兵炮台（持续 10 秒），每 0.5 秒发射 50% 攻击力子弹",
-    "lv2": "炮台持续 16 秒，子弹伤害 90%",
-    "lv3": "召唤 2 座炮台，子弹伤害 120%，可暴击",
+    "lv1": "每 1 秒自动对攻击范围内最近的敌人开火，造成 50% 攻击力伤害",
+    "lv2": "每 0.8 秒开火一次，伤害提升至 90% 攻击力",
+    "lv3": "每 0.6 秒连开 2 枪，每枪 120% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 60,
+        "duration": -1,
+        "kv": {
+          "interval": 0.8,
+          "pct": 0.9,
+          "shots": 1
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 60,
+        "duration": -1,
+        "kv": {
+          "interval": 0.6,
+          "pct": 1.2,
+          "shots": 2
+        }
+      }
+    ],
     "synergy": "配合「分裂弹」，继承弹道形成火力网络"
   },
   {
@@ -1017,10 +1976,21 @@
     "code": "mirror_clone",
     "name_en": "Mirror Clone",
     "scope": "shop",
+    "icon": "textures/skills/mirror_image",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 61,
+        "duration": -1,
+        "kv": {
+          "chance": 0.35,
+          "pct": 0.4
+        }
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1028,9 +1998,31 @@
     "tags": [
       "召唤增殖"
     ],
-    "lv1": "释放技能时召唤镜像分身（继承 40% 攻击力，持续 8 秒）",
-    "lv2": "分身继承 60% 攻击力，持续 12 秒",
-    "lv3": "分身继承 90% 攻击力，技能冷却 -20%",
+    "lv1": "普攻有 35% 概率追加一次 40% 攻击力的额外打击",
+    "lv2": "50% 概率追加一次 60% 攻击力的额外打击",
+    "lv3": "70% 概率追加一次 90% 攻击力的额外打击",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 61,
+        "duration": -1,
+        "kv": {
+          "chance": 0.5,
+          "pct": 0.6
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 61,
+        "duration": -1,
+        "kv": {
+          "chance": 0.7,
+          "pct": 0.9
+        }
+      }
+    ],
     "synergy": "配合「元素军阵」，分身与召唤叠增殖流"
   },
   {
@@ -1039,10 +2031,22 @@
     "code": "elemental_army",
     "name_en": "Elemental Legion",
     "scope": "shop",
+    "icon": "textures/skills/elemental_legion",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 62,
+        "duration": -1,
+        "kv": {
+          "perKill": 3,
+          "maxStacks": 3,
+          "pctPerStack": 0.3
+        }
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1050,9 +2054,33 @@
     "tags": [
       "召唤增殖"
     ],
-    "lv1": "每击杀 3 敌人召唤 1 个元素小兵（继承 30% 攻击力）",
-    "lv2": "小兵继承 45% 攻击力，最多 5 只",
-    "lv3": "小兵继承 60% 攻击力，最多 8 只，死亡自爆",
+    "lv1": "每击杀 3 个敌人攒 1 层军阵（上限 3 层），普攻时消耗全部层数、每层追加 30% 攻击力",
+    "lv2": "军阵上限 5 层，每层追加 45% 攻击力",
+    "lv3": "军阵上限 8 层，每层追加 60% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 62,
+        "duration": -1,
+        "kv": {
+          "perKill": 3,
+          "maxStacks": 5,
+          "pctPerStack": 0.45
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 62,
+        "duration": -1,
+        "kv": {
+          "perKill": 3,
+          "maxStacks": 8,
+          "pctPerStack": 0.6
+        }
+      }
+    ],
     "synergy": "配合「雷链」，小兵附着雷链连环弹跳"
   },
   {
@@ -1061,10 +2089,22 @@
     "code": "crit_cascade",
     "name_en": "Crit Cascade",
     "scope": "shop",
+    "icon": "textures/skills/crit_chain",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 63,
+        "duration": -1,
+        "kv": {
+          "mode": 1,
+          "pct": 0.5,
+          "radiusM": 1
+        }
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1072,9 +2112,33 @@
     "tags": [
       "物理暴击"
     ],
-    "lv1": "暴击时触发 50% 伤害小爆炸（半径 1m）",
-    "lv2": "暴击连锁弹射至相邻敌人，造成 60% 伤害",
-    "lv3": "每累计 3 次暴击触发 200% 范围爆炸（半径 2.5m）",
+    "lv1": "暴击时在目标处引发小爆炸（半径 1m，50% 攻击力）",
+    "lv2": "暴击时弹射至相邻敌人，造成 60% 攻击力伤害",
+    "lv3": "每累计 3 次暴击触发一次大爆炸（半径 2.5m，200% 攻击力）",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 63,
+        "duration": -1,
+        "kv": {
+          "mode": 2,
+          "pct": 0.6
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 63,
+        "duration": -1,
+        "kv": {
+          "mode": 3,
+          "pct": 2,
+          "radiusM": 2.5,
+          "need": 3
+        }
+      }
+    ],
     "synergy": "配合「暴击机芯」，暴击越频连锁越猛"
   },
   {
@@ -1083,10 +2147,20 @@
     "code": "dodge_counter",
     "name_en": "Dodge Counter",
     "scope": "shop",
+    "icon": "textures/skills/evade_counter",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 64,
+        "duration": -1,
+        "kv": {
+          "pct": 1.5
+        }
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1095,9 +2169,32 @@
       "物理暴击",
       "坦克反伤"
     ],
-    "lv1": "闪避后对来源反击 150% 伤害",
-    "lv2": "反击伤害 250%，并眩晕 0.5 秒",
-    "lv3": "反击伤害 350%，可暴击，并获得 25% 护盾",
+    "lv1": "闪避后对伤害来源反击，造成 150% 攻击力伤害",
+    "lv2": "反击伤害 250% 攻击力，并眩晕来源 0.5 秒",
+    "lv3": "反击伤害 350% 攻击力，并获得最大生命 25% 的护盾（6 秒充能）",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 64,
+        "duration": -1,
+        "kv": {
+          "pct": 2.5,
+          "stunSec": 0.5
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 64,
+        "duration": -1,
+        "kv": {
+          "pct": 3.5,
+          "shieldPct": 0.25,
+          "shieldRecharge": 6
+        }
+      }
+    ],
     "synergy": "配合「铁壳」，高闪避配合格挡减伤"
   },
   {
@@ -1106,10 +2203,22 @@
     "code": "war_banner",
     "name_en": "War Banner",
     "scope": "shop",
+    "icon": "textures/skills/war_banner",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            15,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "rarity": "epic",
     "stage": 3,
     "weight": 15,
@@ -1117,9 +2226,55 @@
     "tags": [
       "坦克反伤"
     ],
-    "lv1": "周围 3.5m 友军增伤 15%",
-    "lv2": "增伤 22%，并降低敌人护甲 10%",
-    "lv3": "增伤 30%，范围 4m，破甲 25%",
+    "lv1": "自身伤害输出 +15%",
+    "lv2": "自身伤害输出 +22%，并持续降低周围 3.5m 内敌人 3 点护甲",
+    "lv3": "自身伤害输出 +30%，并持续降低周围 4m 内敌人 6 点护甲",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            22,
+            "percent"
+          ]
+        ]
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 65,
+        "duration": -1,
+        "kv": {
+          "radiusM": 3.5,
+          "armorBreak": -3,
+          "interval": 1,
+          "duration": 2
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            11,
+            30,
+            "percent"
+          ]
+        ]
+      },
+      {
+        "type": "apply_modifier",
+        "modifier": 65,
+        "duration": -1,
+        "kv": {
+          "radiusM": 4,
+          "armorBreak": -6,
+          "interval": 1,
+          "duration": 2
+        }
+      }
+    ],
     "synergy": "配合「嗜血」，增伤后吸血收益翻倍"
   },
   {
@@ -1128,10 +2283,21 @@
     "code": "time_loop",
     "name_en": "Time Loop",
     "scope": "shop",
+    "icon": "textures/skills/time_rewind",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 67,
+        "duration": -1,
+        "kv": {
+          "pct": 0.3,
+          "cdSec": 45
+        }
+      }
+    ],
     "rarity": "legendary",
     "stage": 4,
     "weight": 5,
@@ -1139,9 +2305,34 @@
     "tags": [
       "坦克反伤"
     ],
-    "lv1": "死亡时逆转时间，回复 30% 生命重生（每波 1 次）",
-    "lv2": "重生回复 60% 生命，清除全部负面效果",
-    "lv3": "重生回复 100% 生命，重生后 3 秒无敌",
+    "lv1": "生命归零时逆转时间，回复 30% 最大生命重生（每 45 秒最多 1 次）",
+    "lv2": "重生回复 60% 最大生命，并清除全部负面效果",
+    "lv3": "重生回复 100% 最大生命，重生后 3 秒无敌",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 67,
+        "duration": -1,
+        "kv": {
+          "pct": 0.6,
+          "cleanse": true,
+          "cdSec": 45
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 67,
+        "duration": -1,
+        "kv": {
+          "pct": 1,
+          "cleanse": true,
+          "invulnSec": 3,
+          "cdSec": 45
+        }
+      }
+    ],
     "synergy": "配合「圣盾」，一局一次的高容错保命"
   },
   {
@@ -1150,10 +2341,27 @@
     "code": "devil_contract",
     "name_en": "Devil Contract",
     "scope": "shop",
+    "icon": "textures/skills/demon_pact",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
-    "effects": [],
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            40,
+            "percent"
+          ],
+          [
+            1,
+            -15,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "rarity": "legendary",
     "stage": 4,
     "weight": 5,
@@ -1161,9 +2369,43 @@
     "tags": [
       "法术爆发"
     ],
-    "lv1": "攻击力 +40%，但最大生命 -15%",
+    "lv1": "攻击力 +40%，最大生命 -15%",
     "lv2": "攻击力 +60%，最大生命 -25%",
-    "lv3": "攻击力 +100%，最大生命 -40%，技能冷却 -25%",
+    "lv3": "攻击力 +100%，最大生命 -40%",
+    "effects_lv2": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            60,
+            "percent"
+          ],
+          [
+            1,
+            -25,
+            "percent"
+          ]
+        ]
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            3,
+            100,
+            "percent"
+          ],
+          [
+            1,
+            -40,
+            "percent"
+          ]
+        ]
+      }
+    ],
     "synergy": "配合「嗜血」，高攻吸血稳住下滑血量"
   }
 ]

@@ -10,7 +10,11 @@
  *
  * 现在只有一处：**功能类算（`refreshGate()`），面板画（`RefreshButtonView.applyRefreshButton`）**。
  *
- * ⚠ 三个输入必须都是**响应式**的（`refreshCost` / `adFreeLeft` 是 ref，`gold` 来自 `battleStore`），
+ * ⚠ **货币由调用方决定**：选英雄 / 遗物抽取传**金币**（`battleStore.gold`），
+ *   击杀商店传**击杀数**（`battleStore.killPoints`）—— 本函数只认「余额 / 费用」两个数字，
+ *   不知道也不该知道那是什么货币（货币真源与扣费口都在宿主）。
+ *
+ * ⚠ 三个输入必须都是**响应式**的（`refreshCost` / `adFreeLeft` 是 ref，货币余额来自 store），
  *   否则面板的 watcher 收不到变化。面板侧用 `refreshGateKey()` 当 watch 源，就是为了
  *   "判据只依赖这几个 ref、且只在判据真的变了时才重画"。
  */
@@ -19,21 +23,21 @@
 export interface RefreshGate {
     /** 按钮能不能点（= `canPay || viaAd`） */
     enabled: boolean;
-    /** 金币够不够（费用数字的颜色：够 = 原色、不够 = 红） */
+    /** 货币够不够（费用数字的颜色：够 = 原色、不够 = 红） */
     canPay: boolean;
-    /** 金币不够、但还有广告免费次数 → 点了走「看广告」 */
+    /** 货币不够、但还有广告免费次数 → 点了走「看广告」 */
     viaAd: boolean;
 }
 
 /**
- * 算一次判据：金币 ≥ 费用 → 直接扣钱；否则还有广告免费次数 → 看广告；都没有 → 置灰。
+ * 算一次判据：货币 ≥ 费用 → 直接扣；否则还有广告免费次数 → 看广告；都没有 → 置灰。
  *
- * @param gold 本局金币（功能类的 `deps.getGold()`，真源与 HUD 显示同一口径）
- * @param cost 本次刷新费用（功能类的 `refreshCost.value`）
+ * @param balance 本局**货币余额**（金币或击杀数；真源与 HUD 显示同一口径）
+ * @param cost 本次刷新费用（功能类的 `refreshCost.value`，单位与 `balance` 一致）
  * @param adFreeLeft 剩余「广告免费刷新」次数（功能类的 `adFreeLeft.value`）
  */
-export function evaluateRefreshGate(gold: number, cost: number, adFreeLeft: number): RefreshGate {
-    const canPay = gold >= cost;
+export function evaluateRefreshGate(balance: number, cost: number, adFreeLeft: number): RefreshGate {
+    const canPay = balance >= cost;
     const viaAd = !canPay && adFreeLeft > 0;
     return { canPay, viaAd, enabled: canPay || viaAd };
 }

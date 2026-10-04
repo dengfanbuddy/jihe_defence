@@ -25,6 +25,22 @@ import {
     classifyAttrAffix, collectRelicAttrs, hasInnerSide, hasOuterSide, illegalDescriptionClauses,
     parseTermBlock, relicSide, tierOfRarity,
 } from './lib/affix-rules.mjs';
+// 钩子文案反查（2026-10 局内遗物重做）：把钩子文案从描述里剥掉再解析属性词条，
+// 否则「普攻命中叠 1 层：攻击速度 +2%」这种**效果描述**会被误判成"低档承诺了攻速"。
+import { hookTextByModId } from './lib/relic-inner-design.mjs';
+
+/**
+ * 去掉描述里的**钩子文案**（逐条钩子按本件品质取原文，原样删除）。
+ * 剥不掉的（例如手改过描述）会照旧参与解析 —— 那正是我们要报的漂移。
+ */
+function stripHookText(desc, modifiers, rarity) {
+    let out = desc ?? '';
+    for (const m of modifiers ?? []) {
+        const text = hookTextByModId(m?.modifier, rarity);
+        if (text) out = out.split(text).join('');
+    }
+    return out;
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -156,8 +172,10 @@ function checkRelics(relics) {
             }
 
             // 描述文案：功能性百分比（红档专属）+ 属性词条越档
-            warnIfFunctionalPercent(s.description, tier, sideWhere);
-            const badClauses = illegalDescriptionClauses(s.description, tier);
+            // ⚠ 先剥掉钩子文案（钩子文案里的「攻击速度 +2%」是效果描述，不是本档位的属性承诺）
+            const descAttrsOnly = stripHookText(s.description, s.modifiers, r.rarity);
+            warnIfFunctionalPercent(descAttrsOnly, tier, sideWhere);
+            const badClauses = illegalDescriptionClauses(descAttrsOnly, tier);
             if (badClauses.length) {
                 warn(`${sideWhere}：描述文案里有 ${badClauses.length} 条当前档位不允许的属性词条「${badClauses.slice(0, 2).join('、')}」—— 需删除或升档`);
             }

@@ -52,7 +52,19 @@ export class AbilitySystem {
         return ability;
     }
 
+    /**
+     * 移除技能。
+     *
+     * ⚠ **必须连它挂上的 Modifier 一起摘**（2026-10 修的真 bug）：
+     * 旧实现只 `filter` 掉技能对象，被动挂上去的 `modify_attr` / 事件 Modifier 会留在实体上——
+     * 而肉鸽商店「换技能」走的正是这里（`SkillSlots.grant` → `RemoveAbility(replacedId)`），
+     * 结果是**被顶掉的技能，它给的属性加成永久生效**（槽 0 的英雄技能不可替换，所以一直没暴露）。
+     * 摘除走 `Ability.removeOwnModifiers()`：按 `origin === 'ability:<id>'` 过滤，
+     * 与 `setLevel` 换级重挂用的是同一条路径。
+     */
     RemoveAbility(id: number): void {
+        const removed = this.abilities.filter((a) => a.getId() === id);
+        for (const a of removed) a.removeOwnModifiers();
         this.abilities = this.abilities.filter((a) => a.getId() !== id);
     }
 
@@ -96,8 +108,15 @@ export class AbilitySystem {
 
     getAll(): Ability[] { return this.abilities; }
 
-    /** 清空所有技能（对象池复用前调用） */
+    /**
+     * 清空所有技能（对象池复用前调用）。
+     *
+     * 同样要摘 Modifier —— 目前两个调用点（`Entity.Reinit` / `Entity.ResetForPool`）恰好都在
+     * 之前先调了 `modifiers.Clear()`，所以漏摘**不会**真的漏属性；但那是**巧合不是保证**
+     * （把 `Clear()` 挪到 `modifiers.Clear()` 之前就会漏）。这里显式摘掉，让 `Clear()` 自洽。
+     */
     Clear(): void {
+        for (const a of this.abilities) a.removeOwnModifiers();
         this.abilities.length = 0;
     }
 

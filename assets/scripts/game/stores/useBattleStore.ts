@@ -11,7 +11,7 @@
  *   ② **局内运行状态**（`level` / `exp` / `expToNext` / `enemiesAlive` / `isPaused`）→ 留在这里：
  *      它们不是「给 UI 看的」，而是场景自己的升级 / 刷怪 / 抽卡 / 暂停逻辑的运算对象
  *      （`Scene_Game_Stage.addBattleExp` 直接拿 `level/exp/expToNext` 算升级，遗物面板刷新读 `level` 挑品质档位）。
- *   ③ **战斗真源的响应式投影**（`hp` / `maxHp` / `gold` / `kills` / `phase` / `phaseRemainTime` /
+ *   ③ **战斗真源的响应式投影**（`hp` / `maxHp` / `gold` / `kills` / `killPoints` / `phase` / `phaseRemainTime` /
  *      `phaseTotalTime` / `heroId` / `heroSkills`）→ 留在这里：
  *      真源在 `Entity` / 场景字段，UI 只读。它们描述的是**这一局战斗**（生命周期 = 对局，不是某个 widget），
  *      且跨层视图（popup 层结算 / 商店弹窗）读不到 scope —— 只有本界面内部的 UI 能读到的东西，才轮到 ①。
@@ -31,6 +31,14 @@
 
 import { defineStore } from '../../platform/store'
 import { ref } from '../../platform/reactivity'
+
+/**
+ * 每击杀一只怪得到的**击杀数**（击杀商店货币）。
+ *
+ * 取 1 = 设计稿 `docs/局内刷怪节奏设计.md` §9.2(a) 的「击杀数」方案（零配置改动）。
+ * 想按怪种加权（精英/Boss 多给）就把这里换成读 `units.json.killReward`。
+ */
+const KILL_POINTS_PER_KILL = 1
 
 export const useBattleStore = defineStore('battle', () => {
   // ── 英雄状态（投影值，实际真源在 Entity/战斗系统，由场景 syncHeroToStore 写入） ──
@@ -61,12 +69,37 @@ export const useBattleStore = defineStore('battle', () => {
   const enemiesAlive = ref(0)//存活敌人数量
   const isPaused = ref(false)//是否暂停
   const isGameOver = ref(false)//是否结束
+  /**
+   * **本局的难度档位**（1 ~ `DifficultyConfig.DIFFICULTY_MAX`）。
+   *
+   * 投影值，真源在 `DataCenter.ins.levelData`（难度选择弹窗「确定」时落盘）；
+   * 场景在换局（`resetRun`）时读一次写进来，本局全程不变 ——
+   * HUD 的 `info/name` 靠它显示「难度 N」，局内缩放全部走 `DifficultyConfig` 现算（不再读这个字段）。
+   */
+  const difficulty = ref(1)
 
   // ── 统计 ──
+  /** 本局**累计**击杀数（统计口径：结算 / 成就 `kill_in_run`；**花掉不会减少**） */
   const kills = ref(0)
   const damageDealt = ref(0)
   const damageTaken = ref(0)
 
+  /**
+   * **击杀数余额** —— 击杀商店（Buff 商店）的唯一货币（可花费，买一层就扣掉）。
+   *
+   * 与 `kills` 的关系：`kills` 是**累计**统计（只增不减），本字段是**余额**（花掉会减）。
+   * 两者同源（每次击杀各 +1，见 `onEnemyKilled`）。HUD 的 `money/kill/value` 显示的是**余额**
+   * （与金币并排的货币读数），`kills` 只进结算面板与成就。
+   *
+   * ⚠ 口径：**每杀 1 只 = 1 点**（`KILL_POINTS_PER_KILL`）。设计稿
+   *   `docs/局内刷怪节奏设计.md` §9.2(a) 的「击杀数（零配置改动）」方案 —— 若将来要按怪种加权
+   *   （哥布林 2 / 重击者 8 / Boss 40~80），需要给 `units.json` 加一列 `killReward` 并同步
+   *   `tools/excel_export/src/core/schema.ts` + `Tb_UnitConfig.ts`，届时把 `onEnemyKilled`
+   *   换成 `addKillPoints(reward)` 即可（消费侧一行都不用改）。
+   */
+  const killPoints = ref(0)
+
+  /** 金币余额（`hero.gold` 的投影）：选英雄刷新 + 遗物抽取的货币（击杀商店花的是 `killPoints`） */
   const gold = ref(0)
 
   /**
@@ -93,7 +126,26 @@ export const useBattleStore = defineStore('battle', () => {
   // ── Actions ──
   function onEnemyKilled(): void {
     kills.value++
+    killPoints.value += KILL_POINTS_PER_KILL
     enemiesAlive.value = Math.max(0, enemiesAlive.value - 1)
+  }
+
+  /** 加击杀数（脚本/遗物钩子额外发放时用；正常击杀走 `onEnemyKilled`） */
+  function addKillPoints(amount: number): void {
+    const n = Math.floor(amount)
+    if (!Number.isFinite(n) || n <= 0) return
+    killPoints.value += n
+  }
+
+  /**
+   * 花掉击杀数（击杀商店的**唯一扣费口**：刷新摊位 + 买 Buff）。
+   * @returns false = 余额不足（余额一分不动，调用方负责拒绝本次操作）
+   */
+  function spendKillPoints(amount: number): boolean {
+    const cost = Math.max(0, Math.floor(amount))
+    if (killPoints.value < cost) return false
+    killPoints.value -= cost
+    return true
   }
 
 
@@ -110,6 +162,7 @@ export const useBattleStore = defineStore('battle', () => {
     isPaused.value = false
     isGameOver.value = false
     kills.value = 0
+    killPoints.value = 0
     damageDealt.value = 0
     damageTaken.value = 0
     gold.value = 0
@@ -117,6 +170,7 @@ export const useBattleStore = defineStore('battle', () => {
     level.value = 1
     exp.value = 0
     expToNext.value = 60
+    difficulty.value = 1
   }
 
   function togglePause(): void {
@@ -127,10 +181,11 @@ export const useBattleStore = defineStore('battle', () => {
     hp, maxHp,
     heroId, heroSkills,
     phase, maxPhase, phaseRemainTime, phaseTotalTime, enemiesAlive, isPaused, isGameOver,
-    kills, damageDealt, damageTaken,
-    onEnemyKilled, reset, togglePause,
+    kills, killPoints, damageDealt, damageTaken,
+    onEnemyKilled, addKillPoints, spendKillPoints, reset, togglePause,
     gold,
     level, exp, expToNext,
-    relicBag
+    relicBag,
+    difficulty
   }
 })

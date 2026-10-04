@@ -200,7 +200,16 @@ export function crossCheck(outputs: Map<string, TableOutput>, report: Report, fa
                 }
             }
         }
-        if (!effects.length && !Array.isArray(rec.events) && !rec.script_id) emptyModifiers++;
+        /**
+         * 「挂上去不产生任何效果」= 纯计数/标记型 Modifier（如 `技能·静电层数`：
+         * 它只承载 `stack_mode:stack` 的层数，让「满 5 层引爆」这个条件有个可数、可到期、
+         * 可被驱散的东西，效果本身由脚本读层数后触发）。
+         *
+         * 这类行**一律 `is_hidden: true`**（不出现在 Buff 栏），所以判据放它们过去 ——
+         * 否则每加一个计数器就要挨一条告警，真告警会被噪声淹掉。
+         * 非隐藏行仍然照查：那是「加了 Modifier 却忘了给效果」的典型写法错误。
+         */
+        if (!effects.length && !Array.isArray(rec.events) && !rec.script_id && !rec.is_hidden) emptyModifiers++;
         walkEvents(rec.events, where, report, checkId, modifierIds);
     }
     if (emptyModifiers > 0) {

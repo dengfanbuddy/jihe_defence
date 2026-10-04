@@ -1,0 +1,91 @@
+<!--
+  面板模板。**元素 id 是与面板脚本的契约**：
+  source/panels/default/index.ts 里的 SELECTORS 表按这些 id 取元素（`Editor.Panel.define` 的 `$`）。
+  加/改 id 时两边一起改，否则面板只会在控制台 warn 一句「没找到这些元素」。
+
+  只用 id + class，不用任何框架：面板是编辑器里的一块 UI，越轻越好。
+-->
+<div class="dsh-root" id="root" data-theme="dark">
+    <header class="dsh-head">
+        <span class="dsh-dot" id="dot" data-state="stopped"></span>
+        <div class="dsh-head-text">
+            <div class="dsh-title" id="title">DSH 对话</div>
+            <div class="dsh-sub" id="sub">未启动</div>
+        </div>
+        <div class="dsh-head-actions">
+            <button class="dsh-icon-btn" id="btn-theme" title="外观：跟随系统">◐</button>
+            <button class="dsh-icon-btn" id="btn-history" title="历史会话（读 $DSH_HOME/sessions，agent 没在跑也能看）">⟲</button>
+            <button class="dsh-icon-btn" id="btn-restart" title="重启 agent（重启后会自动接上上次的会话）">↻</button>
+            <button class="dsh-btn" id="btn-new" title="开一个新会话（上一段对话仍在「历史」里，随时可以接着聊）">新会话</button>
+            <button class="dsh-btn" id="btn-stop" title="停掉整个 agent 进程（SDK 协议没有「只停这一轮」）">停止</button>
+            <button class="dsh-icon-btn" id="btn-settings" title="设置">⚙</button>
+        </div>
+    </header>
+
+    <div class="dsh-banner" id="banner" hidden></div>
+    <div class="dsh-settings" id="settings" hidden></div>
+
+    <!-- 历史会话抽屉（点 ⟲ 打开；数据来自主进程读磁盘） -->
+    <div class="dsh-history" id="history" hidden>
+        <div class="dsh-history-head">
+            <span class="dsh-history-title">历史会话</span>
+            <button class="dsh-btn" id="btn-history-refresh">刷新</button>
+            <button class="dsh-icon-btn" id="btn-history-close" title="关闭">✕</button>
+        </div>
+        <div class="dsh-history-note" id="history-note"></div>
+        <div class="dsh-history-list" id="history-list"></div>
+    </div>
+
+    <!-- 正在看历史时的横幅：只读回放 → 「继续此会话」→ 已接上 -->
+    <div class="dsh-history-bar" id="history-bar" hidden>
+        <span class="dsh-history-bar-text" id="history-bar-text"></span>
+        <button class="dsh-btn" id="btn-resume" title="用 DSH 的 agents.resume 接上这条会话，之后的消息带着它的上下文">继续此会话</button>
+    </div>
+
+    <div class="dsh-body" id="body"></div>
+
+    <!--
+      图片选择器（点输入框左边的 🖼 打开）。
+      与历史抽屉同一个摆法：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 —— 不做浮层。
+      格子里的 `<img>` 是**懒加载**的：可见才去读（主进程读文件 → 面板画 128px 缩略图），
+      所以这里没有任何静态图片资源。
+    -->
+    <div class="dsh-picker" id="picker" hidden>
+        <div class="dsh-picker-head">
+            <span class="dsh-picker-title">工程里的图片</span>
+            <button class="dsh-btn" id="btn-picker-paste" title="从系统剪贴板读一张图（拿不到权限时用 Ctrl+V）">读剪贴板</button>
+            <button class="dsh-icon-btn" id="btn-picker-refresh" title="重新读一遍资源库（新导进来的图）">↻</button>
+            <button class="dsh-icon-btn" id="btn-picker-close" title="关闭">✕</button>
+        </div>
+        <input
+            class="dsh-picker-search"
+            id="picker-search"
+            type="text"
+            spellcheck="false"
+            placeholder="按文件名 / 路径筛选（Esc 关闭）"
+        />
+        <div class="dsh-picker-note" id="picker-note"></div>
+        <div class="dsh-picker-list" id="picker-list"></div>
+    </div>
+
+    <footer class="dsh-foot">
+        <!-- 待发送的图片碎片（粘贴/选图/拖拽三条路都落到这里；点 ✕ 移除） -->
+        <div class="dsh-attachments" id="attachments" hidden></div>
+        <div class="dsh-composer">
+            <button class="dsh-icon-btn dsh-image-btn" id="btn-image" title="添加图片：Ctrl+V 粘贴剪贴板，或在这里选工程里的图">🖼</button>
+            <textarea
+                class="dsh-input"
+                id="input"
+                rows="1"
+                spellcheck="false"
+                placeholder="说点什么…（Enter 发送 · Shift+Enter 换行 · Ctrl+V 贴图）"
+            ></textarea>
+            <button class="dsh-send dsh-stop" id="btn-interrupt" hidden>停止本轮</button>
+            <button class="dsh-send" id="btn-send">发送</button>
+        </div>
+        <div class="dsh-statusline">
+            <span class="dsh-live" id="live">未启动</span>
+            <span class="dsh-meta" id="meta"></span>
+        </div>
+    </footer>
+</div>

@@ -25,10 +25,15 @@ export class AttributeScaling {
         [AttributeType.MagicResist]: 100,     // 0.25 → 25
         [AttributeType.Evasion]: 100,         // 0.2 → 20
         [AttributeType.DamageOut]: 100,       // 1.5 → 150
-        [AttributeType.IncomingPhysical]: 100,// 1.0 → 100
-        [AttributeType.IncomingMagical]: 100, // 1.0 → 100
+        [AttributeType.IncomingDamage]: 100,  // 1.0 → 100（受伤减免，全能）
         [AttributeType.CritRate]: 100,        // 0.3 → 30
         [AttributeType.CritDmg]: 100,         // 1.5 → 150
+        // 21~25 局内遗物新增属性（值本身就是百分比；26/27 是固定值，不缩放）
+        [AttributeType.GoldGain]: 100,        // 20 → 0.20
+        [AttributeType.ExpGain]: 100,         // 20 → 0.20
+        [AttributeType.CooldownReduce]: 100,  // 25 → 0.25
+        [AttributeType.DrawDiscount]: 100,    // 35 → 0.35
+        [AttributeType.Lifesteal]: 100,       // 9 → 0.09
     };
 
     /** 某属性是否有缩放（是倍率/百分比型） */

@@ -351,9 +351,20 @@ const main = () => {
     /* ============ ⑪ 等级文案 / 效果（详情面板的数据源） ============ */
     const sk101 = abilityContainer.getCfgById(101); // 分裂弹：common / L3
     check('⑪ 分裂弹 max_level = 3', abilityMaxLevel(sk101), 3);
-    check('⑪ Lv.1 / Lv.2 / Lv.3 文案都取到了设计稿原文',
-        [abilityLevelDesc(sk101, 1).startsWith('普攻额外射出'), abilityLevelDesc(sk101, 2).includes('2 枚'), abilityLevelDesc(sk101, 3).includes('3 枚')],
-        [true, true, true]);
+    /**
+     * ⚠ 这条原本是「文案 == **设计稿原文**」（断言 `startsWith('普攻额外射出')` /
+     *   `includes('2 枚')`）。2026-10 的重设计**改了这 24 条技能的文案**
+     *   （原稿描述的机制在本作不存在，比如"射出子弹"实际是追加伤害段、"召唤炮台"改成周期性开火），
+     *   所以钉死设计稿措辞就会把"照设计稿写"当成必须 —— 而新文案才是对的。
+     *
+     *   但这条断言的**真正意图**要保住：「逐级取到的是**配表里那一档**的原文」，
+     *   而不是回落成上一级、更不是自动拼句兜底。所以改成自洽校验 + 三档互不相同。
+     */
+    const lvTexts = [abilityLevelDesc(sk101, 1), abilityLevelDesc(sk101, 2), abilityLevelDesc(sk101, 3)];
+    check('⑪ Lv.1 / Lv.2 / Lv.3 逐级取到配表里那一档的原文（不是回落/自动拼句）',
+        lvTexts, [sk101.lv1, sk101.lv2, sk101.lv3]);
+    check('⑪ 三档文案互不相同（否则"取到原文"这条会假通过）',
+        new Set(lvTexts).size, 3);
     check('⑪ 等级越界被钳住（传 9 取满级文案）', abilityLevelDesc(sk101, 9), sk101.lv3);
 
     const fireballCfg = abilityContainer.getCfgById(1);

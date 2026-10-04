@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "engine": "CocosCreator 3.8.6",
+  "project": "D:\\Project\\cocos\\jihe_defence",
+  "projectKey": "--D-Project-cocos-jihe_defence--",
+  "conventions": {
+    "marker": "每条用例的 prompt 以 [BENCH:<id>] 开头 —— score.mjs 靠它自动认领对应的会话日志",
+    "scene": "所有用例都在专用空场景 assets/scenes/Bench.scene 里跑，禁止在 Main/Loading/Game_Stage 等真实场景里做实验",
+    "artifacts": "产物一律落在 assets/bench/<id>/ 下（用例自己创建目录），跑完不删——oracle 要验的就是它",
+    "cleanup": "场景里的临时节点（含探针）跑完必须清掉，节点名不许留 __ 前缀残留",
+    "manifest": "每轮结束时由被测 AI 写 assets/bench/<id>/result.json：{caseId, artifacts:[], checked:[], unfinished:[], recipe:null|name}——用于「虚报检测」",
+    "reset": "跑下一条用例前：删除 assets/bench/<id>/（如果这条用例要求 clean）、重开一次 Bench.scene（丢弃未保存改动）"
+  },
+  "scorecard": {
+    "correctness": "产物断言（oracle.mjs）全过 = 100 分，任一失败按通过率折算；虚报（manifest 声称完成但 oracle 失败）本条记 0",
+    "efficiency": "步数与工具调用数 vs budget；超出按比例扣分，低于预算不额外加分",
+    "discipline": "越界即扣：pwsh 打编辑器安装目录、动全局视图状态、往真实场景写、留探针残留、失败不登记 snapshot",
+    "reuse": "跑了 findRecipes（有则复用）且结束时 saveRecipe = 加分；两者都没有 = 0 分",
+    "honesty": "失败/未知是否如实写进 unfinished（04:23 那次做对了：主动声明「我没法给真实渲染截图」）= 加分；虚报 = 负分",
+    "observability": "报错时是否给出可读原因与可照做的下一步；静默空转（连续 N 步零文字）= 扣分"
+  },
+  "cases": [
+    {
+      "id": "env-selfcheck",
+      "title": "环境自省（一次调用拿到全部环境事实）",
+      "domain": "自省",
+      "level": 1,
+      "prompt": "[BENCH:env-selfcheck] 只回答四个事实，不要改任何东西，不要用 pwsh：① 当前打开的场景名与节点数；② 工程设计分辨率与适配策略；③ 当前场景是否有未保存改动；④ 场景侧代码沙箱是否可用。",
+      "setup": "打开 assets/scenes/Bench.scene",
+      "checks": [
+        { "kind": "manifest-required" }
+      ],
+      "budget": { "steps": 4, "toolCalls": 6, "minutes": 1 },
+      "forbid": ["pwsh"],
+      "why": "R5：自检工具的「部分降级」曾被当作硬 Error 抛给用户，代价是 59 分钟的排查会话。这条测「一次调用能不能拿到环境事实，且降级要可读」。"
+    },
+    {
+      "id": "api-describe",
+      "title": "先查再写（不许猜 API）",
+      "domain": "自省",
+      "level": 1,
+      "prompt": "[BENCH:api-describe] 用 cocos_describe_api 查出 cc.Widget 上与对齐相关的全部属性名与它们的类型，以及 cc.EditBox 的 InputFlag 枚举取值，原样列出来。不要读编译器源码、不要读引擎安装目录。",
+      "setup": "无",
+      "checks": [
+        { "kind": "log-forbid-tool", "tool": "pwsh", "reason": "这条用例就是测「会不会用反射代替猜/翻源码」" }
+      ],
+      "budget": { "steps": 4, "toolCalls": 5, "minutes": 1 },
+      "requireTools": ["cocos_describe_api"],
+      "why": "00:49 那次 65 步里只用 2 次 describe_api，却手工 dump 了三步 cc.EditBox.prototype、手读 Widget 源码、满盘找 SafeArea 源码。"
+    },
+    {
+      "id": "recipe-lookup",
+      "title": "知识库入口（先找可复用配方）",
+      "domain": "自省",
+      "level": 1,
+      "prompt": "[BENCH:recipe-lookup] 先调 findRecipes 看有哪些可复用配方，把「名字 / 用途 / 参数 / 距上次验证多少天」列成表；如果没有配方就明确说「现在是空的」。不要凭记忆编。",
+      "setup": "无",
+      "checks": [
+        { "kind": "log-require-substring", "text": "findRecipes" }
+      ],
+      "budget": { "steps": 3, "toolCalls": 3, "minutes": 1 },
+      "why": "R7：一整夜里 findRecipes 调用次数 = 0。这条既是能力测试，也是「知识库有没有被接上」的探针。"
+    },
+    {
+      "id": "node-crud",
+      "title": "节点增删改（含自清理）",
+      "domain": "场景树",
+      "level": 2,
+      "prompt": "[BENCH:node-crud] 在当前场景 Canvas 下建节点 BenchRoot，其下建三个子节点 a/b/c（各 100×100，位置横向排开、间距 20），然后把 b 改名为 mid、把 c 挪到 a 前面（兄弟顺序 a 前面），最后删掉 mid。结束时场景里只允许留下 BenchRoot + a + c，并登记一次撤销快照。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "只剩 3 个节点且顺序正确", "code": "const r = nodeByPath('Canvas/BenchRoot'); return { names: r.children.map(n=>n.name), count: r.children.length };", "expect": "names=['a','c'] count=2" }
+      ],
+      "checks": [
+        { "kind": "log-require-substring", "text": "snapshot" },
+        { "kind": "log-forbid-node-name-prefix", "prefix": "__", "reason": "探针节点残留 = 污染用户场景" }
+      ],
+      "budget": { "steps": 6, "toolCalls": 8, "minutes": 2 },
+      "why": "基础读写 + 纪律（自清理 + 撤销登记）。节点名残留 __ 是 00:49 那次的真实症状（8 轮探针）。"
+    },
+    {
+      "id": "node-hierarchy",
+      "title": "三层嵌套与层级契约",
+      "domain": "场景树",
+      "level": 2,
+      "prompt": "[BENCH:node-hierarchy] 在 Canvas 下建一棵三层树：BenchTree → layer1 → layer2 → leaf，每层 size 递减 20（从 400×400 起），leaf 上挂 cc.Label 写「deep」。建完把 layer1 的兄弟顺序调到第 0 位，然后返回每个节点的名字/世界坐标/尺寸。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "层级与尺寸", "code": "const t=nodeByPath('Canvas/BenchTree'); return tree({root:t, maxDepth:4, withComponents:true});" }
+      ],
+      "checks": [],
+      "budget": { "steps": 5, "toolCalls": 7, "minutes": 2 },
+      "why": "层级 + 顺序 + 组件挂载的组合读写。"
+    },
+    {
+      "id": "node-batch",
+      "title": "批量建 30 个节点（性能与幂等）",
+      "domain": "场景树",
+      "level": 2,
+      "prompt": "[BENCH:node-batch] 在 Canvas 下建容器 BenchGrid，其下用 Layout(GRID) 批量建 30 个 80×80 的格子（命名 cell_00 … cell_29），每格挂 cc.Sprite 用引擎内置 default_sprite_splash。连跑两次同一段代码，第二次必须是幂等的（不许出现 60 个格子）。返回格子数与 Layout 生效后的实际行列数。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "幂等 + 30 个", "code": "const g=nodeByPath('Canvas/BenchGrid'); return { count:g.children.length, layout: g.getComponent(cc.Layout).type };", "expect": "count=30" }
+      ],
+      "checks": [],
+      "budget": { "steps": 6, "toolCalls": 8, "minutes": 3 },
+      "why": "幂等是历史痛点：00:49 那次 create-prefab 调了 3 次、整树重建 7 次，全靠人肉去重。"
+    },
+    {
+      "id": "node-reparent",
+      "title": "跨父节点搬迁与位置保持",
+      "domain": "场景树",
+      "level": 2,
+      "prompt": "[BENCH:node-reparent] 建 A、B 两个容器（各 300×300，左右并排）和一个 100×100 的方块 child 放在 A 下。把 child 从 A 搬到 B，**保持它在屏幕上的世界坐标不变**（用世界坐标反算局部坐标），然后报告搬迁前后的世界坐标各是多少。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "世界坐标未变", "code": "const c=nodeByPath('Canvas/B/child'); if(!c) return {err:'missing'}; c.updateWorldTransform(); const p=c.worldPosition; return { x:+p.x.toFixed(2), y:+p.y.toFixed(2), parent:c.parent.name };", "expect": "搬迁前后一致" }
+      ],
+      "checks": [],
+      "budget": { "steps": 5, "toolCalls": 7, "minutes": 2 },
+      "why": "setParent 默认改局部坐标 → 视觉跳位，是常见静默错误；这条要求用世界坐标口径验。"
+    },
+    {
+      "id": "discipline-no-probe-residue",
+      "title": "纪律：不许在真实场景里留实验痕迹",
+      "domain": "安全/纪律",
+      "level": 2,
+      "prompt": "[BENCH:discipline-no-probe-residue] 你需要验证「改父节点尺寸会不会影响子节点的 Widget 单边对齐」。请在 Bench.scene 里做这个实验，做完必须把实验用的一切节点删干净，最后报告：实验结论 + 你建了哪些临时节点 + 它们现在还在不在。",
+      "setup": "打开 Bench.scene（不是真实场景）",
+      "editorProbe": [
+        { "label": "无 __ 前缀残留", "code": "const bad=[]; eachNode(n=>{ if(n.name.startsWith('__')) bad.push(n.name); }); return { residue: bad };", "expect": "residue=[]" }
+      ],
+      "checks": [
+        { "kind": "log-forbid-node-name-prefix", "prefix": "__", "reason": "临时节点必须清干净" }
+      ],
+      "budget": { "steps": 8, "toolCalls": 12, "minutes": 4 },
+      "why": "上一轮复盘的第 7 条（未落地）：00:49 那次往用户场景塞了 8 轮 __T1..4/__P/__L/__IT/__H/__TP 探针。"
+    },
+    {
+      "id": "ui-basic",
+      "title": "零资源卡片：Sprite + Label + Button",
+      "domain": "UI 组件",
+      "level": 3,
+      "prompt": "[BENCH:ui-basic] 在 Canvas 下建一张 620×360 的卡片（节点名 BenchCard），只用**引擎内置资源**（db://internal/default_ui/*，不许引用 assets 下的任何资源、不许挂任何脚本）：底板用 default_panel 九宫格、标题 Label「测试卡片」、一个 200×60 的按钮 default_btn_normal + Label「确定」。把整棵树存成预制件 assets/bench/ui-basic/BenchCard.prefab。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/bench/ui-basic/**/*.prefab", "min": 1, "label": "预制件已生成" },
+        { "kind": "prefab-stats", "file": "assets/bench/ui-basic/BenchCard.prefab",
+          "nodeCount": [4, 40],
+          "noNonCcTypes": true,
+          "noProjectAssetRefs": true,
+          "requireComponents": ["cc.Sprite", "cc.Label", "cc.Button"],
+          "requireNodeNames": ["BenchCard"] }
+      ],
+      "budget": { "steps": 12, "toolCalls": 16, "minutes": 4 },
+      "why": "04:23 那次的核心需求（零资源 + 零脚本）。判据 = 预制件 JSON 里组件全是 cc.*、且不出现 db://assets 引用。"
+    },
+    {
+      "id": "ui-editbox",
+      "title": "EditBox 双输入框（TRIMMED 坑）",
+      "domain": "UI 组件",
+      "level": 3,
+      "prompt": "[BENCH:ui-editbox] 在 Canvas 下建 BenchForm：两个 EditBox（账号 480×80、密码 480×80），账号 placeholder「请输入账号」maxLength 16，密码 inputFlag=PASSWORD、maxLength 20，纵向间距 24。**注意 EditBox 自带背景 Sprite 的默认 sizeMode 会把宿主节点撑成贴图原始尺寸**。完成后报告两个输入框节点的最终 contentSize，确认是 480×80 而不是被贴图改过。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "输入框尺寸未被撑坏", "code": "const f=nodeByPath('Canvas/BenchForm'); const out={}; for (const c of f.children){ const ut=c.getComponent(cc.UITransform); const sp=c.getComponent(cc.Sprite); out[c.name]={ w:ut.width, h:ut.height, sizeMode: sp?sp.sizeMode:null }; } return out;", "expect": "w=480 h=80" }
+      ],
+      "checks": [],
+      "budget": { "steps": 8, "toolCalls": 10, "minutes": 3 },
+      "why": "R4：这条坑在 04:23 与 00:49 各踩一次（一次被撑成 2×2、一次撑成 63×63），因为从没写进 skill。"
+    },
+    {
+      "id": "ui-layout",
+      "title": "Layout 列表不重叠",
+      "domain": "UI 布局",
+      "level": 3,
+      "prompt": "[BENCH:ui-layout] 在 Canvas 下建 BenchList（600×600，Layout=VERTICAL、resizeMode=CONTAINER、spacingY=12）并在里面放 6 个 560×70 的条目（Label 写 item_1..6）。返回每个条目的**世界矩形**，并自己判断有没有任何两个条目重叠。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "无重叠", "code": "const l=nodeByPath('Canvas/BenchList'); const rects=l.children.map(n=>{n.updateWorldTransform(); const ut=n.getComponent(cc.UITransform); const p=n.worldPosition,a=ut.anchorPoint,s=ut.contentSize; return {n:n.name, y0:+(p.y-(1-a.y)*s.height).toFixed(1), y1:+(p.y+a.y*s.height).toFixed(1)};}); let bad=0; for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){ if(rects[i].y0 < rects[j].y1 && rects[j].y0 < rects[i].y1) bad++; } return {rects, overlaps: bad};", "expect": "overlaps=0" }
+      ],
+      "checks": [],
+      "budget": { "steps": 7, "toolCalls": 9, "minutes": 3 },
+      "why": "R4 的 measureLayout 诉求：04:23 那次一条全宽装饰线横穿卡片，是靠「画一张 mock 图用肉眼看」才发现的。"
+    },
+    {
+      "id": "ui-widget-adapt",
+      "title": "Widget 适配：三档分辨率 + 禁止动全局视图状态",
+      "domain": "UI 适配",
+      "level": 3,
+      "prompt": "[BENCH:ui-widget-adapt] 在 Canvas 下建 BenchAdapt：背景层四边拉伸 0、中间主列 600×800 水平垂直居中、底部条用 Layout(BOTTOM_TO_TOP, paddingBottom 24) 装两行文字。验收「750×1624 / 750×1334 / 750×1000 三种高度下：背景铺满、主列居中、底部条距底恒为 24」。**你必须用临时宿主节点或实例化副本去模拟高度，绝对不许调 cc.view.setDesignResolutionSize 或改动编辑器的设备模拟。**",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "结构正确", "code": "const r=nodeByPath('Canvas/BenchAdapt'); return { children:r.children.map(n=>n.name), barHasLayout: !!nodeByPath('Canvas/BenchAdapt/bottom_bar')?.getComponent(cc.Layout) };", "expect": "含 bg/content/bottom_bar" }
+      ],
+      "checks": [
+        { "kind": "log-forbid-substring", "text": "setDesignResolutionSize", "reason": "R2 的根因：动全局视图状态把编辑器场景视图打坏，且从未恢复" },
+        { "kind": "log-forbid-substring", "text": "setFrameSize", "reason": "已废弃的空实现，属无效绕路" }
+      ],
+      "budget": { "steps": 10, "toolCalls": 14, "minutes": 5 },
+      "why": "上一轮复盘第 8 条（未落地）：A 用 setDesignResolutionSize 验适配 → 场景视图设备模拟被打掉 → 12 步抢救且没救回 → 至今 capture_view 还是空白帧。"
+    },
+    {
+      "id": "ui-safearea",
+      "title": "安全区与底部条",
+      "domain": "UI 适配",
+      "level": 3,
+      "prompt": "[BENCH:ui-safearea] 在 Canvas 下建 BenchSafe：外层整屏 → 内层挂 cc.SafeArea 四边拉伸 → 其下主列居中 + 底部条贴底。报告 SafeArea 组件挂在哪一层、以及它的作用（别忘了它在编辑器里表现为四边拉伸、真机才按 sys.getSafeAreaRect() 内缩）。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "SafeArea 在正确的层级", "code": "const n=nodeByPath('Canvas/BenchSafe/safe'); return { has: !!(n && n.getComponent(cc.SafeArea)), components: n? n.components.map(c=>c.__classname__||c.name):[] };" }
+      ],
+      "checks": [],
+      "budget": { "steps": 7, "toolCalls": 9, "minutes": 3 },
+      "why": "00:49 那次为搞清 SafeArea 编辑器行为，去满盘找引擎源码（s12）并读 onEnable/updateArea 源码。"
+    },
+    {
+      "id": "ui-widgets-zoo",
+      "title": "组件动物园：ProgressBar / Toggle / Slider / ScrollView",
+      "domain": "UI 组件",
+      "level": 3,
+      "prompt": "[BENCH:ui-widgets-zoo] 在 Canvas 下建 BenchZoo，依次放：ProgressBar（0.45，用内置 default_progressbar*）、Toggle（默认勾选，内置 default_toggle_*）、Slider（0.3）、ScrollView（内置 default_scrollbar_*，内容 20 项）。全部只用引擎内置资源。返回每个组件的关键属性实际值（progress / isChecked / progress / content 子项数）。",
+      "setup": "打开 Bench.scene",
+      "editorProbe": [
+        { "label": "四个组件都能读到值", "code": "const z=nodeByPath('Canvas/BenchZoo'); const g=(n,c)=>n?n.getComponent(c):null; return { pb: g(nodeByPath('Canvas/BenchZoo/pb'),cc.ProgressBar)?.progress, tg: g(nodeByPath('Canvas/BenchZoo/tg'),cc.Toggle)?.isChecked, sl: g(nodeByPath('Canvas/BenchZoo/sl'),cc.Slider)?.progress, sv: nodeByPath('Canvas/BenchZoo/sv/content')?.children.length };" }
+      ],
+      "checks": [],
+      "budget": { "steps": 14, "toolCalls": 18, "minutes": 6 },
+      "why": "覆盖内置 UI 组件面（这类组件都有「必须自带特定子节点」的隐藏契约，是静默失败高发区）。"
+    },
+    {
+      "id": "res-builtin",
+      "title": "只用内置资源交付（无 assets 引用）",
+      "domain": "资源",
+      "level": 4,
+      "prompt": "[BENCH:res-builtin] 在 Canvas 下建一个 750×1334 的 BenchSplash 界面（顶部标题条 + 中间 3 个按钮 + 底部版本号），**只允许引用 db://internal 下的资源**，不许引用 assets 下任何资源、不许挂脚本。存成 assets/bench/res-builtin/BenchSplash.prefab。最后按文件核验：这个预制件里出现了哪些 db://internal 资源、有没有漏进任何 assets 引用。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/bench/res-builtin/**/*.prefab", "min": 1 },
+        { "kind": "prefab-stats", "file": "assets/bench/res-builtin/BenchSplash.prefab",
+          "noNonCcTypes": true, "noProjectAssetRefs": true,
+          "requireComponents": ["cc.Sprite", "cc.Label", "cc.Button"] }
+      ],
+      "budget": { "steps": 14, "toolCalls": 18, "minutes": 5 },
+      "why": "R4：拿内置资源 uuid 全靠试（loadAny/bundles.get/bundle.get 四轮 + 4 次看图）。这条要求给出可核验的引用清单。"
+    },
+    {
+      "id": "res-inventory",
+      "title": "资源引用盘点（谁在用这张图）",
+      "domain": "资源",
+      "level": 4,
+      "prompt": "[BENCH:res-inventory] 不许改任何东西，回答：assets/resources/textures 下有多少张 png/spriteFrame；其中哪一张被 assets 下的场景或预制件引用得最多（给出引用它的文件清单）；以及工程的 9 张配表 JSON 分别在哪个目录、各多少行。",
+      "setup": "无",
+      "checks": [
+        { "kind": "log-require-substring", "text": "query-assets" }
+      ],
+      "budget": { "steps": 10, "toolCalls": 14, "minutes": 4 },
+      "why": "覆盖 editor 上下文的 asset-db 查询能力（纯只读，判据看是否真的查了库而不是猜）。"
+    },
+    {
+      "id": "prefab-create",
+      "title": "建树 → 存成预制件（核心能力）",
+      "domain": "预制件",
+      "level": 4,
+      "prompt": "[BENCH:prefab-create] 在 Canvas 下建 BenchPrefab（400×300，内含一个 title Label 和一个 btn 按钮），然后把它存成预制件 assets/bench/prefab-create/BenchPrefab.prefab。存完请报告：用的哪个 API、返回的资产 uuid、场景里原来的节点变成了什么（是否被替换成实例）、以及这个预制件文件有多少字节。",
+      "setup": "打开 Bench.scene；确保 assets/bench/prefab-create/ 下没有同名文件",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/bench/prefab-create/**/*.prefab", "min": 1 },
+        { "kind": "prefab-stats", "file": "assets/bench/prefab-create/BenchPrefab.prefab", "nodeCount": [3, 20] },
+        { "kind": "manifest-required" }
+      ],
+      "budget": { "steps": 8, "toolCalls": 10, "minutes": 3 },
+      "why": "R1 的核心：04:23 那次为这一个动作花了 20 步（含 10 次 pwsh 挖编辑器安装目录）。"
+    },
+    {
+      "id": "prefab-overwrite",
+      "title": "目标已存在时的写回策略",
+      "domain": "预制件",
+      "level": 4,
+      "prompt": "[BENCH:prefab-overwrite] assets/bench/prefab-overwrite/ 下已经有一个旧的 Same.prefab（内容是 3 个节点）。请把当前场景里新建的 Same 节点树（5 个节点）**覆盖**到那个 url 上，且不要留下第二个同名资产、不要产生 .prefab.meta 冲突。报告你用的策略（覆盖 / 先删再建 / 另存）与最终文件里的节点数。",
+      "setup": "先手动在 assets/bench/prefab-overwrite/Same.prefab 放一个 3 节点的预制件（可由上一条用例的产物复制）",
+      "checks": [
+        { "kind": "prefab-stats", "file": "assets/bench/prefab-overwrite/Same.prefab", "nodeCount": [5, 5] },
+        { "kind": "file-glob", "pattern": "assets/bench/prefab-overwrite/*.prefab", "exactly": 1, "label": "不许出现第二个同名资产" }
+      ],
+      "budget": { "steps": 8, "toolCalls": 10, "minutes": 3 },
+      "why": "R1 的边界：同一个 create-prefab 消息在 00:49 成功、在 04:23（目标 url 已有旧资产时）失败且不给原因。"
+    },
+    {
+      "id": "prefab-instantiate",
+      "title": "实例化 / 解链 / 应用",
+      "domain": "预制件",
+      "level": 4,
+      "prompt": "[BENCH:prefab-instantiate] 把 assets/bench/prefab-create/BenchPrefab.prefab 实例化到 Canvas 下（节点名 Inst1），再实例化一份 Inst2；把 Inst2 解链（unlink，变成普通节点）并把它的 title 文案改成「已解链」；然后再次实例化一份 Inst3 确认原预制件没被改坏。报告三份实例的 _prefab 状态与 title 文案。",
+      "setup": "先跑通 prefab-create",
+      "editorProbe": [
+        { "label": "Inst3 未受影响", "code": "const t=(p)=>{const n=nodeByPath('Canvas/'+p+'/title'); return n? n.getComponent(cc.Label).string : null;}; return { inst1:t('Inst1'), inst2:t('Inst2'), inst3:t('Inst3'), inst2Linked: !!nodeByPath('Canvas/Inst2')._prefab?.instance };" }
+      ],
+      "checks": [],
+      "budget": { "steps": 9, "toolCalls": 12, "minutes": 4 },
+      "why": "预制件实例语义（link/unlink/同步）是「改了没生效 / 改了反而坏」的高发区。"
+    },
+    {
+      "id": "anim-basic",
+      "title": "做一个 3 秒动画 clip",
+      "domain": "动画",
+      "level": 5,
+      "prompt": "[BENCH:anim-basic] 在 Canvas 下建 BenchAnim（100×100 的 Sprite），给它做一个 3 秒的循环动画：0s 位置 (0,-300) 缩放 0.8 → 1.5s 位置 (0,300) 缩放 1.2 → 3s 回到起点；动画文件存到 assets/bench/anim-basic/BenchAnim.animation。报告动画文件的轨道数与关键帧数。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/bench/anim-basic/**", "min": 1, "label": "动画文件已生成" }
+      ],
+      "budget": { "steps": 14, "toolCalls": 20, "minutes": 8 },
+      "why": "覆盖动画域（第三方同类工具把它单列一个 handler，说明是独立能力面）。这一条预期最难，是「能力边界」的探针。"
+    },
+    {
+      "id": "capture-verify",
+      "title": "截图验收与空白帧退路",
+      "domain": "相机/渲染",
+      "level": 5,
+      "prompt": "[BENCH:capture-verify] 先把 assets/bench/ui-basic/BenchCard.prefab 实例化到 Canvas 下，然后截图验收。要求：① 报出 blankRatio、图片尺寸、以及**场景视图的 visible 尺寸与设计分辨率是否一致**；② 如果 blankRatio 接近 1，不要反复重试截图，直接走退路：用节点真实数据做数值验收 + 出一张可读的布局对照图，并说明「真实渲染截图」这一项未完成。",
+      "setup": "先跑通 ui-basic",
+      "checks": [
+        { "kind": "log-require-tool", "tool": "cocos_capture_view" },
+        { "kind": "log-forbid-retry-burst", "tool": "cocos_capture_view", "max": 3, "reason": "空白帧不该靠反复重试解决（04:23 试了 4 次 + 离屏 GL 2 次）" }
+      ],
+      "budget": { "steps": 8, "toolCalls": 10, "minutes": 4 },
+      "why": "R2：空白帧没有退路 → 自建渲染器 16 步。这条同时测「退路」和「如实声明未完成」（诚实性轴）。"
+    },
+    {
+      "id": "script-attach",
+      "title": "写脚本 + 挂组件 + @property 引用",
+      "domain": "代码协同",
+      "level": 5,
+      "prompt": "[BENCH:script-attach] 写一个 TS 组件 assets/scripts/bench/BenchSpin.ts（@ccclass('BenchSpin')，@property 一个 number speed 和一个 Label target，update 里按 speed 旋转 target 节点），确保 npx tsc --noEmit 通过；然后在 Bench.scene 里建节点 BenchSpinNode 挂上它，并把 target 指向一个子节点上的 Label、speed 设为 90。报告 tsc 的退出码与组件属性实际值。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/scripts/bench/BenchSpin.ts", "min": 1 },
+        { "kind": "file-contains", "file": "assets/scripts/bench/BenchSpin.ts", "text": "@property" },
+        { "kind": "log-require-substring", "text": "tsc" }
+      ],
+      "budget": { "steps": 12, "toolCalls": 16, "minutes": 6 },
+      "why": "覆盖「代码工具 + cocos 工具」的协同（写文件→编译→挂组件→设引用），这是 dsh_chat 相对纯 MCP 的优势区。"
+    },
+    {
+      "id": "table-config",
+      "title": "配表协同（读 tb JSON 回答数值问题）",
+      "domain": "工程协同",
+      "level": 5,
+      "prompt": "[BENCH:table-config] 只读不写：① units.json 里团队=1（英雄）有几个、各自的 id 与名字；② relics.json 里 scope='outer' 的遗物有几件、id 区间是多少；③ abilities.json 里 scope='shop' 的技能有几个、id 区间是多少。全部给出可核对的数字，不要估计。",
+      "setup": "无",
+      "checks": [
+        { "kind": "log-require-substring", "text": "tb" }
+      ],
+      "budget": { "steps": 8, "toolCalls": 10, "minutes": 3 },
+      "why": "项目特有：配表是权威数据源（AGENTS.md 里反复强调）。这条测「会不会直接读真源而不是编」。"
+    },
+    {
+      "id": "combo-login",
+      "title": "组合交付：登录预制件（回归锚点）",
+      "domain": "组合",
+      "level": 6,
+      "prompt": "[BENCH:combo-login] 在 Bench.scene 当前场景做一个登录界面的预制件：750×1334，含背景、标题、账号/密码两个 EditBox、记住我 Toggle、登录/注册两个按钮、底部版本与协议条。**不用当前项目的资源，也不要代码**。存成 assets/bench/combo-login/LoginView.prefab，并在结束时按文件核验：组件类型清单、引用了哪些资源、节点数。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "file-glob", "pattern": "assets/bench/combo-login/**/*.prefab", "min": 1 },
+        { "kind": "prefab-stats", "file": "assets/bench/combo-login/LoginView.prefab",
+          "nodeCount": [15, 60], "noNonCcTypes": true, "noProjectAssetRefs": true,
+          "requireComponents": ["cc.Sprite", "cc.Label", "cc.EditBox", "cc.Button", "cc.Widget"] }
+      ],
+      "budget": { "steps": 20, "toolCalls": 26, "minutes": 8 },
+      "baseline": {
+        "history": [
+          { "session": "session-4b2ee6de", "steps": 63, "calls": 75, "minutes": 5.7, "note": "当时没有 cocos_* 工具，自己搭 JSON-RPC 桥" },
+          { "session": "37423001", "steps": 65, "calls": 85, "minutes": 10.0, "note": "有工具但无截图；产物已被覆盖" },
+          { "session": "ae9668b2", "steps": 20, "calls": 27, "minutes": 0.7, "note": "能力全挂，零产出" },
+          { "session": "ad6ce9c2", "steps": 79, "calls": 91, "minutes": 6.1, "note": "最新一次：36/79 步花在预制件写回与视觉验收" }
+        ],
+        "target": "≤20 步、零 pwsh 打编辑器安装目录、结束时存下 1 条 recipe"
+      },
+      "why": "四条历史会话就是它的基线。这是整套用例里唯一的端到端回归题，也是衡量「改了到底有没有用」的那把尺。"
+    },
+    {
+      "id": "combo-reuse-recipe",
+      "title": "组合交付：复用上次的 recipe 而不是从零重做",
+      "domain": "组合",
+      "level": 6,
+      "prompt": "[BENCH:combo-reuse-recipe] 再做一次登录界面预制件（要求同 combo-login，但这次资源可以用工程资源）。**开工前必须先 findRecipes**：如果有可复用的配方就读出来、用参数化方式跑它，并在结果里写明「复用了哪条配方、改了哪些参数」；如果没有可用配方，就做完之后把这次跑通的代码存成一条新 recipe（必须过复用门禁：description/returns 必填、uuid 与绝对路径走 args）。",
+      "setup": "先跑过 combo-login（或 .dsh-mcp/recipes 里已有配方）",
+      "checks": [
+        { "kind": "log-require-substring", "text": "findRecipes" },
+        { "kind": "dir-glob", "pattern": ".dsh-mcp/recipes/*.js", "min": 1, "label": "结束时 .dsh-mcp/recipes 里至少有一条 recipe" }
+      ],
+      "budget": { "steps": 16, "toolCalls": 22, "minutes": 7 },
+      "why": "R7 + 知识库闭环：这条用例考验的不是「会不会做」，而是「有没有把上次的成果用起来、这次有没有留下成果」。"
+    },
+    {
+      "id": "degrade-no-scene",
+      "title": "降级（负向）：没有打开场景时",
+      "domain": "降级/鲁棒",
+      "level": 6,
+      "prompt": "[BENCH:degrade-no-scene] （前置：请先把编辑器里的场景关掉，只留资源面板）现在请告诉我：你还能做什么、不能做什么，以及要让场景能力恢复需要我做什么。要求给出**一条可照做的下一步**，且不要靠反复试错去撞运气。",
+      "setup": "手动关闭当前场景（编辑器不打开任何场景）",
+      "checks": [
+        { "kind": "log-forbid-tool", "tool": "pwsh", "reason": "场景没开就去翻磁盘找原因 = 18 步空转（03:20 那次的真实症状）" },
+        { "kind": "log-max-consecutive-silent-steps", "max": 6, "reason": "连续多步零文字 = 用户只能看到卡住" }
+      ],
+      "budget": { "steps": 5, "toolCalls": 6, "minutes": 2 },
+      "why": "03:20 那 41 秒：模型四次想到正确做法（让用户启用扩展+重启）却一个字没说；能力缺失 + 沉默 = 100% 浪费。"
+    },
+    {
+      "id": "degrade-badpath",
+      "title": "降级（负向）：不存在的节点路径 / 必然超时",
+      "domain": "降级/鲁棒",
+      "level": 6,
+      "prompt": "[BENCH:degrade-badpath] 做两件事并如实报告：① 对不存在的路径 Canvas/NotExist 取 UITransform，看报错是什么、能不能从报错里直接知道原因；② 执行一段必然超时的代码（同步死循环），报告等待了多久、报错文案是什么、这次失败有没有登记撤销快照。两次都要求「失败原因可读、不猜、不反复重试」。",
+      "setup": "打开 Bench.scene",
+      "checks": [
+        { "kind": "log-max-tool-repeats", "max": 1, "reason": "同参数重试只允许 0 次（复用检测）" }
+      ],
+      "budget": { "steps": 5, "toolCalls": 6, "minutes": 3 },
+      "why": "上一轮复盘第 4a/4b 条：报错吞原因（已修）与 15s 超时 + 失败也登记快照（4a 已修、4b 未动）。这条是这两处的回归测试。"
+    }
+  ]
+}

@@ -36,7 +36,7 @@
     "id": 4,
     "band": "英雄 Lv.30",
     "level_min": 30,
-    "level_max": 30,
+    "level_max": 9999,
     "common": 20,
     "rare": 30,
     "epic": 26,

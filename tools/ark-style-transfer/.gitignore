@@ -1,0 +1,5 @@
+node_modules/
+# 运行期数据：API Key、任务记录、自测产物
+.data/
+# 默认输出目录（成品图 / _raw / _thumb）
+out/

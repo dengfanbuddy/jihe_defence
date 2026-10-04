@@ -1,0 +1,543 @@
+{
+  "_doc": "局内肉鸽技能（abilities.json scope=shop，id 101~130）的审查结论 + 图标视觉设定。改风格不改这里；改主体/新增技能改这里。verdict 字段是**审查结论**（docs/skill-icons/README.md §3 的机器可读版），gen-prompts.mjs 会把它渲染进 skills.md。",
+  "_verdict_legend": {
+    "declarative": "✔ 现有声明式词汇即可落地，零新增 TS",
+    "script": "✎ 需要一个 script_id 的 Modifier 子类（引擎已有逃逸口，4 个先例）",
+    "hook": "✎+ 需在引擎里补一处事件派发",
+    "redesign": "⟳ 原机制在本作不存在，必须换锚点（重设计）",
+    "infra": "⏸ 需召唤/经济基建，本轮只保留设计"
+  },
+  "style": {
+    "slot": "skill",
+    "size": 200,
+    "gen": 512,
+    "note": "画在青绿实底 #70ACB3 上的纯白剪影；与英雄头像同一套白描口径，与遗物图标那套（中明度彩色主体+深描边）不同，不要混用。"
+  },
+  "skills": [
+    {
+      "id": 101,
+      "name": "分裂弹",
+      "name_en": "Split Shot",
+      "code": "split_shot",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 对同一目标追加 N 次 atk×50%/60% 的伤害（分开结算，各自走伤害管线）",
+      "why": "「额外射出子弹」＝追加伤害段。伤害值要随攻击力成长（`damage.value` 是**绝对数值**、不吃攻击力），所以只能用脚本按 atk 算，声明式做不了。",
+      "fix": "l3「可触发暴击」→ 追加伤害带 `critMultiplier` 由脚本自行 roll，可落地。",
+      "art": "A single round lead ball at the centre of the frame, and from its lower left two smaller balls of the same round shape trail away in a short diagonal line, each one a clean circle with a small hole punched at its centre. Three straight grooves are cut clean through the large ball running from the upper right toward the trailing pair, splitting its face into three even wedges, and the gaps between those wedges are wide enough to read as though the ball had just come apart. A thin curved band of three short parallel slots sweeps behind the small balls to suggest speed, and a ring of small round holes is cut around the rim of every ball so each reads as cast metal rather than a flat disc. The three balls are arranged to fill the square evenly, the group spreading from the upper right corner of the mass down to the lower left, so the whole silhouette is as wide as it is tall.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本追加 `count` 段 `pct×atk` 伤害（每段独立走伤害管线，各自 roll 暴击）"
+      }
+    },
+    {
+      "id": 102,
+      "name": "穿透弹",
+      "name_en": "Piercing Bolt",
+      "code": "piercing_bolt",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 沿「英雄→中弹者」方向，对中弹者身后的 N 个敌人各造成 atk×60%/72%/85%",
+      "why": "方向要按实际站位算（声明式的 `projectile` 只能按 nearest/random 等策略选人，选不出「一条直线上更远的那些」）。",
+      "art": "A heavy crossbow bolt driving down the square on a steep diagonal from the upper left corner to the lower right, its four-sided iron tip pushed out past the lower right corner of three flat upright plates that stand stacked one above the other along that same diagonal. Each plate is a broad square panel with a hole punched through its centre exactly where the shaft passes, and the holes line up along one straight channel, so the three plates read as one pierced stack that reaches from the top of the frame down to the bottom. The bolt's shaft carries a short flight of four angled vanes at the upper left and a chunky squared nock behind them, all cut as solid white with slot-shaped gaps between the vanes. Two thin parallel cracks radiate out from the hole in each plate toward its corners, and a small ring of five round holes is set into every plate near its edges. The stack of plates fills the frame vertically while the bolt's head and vanes push into the two opposite corners, so the whole group is as tall as it is wide.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本按实际站位投影取「身后 + 锥角内」的 `count` 个敌人"
+      }
+    },
+    {
+      "id": 103,
+      "name": "嗜血",
+      "name_en": "Bloodthirst",
+      "code": "bloodthirst",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "declarative",
+      "mechanism": "modifiers.events[on_attack_landed] → `lifesteal` ratio 0.05 / 0.09 / 0.14",
+      "why": "`lifesteal` 是现成动作，伤害取事件里的 `finalDamage`，回血者取 `event.attacker`（= 英雄）。**纯声明式，零新增 TS**。",
+      "fix": "l3「过量回复转化 30% 护盾」→ 本作没有护盾池（护盾＝on_block_damage 拦截）→ 改为「吸血时额外回复 atk×0.2」或直接砍掉这半句。",
+      "art": "A fat teardrop of blood hanging point-down at the centre of the square, drawn as one solid white mass with a rounded belly and a long clean taper at the bottom. Two curved fangs are cut clean out of the upper part of the drop, side by side and pointing down, and the holes they leave are wide with sharp pointed lower ends, so the drop reads as something that has just bitten. A bite-shaped notch is punched out of the right-hand side of the drop, and a small round hole sits low in the belly like a pupil. Around the drop a broken ring of six short tapered spikes radiates outward, each one separated from the others by an open gap, and three tiny droplets hang below the tip. The drop is tall with its spikes spreading wide, so the whole silhouette comes out very nearly square.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modifiers.events[on_attack_landed].actions[lifesteal]`（唯一需要新增 Modifier 行的一条 —— `ratio` 是动作字段、没有 var 绑定）"
+      }
+    },
+    {
+      "id": 104,
+      "name": "迅捷",
+      "name_en": "Swiftness",
+      "code": "swiftness",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "declarative",
+      "mechanism": "modify_attr [4 攻击速度, +8 / +15 / +25, add]",
+      "why": "攻速是缩放型属性（base=100 即 100%），`add` +8 就是 ×1.08。纯属性，零 TS。",
+      "fix": "l3「攻速≥2.5 时首次命中必暴击」是**条件式**，声明式动作没有条件判断 → 砍掉，l3 数值提到 +35。",
+      "art": "A single feathered wing sweeping up from the lower left of the square to the upper right, built as one solid white mass with a thick leading edge and a row of six long clean feathers fanning out behind it. Every feather is separated from its neighbour by a wide open slot that runs the whole length of the vane, and each feather tapers to a sharp point so the fan reads as a wing rather than a comb. Behind the wing four parallel curved slots are cut through empty space, each one shorter than the last, following the same sweep to carry the sense of speed. A small ankle band with a round hole in it sits at the base of the wing, and two short trailing streamers hang from it with gaps cut between them. The wing spans the square on a steep diagonal with the streamers filling the lower corner, so width and height come out even.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modify_attr [4 攻速, add]`"
+      }
+    },
+    {
+      "id": 105,
+      "name": "鹰眼",
+      "name_en": "Eagle Eye",
+      "code": "eagle_eye",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "declarative",
+      "mechanism": "modify_attr [16 攻击距离, +12 / +20 / +32, percent]",
+      "why": "攻击范围就是属性 16（base=100），`percent` 直接乘基础值。零 TS。",
+      "fix": "l3「射程内无敌人时攻速 +10%」是条件式 → 砍掉，l3 数值提到 +45。",
+      "art": "A wide almond-shaped eye filling the middle of the square, drawn as one solid white lens with a perfectly round pupil punched clean out of its centre and a smaller round highlight cut just above the pupil. Heavy straight brow strokes sit above and below the eye, each a thick solid bar separated from the lens by an open slot that follows the eye's curve. A hawk's hooked beak is cut into the lower right of the frame, its point aimed inward, with a wide open nostril slot in its base and a sharp notch dividing the upper mandible from the lower. Three short tapered lashes fan out from each corner of the eye, and the whole eye is framed by a ring of small round holes that stop just short of the corners. The eye is broad, the beak fills the lower corner, and the brow bars reach top and bottom, so the emblem squares off.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modify_attr [16 攻击距离, percent]`"
+      }
+    },
+    {
+      "id": 106,
+      "name": "强健",
+      "name_en": "Fortitude",
+      "code": "fortitude",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "declarative",
+      "mechanism": "modify_attr [1 最大生命, +12 / +22 / +35, percent]；l3 追加 [9 生命恢复/秒, +N, add]",
+      "why": "生命是普通属性，`percent` 对基础值乘算一次。生命恢复 base=0，所以 l3 那条**必须用 `add` 给固定值**（`percent` 打在 base=0 上恒为 0 —— 这门禁已被 check:affix 拦）。",
+      "fix": "l3「每秒回复 1% 最大生命」：`tick_heal.value` 是**固定数值**、不吃「1% 最大生命」这种动态量 → 改成「生命恢复 +2/秒」（attr 9 的 add）或写脚本。",
+      "art": "A broad rounded boulder of a body filling the square, drawn as one solid white mass with two heavy shoulders cut apart from the chest by wide open slots, and a deep V-shaped notch between them. Down the centre of the chest a bold branching vein pattern is punched clean through in three thick strokes, opening into a wide cleft at the bottom. Two thick arms are bent up beside the torso with clenched fists, each fist carrying four round holes for knuckles and a slot across the back of the hand. A chunky crenellated collar sits across the top like the rim of a fortress wall, with six square merlons separated by open gaps, and a ring of small round holes runs around the whole outer edge. The figure is as broad as it is tall, shoulders and fists spanning the full width of the frame.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modify_attr [1 最大生命, percent]`（三阶追加 `[9 生命恢复, add]`）"
+      }
+    },
+    {
+      "id": 107,
+      "name": "暴击机芯",
+      "name_en": "Crit Core",
+      "code": "crit_core",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "declarative",
+      "mechanism": "modify_attr [14 暴击率, +8 / +15 / +24, add]；l3 追加 [15 暴击倍率, 170, best]",
+      "why": "暴击率 base=0 → **必须 `add`**（配置值＝百分点，写 `percent` 恒为 0）。暴击倍率 base=150 且属性默认 mode 是 `best`，**词条必须显式写 `best`**（写 `add` 会变成 base+Σv 累加，踩过）。",
+      "fix": "无。这是 30 条里最干净的一条。",
+      "art": "A thick-toothed cogwheel filling the square, drawn as one solid white disc with twelve square teeth cut apart from the body by wide open notches, and a large round bore punched clean through the middle. Inside the bore a bold eight-pointed starburst sits clear of the rim, each point separated from the others by an open wedge, with a small round hole at its very centre. Four straight spokes cross the disc between the bore and the rim, each spoke carrying a slot along its length so the wheel reads as machined metal. A ring of small round holes is set between the teeth, one beneath each notch, and two short cracks branch off the outer rim. The cog spans the frame edge to edge in both directions, its teeth squaring the silhouette off evenly all round.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modify_attr [14 暴击率, add]`（三阶追加 `[15 暴击倍率, best]`）"
+      }
+    },
+    {
+      "id": 108,
+      "name": "铁壳",
+      "name_en": "Iron Shell",
+      "code": "iron_shell",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "modify_attr [6 护甲, +2 / +4 / +7, add]（**必须 add**）；l3 追加 on_block_damage 的 10% 概率格挡 50%",
+      "why": "护甲 base=0（英雄收口后不再配护甲）→ 写 `percent` 恒为 0，只能 `add` 固定值。注意护甲是**双曲减伤曲线**（`0.06a/(1+0.06|a|)`），+7 护甲 ≈ 30% 减伤，所以原稿的「+18%」不能直接当数值抄。",
+      "fix": "l3「受击 10% 几率格挡 50%」需要写 `event.blocked` —— 声明式动作写不了这个字段 → 要一个 on_block_damage 的脚本（与 112 圣盾共用一个小脚本）。",
+      "art": "A domed turtle-like shell centred in the square, drawn as one solid white half-round mass with a thick flat rim running all the way round its lower edge. The dome is divided into thirteen clean hexagonal panels by wide open slots, one large panel at the centre and two rings of smaller panels around it, every panel separated from its neighbours by a channel of open space. Six chunky rivets are punched as round holes along the outer rim, evenly spaced, and a short squared tail-plate sticks out at the bottom with two slots cut through it. Two small triangular notches are cut into the top of the dome, and a ring of tiny round holes traces the very edge of the shell. The dome is broad and low while the rim and tail-plate stretch it to the frame's full width, so the silhouette reads as a square.",
+      "landed": {
+        "indirect": [],
+        "note": "**混装**：护甲那半句是声明式 `modify_attr [6, add]`，格挡那半句是脚本往 `on_block_damage.blocked` 里写数"
+      }
+    },
+    {
+      "id": 109,
+      "name": "首击",
+      "name_en": "First Strike",
+      "code": "first_strike",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 判 victim 是否满血（`hp >= getMaxHp()`），是则追加 atk×25%/45%/65%",
+      "why": "「对满生命敌人」是**条件**，声明式动作只有 `chance` 没有条件 → 只能脚本。⚠ 而且**必须挂在 `on_attack_start` 上**：`on_attack_landed` 是在扣血**之后**派发的（`Entity.resolveAttackHit:395-399`），在那里读 `hp / getMaxHp()` 会**永远为假**（第一版就是这么写的）。正确分工是「`on_attack_start` 记标记、`on_attack_landed` 消费」。",
+      "fix": "l3「击杀后攻速 +15%（持续 2 秒）」需要 `on_kill`，而它**只发总线、不派发给 Modifier** → 脚本自己订阅 `ctx.bus` 的 `on_kill`，或砍掉这半句。",
+      "art": "A clenched fist driving in from the left edge of the square and landing hard on the flat face of a round target that stands to the right of it, the two meeting in the middle of the frame at the same height. The fist is one solid white mass with four knuckle holes punched across the front and three slots cut between the fingers, and a thick wrist band behind it carries a row of five round rivet holes and is cut off by the left edge of the frame. The target is a clean circle with three concentric rings cut through it as open channels, standing on a short stout base with two square feet that reach the bottom edge, and its centre is smashed inward as a jagged star-shaped hole with eight sharp points. From the point of impact a wide band of eight short straight spikes radiates outward, four reaching up toward the top edge and four reaching down toward the bottom edge, each separated from its neighbours by open space, and the whole band is taller than it is wide so it balances the reach of the fist and the target across the middle. The spikes above and below even out the width of the two masses, so the group fills the square evenly in both directions.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本在两个时机分工：`on_attack_start` 记「打的是满血目标」，`on_attack_landed` 消费并追加伤害"
+      }
+    },
+    {
+      "id": 110,
+      "name": "过载",
+      "name_en": "Overload",
+      "code": "overload",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "redesign",
+      "mechanism": "改为 modify_attr [11 伤害输出倍率, +6 / +10 / +16, percent]；l3 追加 [12 物理受伤倍率 / 13 魔法受伤倍率 减伤]",
+      "why": "原稿「技能伤害 +10%、技能冷却 -12%」**两项在本作都不存在**：属性表 16 项里没有「技能伤害」也没有「冷却缩减」（`cdr` 是四个没有 AttributeType 的派生属性之一），而且**英雄永远不会施放技能**（`getCastableSkills()` 全工程无调用方，英雄技能必须是被动）→ 这条技能整条都挂在空机制上。",
+      "fix": "换锚点到真实存在的乘区：伤害输出倍率（attr 11，对**所有**伤害生效，与 130 恶魔契约的「攻击力」是不同乘区，不重复）。l3 的冷却缩减砍掉，改给受伤倍率减伤，保住「越打越猛又不脆」的过载手感。",
+      "art": "A thick round pressure gauge filling the square, drawn as one solid white dial with a heavy outer casing and a ring of ten large round bolt holes around the rim. The dial face is cut away entirely as one big open circle, and inside it a bold needle stands pinned hard against the far right of its track with a wide gap left behind it on the left. Four jagged lightning bolts are cut clean through the casing and plunge inward toward the needle from the top, bottom and both sides, each bolt a wide zigzag with sharp clean corners. Behind the dial three short exhaust slots are punched out in a row, and a small round warning hole sits just above the needle's pivot. The casing spans the frame edge to edge and the four bolts push out to the corners, so the emblem squares off cleanly.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：换成真实存在的乘区 —— `modify_attr [11 伤害输出, percent]`，三阶追加受伤倍率减伤"
+      }
+    },
+    {
+      "id": 111,
+      "name": "淘金",
+      "name_en": "Gold Rush",
+      "code": "gold_rush",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "脚本订阅 `ctx.bus` 的 `on_kill`（判 `killer === host`）→ `hero.gold += 1 / 2 / 3`；l2/l3 的「金币加成」改成更大的固定额",
+      "why": "① 击杀奖励现在由**场景层** `Scene_Game_Stage.grantKillReward` 发（不是 Modifier 钩子），而 `on_kill` **只发总线**、不派发给 Modifier → 声明式 `events[on_kill]` 永远不触发；脚本可以自己订阅总线。② 属性表里**没有「金币获取」**（`goldGain` 是没有 AttributeType 的派生属性之一）→ 原稿的「金币加成 +8%」无处安放。",
+      "fix": "脚本内 `bus.on` 必须配 `OnDestroy` 里的 `bus.off`（实体走对象池复用，不摘会重复计数）。l2/l3 的百分比加成改写成固定额（+2/+3）保住成长感。",
+      "art": "A short stack of five thick coins sitting at the centre of the square, drawn as one solid white column with every coin separated from the next by a wide open slot, and a small round hole punched through the face of each coin. To the right a stout pickaxe leans against the stack, its head cut as a bold curved blade with a wide notch dividing the blade from the shaft and a round hole through the shaft's butt. At the lower left a small cloth sack sits with its neck tied off, a slot cut across the tie and three round holes punched in its belly. Six small coin discs scatter around the base, each a clean circle with a hole at its centre, and two thin sparks flash off the pickaxe head. The stack is tall and the tools spread wide to either side, so the group fills the square evenly.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本订阅 `ctx.bus` 的 `on_kill`（该事件只发总线、不派发给 Modifier），加金后补发 `on_gold_gained` 让 HUD 刷新"
+      }
+    },
+    {
+      "id": 112,
+      "name": "圣盾",
+      "name_en": "Divine Shield",
+      "code": "divine_shield",
+      "rarity": "common",
+      "stage": 1,
+      "verdict": "script",
+      "mechanism": "脚本挂 `on_block_damage` 写 `event.blocked`（吸收量上限 = 最大生命 × 8%/13%/20%），自带计时器充能",
+      "why": "本作的「护盾」不是实体字段，而是 `DamagePipeline` 第 3 阶段的一次拦截：事件对象带一个可变字段 `blocked`，Modifier 往里写多少就减多少伤害。声明式动作**写不了这个字段** → 必须是脚本。另外 `modifiers.cd` 这一列是**死代码**（`Modifier.Trigger()` 全工程零调用方），所以「充能冷却」要在脚本里自己计时。",
+      "fix": "l3「破碎时反弹 60% 伤害」用现成的 `reflect` 动作即可，可以落地。",
+      "art": "A tall heater shield centred in the square, drawn as one solid white mass with a broad flat top, two straight sides and a long point at the bottom. A bold cross is punched clean through the middle of the shield face as two wide open bars that meet square at the centre, and a small round hole is cut at the crossing point. Nine short straight rays radiate out past the shield's outline, five above and four below, each ray separated from the next by open space and each one tapering to a sharp point. A thick band runs around the whole rim with six round rivet holes set into it, and two chunky notches are cut out of the shield's upper corners. The shield is tall but its radiance spreads wide, so width and height come out very nearly equal.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本做一个带池子的拦截器：往 `on_block_damage.blocked` 写吸收量，破池后自计时充能"
+      }
+    },
+    {
+      "id": 113,
+      "name": "回旋镖",
+      "name_en": "Boomerang",
+      "code": "boomerang",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "redesign",
+      "mechanism": "改为「普攻命中后弹向次近敌人，造成 atk×60%/75%」（把原稿的「返程伤害」锚到一次弹射上）",
+      "why": "原稿要的是「弹道命中后返程、返程再打一次」。本作 `Projectile` 是**纯直线、一次性**的（`tick` 到点 → `onHit` → 回收），没有返程这个概念；要真做返程得改 `Projectile` 的生命周期（引擎改动）。图标与名字保留，机制换成等价的一次弹射。",
+      "fix": "与 114 追踪弹划清界限：113 = **打同一条线上的第二次**（去+回），114 = **换目标链式**。两条都走脚本。",
+      "art": "A bold V-shaped throwing stick lying across the middle of the square, drawn as one solid white band with a chunky squared butt at the lower left and a sharp tapered point at the upper right, the elbow of the V turned toward the bottom. Three wide slots are cut clean through the band along its outer edge, and a row of six round holes is punched along its inner edge, so the stick reads as a shaped wooden blade rather than a plain bar. A long curved arrow sweeps out to the left of the V and doubles back on itself, its head cut as a bold triangle, and a second shorter curved arrow mirrors it on the right. Two small round studs sit at the elbow with a gap cut between them. The V spans the full width of the frame while the arrows reach top and bottom, squaring the silhouette off.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：`Projectile` 没有返程，换成「命中后弹向英雄最近的另一个敌人」"
+      }
+    },
+    {
+      "id": 114,
+      "name": "追踪弹",
+      "name_en": "Homing Shot",
+      "code": "homing_shot",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 链式弹射至次近敌人，1 / 2 / 3 跳，每跳 atk×55%",
+      "why": "「命中后弹向次近敌人」需要按当前位置重新排序候选并逐个结算 —— 声明式的 `projectile` 动作只能一次性按策略选 N 个目标，做不出「上一跳的落点决定下一跳」（`Modifier_ZeusThunder` 已有同样的链式实现可以先抄）。",
+      "fix": "必须排除已命中的目标（否则会在两个敌人之间来回弹），用 visited 集合。",
+      "art": "A short stubby rocket hanging in the upper right of the square, drawn as one solid white body with a rounded nose, four fins cut apart from the tail by wide open slots, and a bold triangular exhaust flame extending behind it. Down the rocket's flank three round portholes are punched in a row with a slot joining them. A long dotted trail of nine small round holes loops out of the rocket's tail, curves down and around in a wide arc across the square, and ends at a bold round target in the lower left built as three concentric rings with a small round hole at the very centre. Two short straight guide fins are cut into the nose and a thin band with three slots crosses the body. The rocket and the target sit at opposite corners of a square, the looping trail filling the middle.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本链式弹射（复用 `visited` 集合防来回弹）"
+      }
+    },
+    {
+      "id": 115,
+      "name": "榴弹",
+      "name_en": "Grenade",
+      "code": "grenade",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 以中弹者为中心 `aoe_damage`，半径 1.5 / 2.0 / 2.5，伤害 atk×80%/100%/130%",
+      "why": "结构上是**纯声明式**（`on_attack_landed` 触发的 `aoe_damage`，圆心会自动落在事件目标＝中弹者身上），但 `damage/aoe_damage.value` 是**绝对数值、不吃攻击力** → 要「80% 攻击力」就得脚本按 atk 算，否则写成固定值在肉鸽里会迅速贬值。",
+      "fix": "声明式与脚本两条路都通：先按**固定值**落地（`aoe_damage` 一行配置），等脚本框架一起做时再换 atk 版本。",
+      "art": "A fat oval fragmentation grenade sitting upright in the middle of the square, drawn as one solid white mass with a segmented shell cut into twelve clean panels by wide open slots running top to bottom. A chunky squared fuse cap sits on the top with three round holes punched through it, and a bold pull-ring hangs off the side of the cap as an open circle joined by a short slot. A wide safety lever is clamped down the right flank, cut as a solid bar with a slot beneath it and a small round pin-hole at its foot. From the grenade's waist nine short jagged shards fly outward in every direction, each a sharp triangle separated from its neighbours by open space, and three more shards break away at the top corners. The grenade is tall and the shrapnel spreads wide, so the mass squares off.",
+      "landed": {
+        "indirect": [
+          50
+        ],
+        "note": "脚本以中弹者为中心做范围伤害；三阶的灼烧直接复用 116 的 DoT（Modifier 50）"
+      }
+    },
+    {
+      "id": 116,
+      "name": "燃刃",
+      "name_en": "Flame Blade",
+      "code": "flame_blade",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 给中弹者 `apply_modifier`（灼烧，stack_mode=stack，max_stack 2/4/6，duration 4s，tick_damage 1s）",
+      "why": "施加与叠层是**纯声明式**的（modifier 23 一类的写法现成）；但 `tick_damage.value` 是**固定数值**、没有 `var` 绑定（只有 `modify_attr` 的属性条目支持 `var`），所以「每秒 15% 攻击力」做不了 —— 只能用固定值，或脚本按施加时的 atk 生成对应大小的 DoT。",
+      "fix": "⚠ 另有一条硬口径：**`tick_damage` 不随层数放大**（`processTickEffect` 用 `eff.value` 原值，只有 `modify_attr` 在 `resolveAttr` 里乘了 `stackCount`）。所以「叠 6 层」放大的是**减速/减益那类属性条目**，DoT 恒为单层数值 —— 与 116/118 的文案都要按这条改口径。",
+      "art": "A broad straight sword standing point-up at the centre of the square, but held short and wide rather than long and slender: its blade is cut down to a stubby length with a squared tip, and its crossguard sweeps far out to both sides as two long heavy wing-like arms that stop just short of the left and right edges of the frame. The grip below the guard is cut into five bands with a heavy round pommel that has a hole through its centre. From the base of the blade a wide sheet of flame sweeps up on both sides, cut into five tall pointed tongues, each tongue separated from the next by a deep open gap, and the two outermost tongues curl out past the sword's guard toward the corners. Inside the flat of the blade a bold narrow fuller runs its whole length as an open slot, with three short branches cut off it. A small round ember hole sits at the base of every flame tongue. The guard and the two flame sheets spread to the full width of the frame while the blade and tongue tips reach top and bottom, so the whole mass reads as a square.",
+      "landed": {
+        "indirect": [
+          50
+        ],
+        "note": "脚本按施加时的 atk 生成 DoT（Modifier 50），`dps × stackCount` —— 修掉了配表 `tick_damage` 不随层数放大的老口径"
+      }
+    },
+    {
+      "id": 117,
+      "name": "寒刃",
+      "name_en": "Frost Blade",
+      "code": "frost_blade",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → `apply_modifier`（冰冻，stack 1/2/3，modify_attr [5 移动速度, var, add]）；l3 满层追加冻结（`apply_state: stunned`）",
+      "why": "「每层减速 20%」这条**能做**：`modify_attr` 的属性条目支持 `var`，施加方用 `kv: { slow: -60 }` 传入 —— 移速 base=300，每层 -60 就是 -20%。叠层上限由 `max_stack` 控制。**这是 30 条里少数几个「慢速/减益叠层」能纯声明式落地的**。",
+      "fix": "l3「满 3 层冻结 1.5 秒」需要一个「层数到顶」的判定 → 声明式动作没有条件 → 脚本（读 `self.getStackCount() >= 3` 后 `apply_state: stunned`）。",
+      "art": "A slender straight sword standing point-up in the middle of the square, but held short and broad rather than long: its blade is cut down to a stubby tapered length, and its short straight crossguard sweeps out to both sides in two long wing-like arms that reach close to the left and right edges of the frame. The wrapped grip below is cut into six bands with a small round pommel that has a hole through its centre. Six bold ice crystals grow outward from the sword, three on each side, arranged in one wide horizontal band that reaches the left and right edges, each crystal a clean six-pointed star separated from the sword and from its neighbours by open slots, every point sharp and straight. Below the guard a cluster of four flat shards spreads down and outward with wide gaps between them, and the two outermost shards push into the lower corners. A long open slot runs up the middle of the blade as a fuller with a small round hole at each end, and a ring of six tiny round holes traces the crossguard. The crystal band and the guard spread to the full width of the frame, so the silhouette squares off.",
+      "landed": {
+        "indirect": [
+          53
+        ],
+        "note": "**混装**：减速是声明式模板（Modifier 53，`modify_attr` 条目带 `var` 由 kv 传幅度），只有「满 3 层冻结」这个条件走脚本"
+      }
+    },
+    {
+      "id": 118,
+      "name": "毒刃",
+      "name_en": "Venom Blade",
+      "code": "venom_blade",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → `apply_modifier`（毒液，stack 2/4/6，tick_damage 1s，固定值）；l3 中毒者死亡时传染",
+      "why": "施加与叠层纯声明式；「每秒 10% 攻击力」的 DoT 与 116 同病 —— `tick_damage` 是固定值、且**不随层数放大**，所以层数只放大属性类减益，DoT 恒为单层值。",
+      "fix": "l3「中毒目标死亡时传染」需要 `on_kill` 钩子 + 找邻近敌人 → 脚本（订阅总线）。",
+      "art": "A curved dagger laid across the square with its point aimed to the upper right, drawn as one solid white blade with a wide swept edge, a short square guard and a ribbed grip ending in a round pommel with a hole through it. Three fat droplets hang from the dagger's cutting edge, one large drop below the middle and two smaller ones further along, each cut as a solid teardrop with a small round hole in its belly. A coiled serpent is wrapped around the grip, its head reared up beside the guard with a wide open mouth shown as a V-shaped notch and two fangs punched as small sharp triangles, and its body cut into five bands by open slots. A bold skull shape with two round eye holes sits at the base of the blade, and three short drips fall from its jaw. The dagger spans the full width while the serpent and drops fill the height.",
+      "landed": {
+        "indirect": [
+          52
+        ],
+        "note": "脚本按 atk 生成毒 DoT（Modifier 52）；三阶的「死亡传染」放在 `OnDestroy` 里判宿主真死"
+      }
+    },
+    {
+      "id": 119,
+      "name": "雷链",
+      "name_en": "Chain Lightning",
+      "code": "chain_lightning",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "redesign",
+      "mechanism": "改为「普攻命中后向最近敌人链式弹射 2 / 3 / 4 跳，每跳衰减 50%/40%/30%」—— 锚点从「技能释放」换成 on_attack_landed",
+      "why": "原稿是「**技能释放**时附加连锁闪电」。但**英雄永远不会施放技能**（`AbilitySystem.getCastableSkills()` 全工程零调用方，英雄侧没有主动施放入口，`castAbility` 唯一调用方是 BossAI）→ 这条技能永远不触发。",
+      "fix": "与 114 追踪弹机制重叠 → 两者的区别要落清楚：**114 = 低衰减链式（55% 定值、纯弹射）**、**119 = 高衰减多跳（衰减给到 30~50%、跳数更多）**，或者把 119 改成「弹射落点附带减速」以拉开区分度。图标保留。",
+      "art": "A thick forked lightning bolt running from the top of the square down to the bottom, drawn as one solid white zigzag with four sharp corners and a wide flat head at the top, every segment joined as a single connected mass. Two smaller bolts branch off it, one to the left and one to the right, each broken into three clean segments with narrow open gaps between the breaks. Two heavy iron chain links are threaded onto the main bolt, one near the top and one near the bottom, each link cut as a solid oval ring with a wide open centre and a small round hole where it meets the bolt. Four short spikes radiate from the bolt's corners and a small round stud sits at its tip. The bolt is tall and the two links spread wide to the sides, so the whole emblem squares off.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：锚点从「技能释放」换成普攻命中（英雄永远不施放技能）；首跳 100%，之后每跳 ×decay"
+      }
+    },
+    {
+      "id": 120,
+      "name": "静电磁场",
+      "name_en": "Static Field",
+      "code": "static_field",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 给中弹者 `apply_modifier`（静电，stack_mode=stack，max_stack=5）；脚本读 `self.getStackCount() >= 5` → 引爆 aoe_damage + 移除自身",
+      "why": "叠 5 层是声明式的（`stack_mode: stack` + `max_stack: 5` 现成）；但「满 5 层引爆」是一个**层数条件**，声明式动作只有 `chance` 没有条件判断 → 需要脚本读 `getStackCount()`。",
+      "fix": "引爆伤害在 l2/l3 要 `atk` 缩放 → 也只能脚本。",
+      "art": "A bold ring standing upright at the centre of the square, drawn as one solid white torus with a thick even band, its inner opening left completely empty and its outer edge carrying eight short squared studs. Inside the empty centre four jagged bolts crackle inward from the ring toward a small solid round core, each bolt a wide zigzag with sharp clean corners and each separated from the others by open space. A ring of eight tiny round holes is punched around the middle of the band, one beneath each stud, and two short bolts escape past the outside of the ring at the upper left and lower right. The ring spans the frame nearly edge to edge and the escaping bolts push into the remaining corners, so the silhouette is as wide as it is tall.",
+      "landed": {
+        "indirect": [
+          56
+        ],
+        "note": "**混装**：层数用声明式标记行（Modifier 56，纯计数、`stack_mode:stack`），只有「满 5 层引爆」这个条件走脚本"
+      }
+    },
+    {
+      "id": 121,
+      "name": "影剪",
+      "name_en": "Shadow Cut",
+      "code": "shadow_cut",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "on_attack_landed → 判 victim `hp / getMaxHp() < 0.30 / 0.40 / 0.45` → 伤害 ×1.3（或追加 atk×N）；l3 斩杀后回复 8% 最大生命",
+      "why": "「对生命 <30% 的敌人」是**条件**，声明式动作没有 → 脚本读比例。乘伤而非加伤要留意别把 `DamageOut` 与暴击混在同一段（伤害管线里两者是不同阶段）。",
+      "art": "A wide crescent slash sweeping down from the upper left of the square to the lower right, drawn as one solid white tapered arc, thick in the middle and sharpened to a fine point at both ends. A second shorter crescent runs parallel just behind it with a wide open gap between the two blades, and a third thin sliver trails further back, so the three arcs read as one cutting motion. Inside the main crescent a bold narrow slot is cut along its length, and a small round hole sits near each of its tips. A heavy dagger is cut into the lower right corner with its blade laid along the slash's line, its guard and ribbed grip cut as solid white with three round holes through the grip. Four short speed slots are punched out behind the blade, and two thin shards break away at the top. The three arcs span the frame diagonally, squared off by the dagger in the corner.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本读命中后的血线比例（追加伤害段，而不是往 `DamageOut` 乘区塞系数）"
+      }
+    },
+    {
+      "id": 122,
+      "name": "击杀回响",
+      "name_en": "Kill Echo",
+      "code": "kill_echo",
+      "rarity": "rare",
+      "stage": 2,
+      "verdict": "script",
+      "mechanism": "脚本订阅 `ctx.bus` 的 `on_kill`（判 `killer === host`）→ 以 victim 位置为中心 `aoe_damage`，半径 1.5 / 2.0 / 2.5",
+      "why": "`on_kill` **只发总线、不派发给 Modifier**（`DamagePipeline` 第 8 阶段只 `bus.publish`）→ 声明式 `events[on_kill]` 永远不触发；脚本自己订阅总线才行（与 111 同一套写法，必须配 `bus.off` 反注册）。",
+      "fix": "l3「20% 概率掉 1 金币」可以直接在同一个脚本里做（`hero.gold += 1`）。",
+      "art": "A bold round skull filling the middle of the square, drawn as one solid white cranium with a wide square jaw cut apart from it by an open slot, and two large round eye sockets punched clean through in a row above the nose. A small inverted-heart nose hole sits between the eyes and a row of six square teeth is cut into the jaw with narrow open gaps between each tooth. From the skull three concentric rings radiate outward as bold broken arcs, the innermost nearly closed and the outer two broken into four wide segments each, every segment separated from the next by open space. Nine short straight rays are set between the outermost arcs, one beyond each gap. The skull is wide and the rings push out to all four edges, so the emblem comes out square.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本订阅总线 `on_kill`，以死者位置为中心做范围伤害"
+      }
+    },
+    {
+      "id": 123,
+      "name": "哨兵炮台",
+      "name_en": "Sentry Turret",
+      "code": "sentry_turret",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "redesign",
+      "mechanism": "改为「每 N 秒自动对射程内最近敌人发射一击，伤害 atk×50%/90%/120%」——用脚本的 `OnTick` 计时（照抄 `Modifier_ZeusThunder` 四阶的自动落雷写法）",
+      "why": "原稿是**召唤物**。本作召唤一整套基建都不存在：`MonsterPool` 把预制件路径**硬编码**成 `prefabs/unit/monsters/one`（注释里写着「恢复每只怪各自的预制件时改回 def.prefab」），team=1 的召唤物没有任何表现分支；`units.json` 也没有可召唤的单位行；召唤物还需要 AI、生命周期与回收。「召唤」是一条独立的产品级功能线，不该被一条肉鸽技能顺带带出来。",
+      "fix": "**保留名字与「自动火力」的设计意图**，把「召唤一个实体」换成「自身周期性自动开火」——玩家感知几乎一样（多一路白嫖的输出来源），零基建。若将来真做召唤流，再把这条换回实体版本。",
+      "art": "A squat gun turret standing at the centre of the square, drawn as one solid white body with a heavy squared mantlet across the front, a thick barrel pushed out to the right and a squat tripod splayed below it. The barrel is cut as a chunky tube with a wide open muzzle at its end, a ring of three slots behind the muzzle and a squared breech block with two round holes through it. The mantlet carries a bold cross-shaped slot and four round rivet holes, one at each corner. Below the body three splayed legs spread wide, each leg cut into two thick segments with an open gap at the knee and a flat foot with a round hole. A small drum magazine is bolted to the left of the breech with four round holes on its face. The turret is low and the tripod spreads to both edges, so the silhouette squares off.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：召唤基建不存在 → 自身周期性自动开火（`OnTick` 自计时，不依赖死代码 `modifiers.cd`）"
+      }
+    },
+    {
+      "id": 124,
+      "name": "镜像分身",
+      "name_en": "Mirror Image",
+      "code": "mirror_image",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "redesign",
+      "mechanism": "改为「普攻有 N% 概率追加一次 atk×40%/60%/90% 的额外打击」（等价于「多一个自己在打」）",
+      "why": "同 123 的召唤基建问题；另外原稿还挂在「**释放技能时**召唤」上，而英雄永远不会施放技能 —— 双重不可达。",
+      "fix": "「分身替你打一下」是这条技能真正的玩家价值，直接用额外打击表达；l3「技能冷却 -20%」也要砍（没有冷却缩减属性，且英雄没技能可冷却）。",
+      "art": "Two identical short swords hanging point-down side by side in the square, one on the left and one on the right, with a bold vertical band running down the exact centre between them. Each sword is drawn as one solid white blade with a wide flat crossguard, a grip cut into five bands and a round pommel with a hole through it, and the two are perfect mirror images of one another, the left one's guard tips angled the opposite way to the right one's. The central band is cut as a solid strip with a narrow open slot down its middle and three small round holes spaced along it. A ring of small round holes traces the pommel and guard of both swords, and two thin shards break off the outer edge of each blade. The two swords span the full width of the frame while the blades reach top and bottom, so the mass reads square.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：召唤 + 「释放技能时」双重不可达 → 普攻概率追加一击"
+      }
+    },
+    {
+      "id": 125,
+      "name": "元素军阵",
+      "name_en": "Elemental Legion",
+      "code": "elemental_legion",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "redesign",
+      "mechanism": "改为「每击杀 3 个敌人攒 1 层（上限 3/5/8），普攻时消耗全部层数，每层追加 atk×30%/45%/60%」",
+      "why": "同 123 的 summon 基建问题；而且原稿把「元素」当做了本作拥有的体系 —— **本作只有物理/法术两种伤害，没有元素**（`element_effects.json` 2026-07 已删除）→ 名字里的「元素」需要重命名或保留为纯文案。",
+      "fix": "「每击杀 N 个攒一层、攒的层数转化成输出」把「军阵越打越厚」的手感保住了，而且全是既有钩子。名字建议改「战意军阵」或保留（图标是军旗+长矛，与「军阵」一致）。",
+      "art": "Three tall upright standards planted side by side across the square, the middle one set higher than the two flanking it, each a stout pole with a bold spearhead on top and a flat foot with a small round hole at the base. Each pole carries a rectangular banner cut into three panels by two wide open slots, and the banners hang at slightly different angles so the group reads as a rank rather than a set of copies. Every spearhead is a clean leaf-shaped blade with a slot down its centre and two small barb holes at its base. Five small round studs are punched along the middle pole and a short pennant flies off its tip. The three standards span the full width of the frame and the poles reach top and bottom, so the emblem squares off.",
+      "landed": {
+        "indirect": [],
+        "note": "**重设计**：换成「击杀攒层 → 普攻一次性倾泻」，不再引用本作不存在的元素体系"
+      }
+    },
+    {
+      "id": 126,
+      "name": "暴击连锁",
+      "name_en": "Crit Chain",
+      "code": "crit_chain",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "script",
+      "mechanism": "脚本挂 `on_deal_damage`（**这个事件带 `isCrit`**）→ 判 `event.isCrit` → aoe_damage / 弹射（50%/60%/200% 三档）",
+      "why": "关键口径：**`on_attack_landed` 的事件载荷里没有 `isCrit`**（`Entity.resolveAttackHit` 只发 `{attacker, target, damage, damageType}`），而 `on_deal_damage` 的载荷里有（`DamagePipeline` 的 `dmgEvent` 带 `isCrit`）→ 要「暴击时」就必须挂 `on_deal_damage`（它派发给**伤害来源**，正是英雄自己）。另外「每累计 3 次暴击」是计数器 → 也只能脚本。",
+      "fix": "`on_deal_damage` 会对**每一次**伤害派发（含 DoT 与追加段）→ 脚本里要防重入（本技能自己打出的 aoe 伤害会再触发一次），用 `event.ability`/递归标记过滤。",
+      "art": "A bold eight-pointed starburst centred in the square, drawn as one solid white star with four long points aimed up, down, left and right and four shorter points set between them, every point sharp and every gap between the points left wide open. Two heavy oval chain links are threaded through the star's horizontal points, one at each side, each link cut as a solid ring with an empty centre, and the chain continues outward as three more smaller links on the left and three on the right, all in a row. A small solid round core sits at the very centre of the star with a round hole punched through it. Four thin cracks branch off the diagonal points, and a ring of eight tiny round holes is set between the star's points. The starburst is tall and the chain runs the full width, so the silhouette comes out square.",
+      "landed": {
+        "indirect": [],
+        "note": "脚本挂 `on_deal_damage`（**只有这个事件的载荷带 `isCrit`**）并加 busy 标志防递归"
+      }
+    },
+    {
+      "id": 127,
+      "name": "闪避反击",
+      "name_en": "Evade Counter",
+      "code": "evade_counter",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "hook",
+      "mechanism": "需在 `Entity.resolveAttackHit` 的闪避分支补一次 `DispatchEvent('on_evade')`，然后脚本挂 on_evade → 对来源 `damage` atk×150%/250%/350%",
+      "why": "闪避**当前不发任何事件**：`resolveAttackHit` 里 `if (evasion > 0 && Math.random() < evasion) return 0;` 直接返回，近战连总线事件都没有；远程虽然会走 `Projectile` 的 `on_projectile_miss`，但那**只发总线**且 `reason` 只有一个 `'evaded_or_blocked'`、分不清是闪避还是格挡。所以要么补一处派发（引擎改 2 行），要么把这条技能改成挂在「受击」上。",
+      "fix": "推荐补钩子（同时把「格挡」也一并区分开，108 铁壳 l3 与 112 圣盾都要用）。补钩子前这条只能降级为「受击时概率反击」。",
+      "art": "A broad round shield tilted steeply across the square, drawn as one solid white disc with a heavy raised boss at its centre cut as a bold dome with three round holes around it, and a thick rim band carrying eight evenly spaced round rivets. Out of the shield's face a wide curved arrow sweeps up and away to the upper right, its tail rooted at the boss and its head cut as a bold triangle, and the arrow's curve is separated from the shield by an open slot the whole way along. Below the shield a short heavy spear drives down to the lower left, its leaf-shaped head cut with a slot down the middle and two barb holes, its shaft carrying a ribbed grip of five bands. Three small sparks are punched out where the spear crosses the shield's edge. The shield is wide and the arrow and spear push into opposite corners, squaring the mass.",
+      "landed": {
+        "indirect": [
+          7,
+          45
+        ],
+        "note": "**补了引擎派发**：`Entity.resolveAttackHit` 的闪避分支现在会发 `on_evade`；反击用 Modifier 7 眩晕、三阶护盾复用 45（护盾逻辑只有一份）"
+      }
+    },
+    {
+      "id": 128,
+      "name": "战旗",
+      "name_en": "War Banner",
+      "code": "war_banner",
+      "rarity": "epic",
+      "stage": 3,
+      "verdict": "redesign",
+      "mechanism": "改为**自身光环**：脚本 `OnTick` 每 N 秒对周围 3.5~4m 内的敌人 `apply_modifier`（破甲 attr 6 负值 / 减速 attr 5 负值），并给自己 `modify_attr [11, +15/+22/+30, percent]`",
+      "why": "原稿是「周围 3.5m **友军**增伤 15%」。但本作是**单英雄塔防**：场上 team=1 只有英雄自己（没有召唤物、没有其它友军）→「给友军增伤」永远只作用于自己，等于一句废话；而「降低敌人护甲」那半句才是真正生效的部分。",
+      "fix": "把「增伤」从「给友军」改成「给自己」（同一句话的玩家收益不变，但机制上能生效），把「破甲/减速」做成真光环（脚本定期扫描），名字「战旗」与图标保留 —— 旗子本来就是「我一个人插的旗」。",
+      "art": "A tall banner at the centre of the square, but cut short and hung wide rather than hung long: the pole is short and stout, running from the top edge of the frame to the bottom edge, and the flag that hangs from it is broad, so the cloth is clearly wider than it is tall. The pole carries a bold spearhead at its top with a slot down the blade, a squared foot at its base with a round hole, and a ribbed grip of five bands at the middle. The flag is cut into five wide vertical panels by four open slots, each panel short and broad, and its lower edge is cut into three long swallowtail points with deep gaps between them that reach out toward the bottom corners of the frame. A bold emblem of a small eight-pointed star is punched clean through the middle of the flag, and three round holes are set along the flag's leading edge. Two chunky tassels hang off the pole's head, one on each side, with slots cut between their strands, and they reach out to the left and right edges. The broad cloth and the two tassels spread to the full width of the frame, so the mass is square.",
+      "landed": {
+        "indirect": [
+          66
+        ],
+        "note": "**混装**：增伤是声明式 `modify_attr [11, percent]`（原稿「给友军」在单英雄局里等于给自己），破甲光环走脚本（Modifier 66）"
+      }
+    },
+    {
+      "id": 129,
+      "name": "时间回廊",
+      "name_en": "Time Rewind",
+      "code": "time_rewind",
+      "rarity": "legendary",
+      "stage": 4,
+      "verdict": "script",
+      "mechanism": "脚本挂 `on_take_damage` → 判 `host.hp <= 0` → `host.Heal(最大生命 × 30%/60%/100%)` 拦住死亡（每波 1 次）",
+      "why": "**能做，而且能真的拦住死亡**：`DamagePipeline` 的顺序是「先扣血（第 6 阶段）→ 派发 on_take_damage（第 7 阶段）→ 检查死亡（第 8 阶段）」，所以挂在 `on_take_damage` 上的脚本只要在事件里把血补回来，第 8 阶段的 `IsDead()` 就不成立、`Die()` 不会被调用。这是整份设计里最巧的一条。",
+      "fix": "要防递归（补血本身可能触发别的伤害/治疗事件）；「每波 1 次」的计数放脚本里，`modifiers.cd` 列是死代码不可依赖。l3「重生后 3 秒无敌」用现成的 `apply_state: invulnerable` 即可。",
+      "art": "A tall hourglass filling the middle of the square, drawn as one solid white frame with two thick squared end-plates joined by three stout corner posts, and a bold round hole punched through each end-plate. Inside the frame two triangular bulbs of sand are cut as solid wedges, the upper one wide with a narrow throat below it and the lower one already heaped up into a flat-topped cone, and the two are separated by a small round hole at the waist. Around the hourglass a bold circular arrow sweeps clockwise as one wide curved band, its head cut as a solid triangle that points back on itself, with a long open slot separating the band from the frame all the way round. Three small round pin-holes are set into each end-plate and two thin cracks branch off the upper bulb. The hourglass is tall and the ring spreads wide, so the silhouette squares off.",
+      "landed": {
+        "indirect": [
+          6
+        ],
+        "note": "脚本挂 `on_take_damage`：**该事件派发在死亡检查之前**，补血 + 置回 `alive` 就能真的拦住死亡；三阶无敌用 Modifier 6"
+      }
+    },
+    {
+      "id": 130,
+      "name": "恶魔契约",
+      "name_en": "Demon Pact",
+      "code": "demon_pact",
+      "rarity": "legendary",
+      "stage": 4,
+      "verdict": "declarative",
+      "mechanism": "modify_attr [3 攻击力, +40 / +60 / +100, percent]；modify_attr [1 最大生命, -15 / -25 / -40, percent]",
+      "why": "两个属性（3 攻击力 base=10、1 最大生命 base=100）都非零，`percent` 直接对基础值乘算，负值同样成立（`final = base × (1 + Σv/100)`）。纯声明式，零 TS。",
+      "fix": "l3 的「技能冷却 -25%」要砍（没有冷却缩减属性、且英雄没技能可冷却）。⚠ 减最大生命要注意 `ApplyWithMaxHpCarry` 那条口径：上限下降时当前生命要跟着钳回去，否则会出现 `hp > maxHp` 的脏数据。",
+      "art": "A rolled parchment contract standing upright in the middle of the square, drawn as one solid white scroll with a bold rod at the top and one at the bottom, each rod cut into three bands with a round hole at either end. The scroll's face is rolled outward at both sides into two tight spirals, each spiral cut as an open coil of three turns with wide gaps between the turns. Across the middle of the parchment six lines of text are punched clean through as alternating rows of short bars and small round holes, and at the foot of the sheet a bold horned sigil is cut as a clean triangular seal with two long curved horns, a slot across its middle and a small round hole at its centre. Two clawed hand-prints are punched either side of the text, each with four short tapered claws and a round palm hole. The scroll is tall while the rods and spirals spread wide, squaring the mass.",
+      "landed": {
+        "indirect": [],
+        "note": "纯声明式：`modify_attr [3 攻击力, percent] + [1 最大生命, 负 percent]`"
+      }
+    }
+  ]
+}

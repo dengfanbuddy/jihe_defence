@@ -70,12 +70,16 @@ const STUBS = {
     'platform/excel_table/TbContainer.js': `exports.TbContainer = class {};`,
 };
 
-/** 属性名（与 attributes.json 对齐，报告用） */
-const ATTR_NAME = {
-    1: '最大生命', 2: '最大魔法', 3: '攻击力', 4: '攻击速度', 5: '移动速度', 6: '护甲',
-    7: '魔法抗性', 8: '闪避', 9: '生命恢复', 10: '魔法恢复', 11: '伤害输出',
-    12: '物理受伤', 13: '魔法受伤', 14: '暴击率', 15: '暴击倍率', 16: '攻击距离',
-};
+/**
+ * 属性名（报告用）—— **从 `attributes.json` 现读**，不再手写一张表。
+ *
+ * 为什么改数据驱动（2026-10）：手写表会漂移 —— 局内遗物重做把 12/13 合并成「12 受伤减免（全能）」、
+ * 13 退役、新增 21~27（金币获取/经验获取/冷却缩减/抽卡折扣/吸血/攻击回复/攻击回蓝），
+ * 手写表既报着不存在的 13、又把 7 个新属性整段漏掉（新属性恰好是最容易"加了却没变"的那批）。
+ */
+const ATTR_NAME = Object.fromEntries(
+    JSON.parse(fs.readFileSync(path.join(TB_DIR, 'attributes.json'), 'utf8')).map((a) => [a.id, a.name]),
+);
 
 // ============================ 编译真源码 ============================
 
@@ -117,12 +121,22 @@ function build() {
 const readTb = (name) => JSON.parse(fs.readFileSync(path.join(TB_DIR, `${name}.json`), 'utf8'));
 const container = (cfgs) => ({ cfgs, getCfgById: (id) => cfgs.find((c) => c.id === id) });
 
-function makeCtx({ DamagePipeline }) {
+function makeCtx({ DamagePipeline, Modifier }) {
     const units = readTb('units');
+    /**
+     * 脚本 Modifier 逃逸口（2026-10 局内遗物重做后必须有）：
+     * 遗物的钩子效果是 `modifiers.json` 里 `script_id` 指向 `battle/RelicHooks.ts` 的行，
+     * 而 `ModifierSystem.createModifier` 会去 `ctx.scriptRegistry.get(...)` 取类 —— 假上下文没有它就直接抛
+     * `Cannot read properties of undefined (reading 'get')`。
+     * 属性体检只关心**属性贡献**，钩子逻辑需要真实战斗语义（索敌 / 事件总线 / 伤害管线），在假上下文里跑不起来，
+     * 所以这里注入一个**惰性 Modifier 子类**：既不抛错，也不会刷一屏"script_id 未注册"的警告。
+     */
+    class InertScriptModifier extends Modifier { }
     const ctx = {
         attributeContainer: container(readTb('attributes')),
         modifierContainer: container(readTb('modifiers')),
         abilityContainer: container(readTb('abilities')),
+        scriptRegistry: { get: () => InertScriptModifier },
         bus: { publish() { }, onBattleEvent() { return () => { }; } },
         getRelicDef: (id) => readTb('relics').find((r) => r.id === id),
         getUnitDef: (id) => units.find((u) => u.id === id),
@@ -148,7 +162,8 @@ function main() {
     const { Entity } = mod('battle', 'Entity.js');
     const { DamagePipeline } = mod('battle', 'DamagePipeline.js');
     const { RelicSystem } = mod('battle', 'BattleEquipSystem.js');
-    const ctx = makeCtx({ DamagePipeline });
+    const { Modifier } = mod('battle', 'Modifier.js');
+    const ctx = makeCtx({ DamagePipeline, Modifier });
 
     const units = readTb('units');
     const relics = readTb('relics');
@@ -170,8 +185,7 @@ function main() {
 
     console.log('| 属性 | 最强词条的那件遗物 | 词条 | 前 ⇒ 后 | 判定 |');
     console.log('|---|---|---|---|---|');
-    for (let attrId = 1; attrId <= 16; attrId++) {
-        if (!ATTR_NAME[attrId]) continue;
+    for (const attrId of Object.keys(ATTR_NAME).map(Number).sort((a, b) => a - b)) {
         const cands = [];
         for (const r of innerRelics) {
             for (const a of innerAttrs(r)) if (a[0] === attrId) cands.push({ r, a });

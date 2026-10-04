@@ -34,6 +34,9 @@ import { evaluateRefreshGate, type RefreshGate } from './RefreshGate';
  * 规则常量（`shop_constants`，缺省走内置默认值，改表即改玩法）：
  *   `heroSelectCandidateCount`（默认 4）· `heroSelectRefreshCost`（默认 100）
  *   `heroSelectAdFreePerRun`（默认 1）
+ *
+ * 成就特殊效果（`hero_select_free`）：额外免费刷新次数由宿主通过 `deps.getAchAdFreeBonus()`
+ *   注入，**叠加**在 `heroSelectAdFreePerRun` 之上；宿主取的是**本局开局快照**（见设计稿 §5.2）。
  */
 export interface HeroSelectDeps {
     /** 读本局金币（真源 `hero.gold`，与 HUD 同一口径） */
@@ -44,6 +47,14 @@ export interface HeroSelectDeps {
     playAd(placement: AdPlacement): Promise<boolean>;
     /** 真正把英雄放到场上（创建实体 / 换英雄 / 遗物重挂 / 同步 store）——宿主实现 */
     selectHero(heroId: number): void;
+    /**
+     * 成就效果 `hero_select_free` —— **额外**的免费刷新次数。
+     * 宿主从**开局快照**取（未注入 / 未生效 = 0），本类把它**叠加**在
+     * `shop_constants.heroSelectAdFreePerRun`（默认 1）之上。
+     *
+     * ⚠ 本类**不许**自己调 `AchievementData.getEffects()`（实时值会让"打到一半突然多一次免费刷新"）。
+     */
+    getAchAdFreeBonus?(): number;
 }
 
 /**
@@ -220,7 +231,9 @@ export class HeroSelect {
     /** 把费用与广告剩余次数同步给面板（构造 / 刷新后 / 换局后） */
     syncCost(): void {
         this.refreshCost.value = Math.max(0, ShopConfig.getNumber('heroSelectRefreshCost', 100));
-        const limit = Math.max(0, ShopConfig.getNumber('heroSelectAdFreePerRun', 1));
+        // 免费刷新次数 = 配置额度 + 成就效果 `hero_select_free`（叠加，本局开局快照值）
+        const limit = Math.max(0, ShopConfig.getNumber('heroSelectAdFreePerRun', 1))
+            + Math.max(0, Math.floor(this.deps.getAchAdFreeBonus?.() ?? 0));
         this.adFreeLeft.value = Math.max(0, limit - this.adFreeUsed);
     }
 

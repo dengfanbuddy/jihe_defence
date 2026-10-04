@@ -1,0 +1,172 @@
+[
+  {
+    "id": 1,
+    "exp": 100,
+    "reward_gold": 0,
+    "unlock_features": [
+      "daily_task"
+    ],
+    "desc": "解锁：每日任务"
+  },
+  {
+    "id": 2,
+    "exp": 120,
+    "reward_gold": 120
+  },
+  {
+    "id": 3,
+    "exp": 140,
+    "reward_gold": 180,
+    "unlock_features": [
+      "weekly_task"
+    ],
+    "desc": "解锁：每周任务"
+  },
+  {
+    "id": 4,
+    "exp": 170,
+    "reward_gold": 240
+  },
+  {
+    "id": 5,
+    "exp": 210,
+    "reward_gold": 300,
+    "unlock_features": [
+      "relic_outer"
+    ],
+    "desc": "解锁：局外遗物"
+  },
+  {
+    "id": 6,
+    "exp": 250,
+    "reward_gold": 360
+  },
+  {
+    "id": 7,
+    "exp": 300,
+    "reward_gold": 420
+  },
+  {
+    "id": 8,
+    "exp": 360,
+    "reward_gold": 480
+  },
+  {
+    "id": 9,
+    "exp": 430,
+    "reward_gold": 540
+  },
+  {
+    "id": 10,
+    "exp": 520,
+    "reward_gold": 600
+  },
+  {
+    "id": 11,
+    "exp": 620,
+    "reward_gold": 660
+  },
+  {
+    "id": 12,
+    "exp": 740,
+    "reward_gold": 720
+  },
+  {
+    "id": 13,
+    "exp": 890,
+    "reward_gold": 780
+  },
+  {
+    "id": 14,
+    "exp": 1070,
+    "reward_gold": 840
+  },
+  {
+    "id": 15,
+    "exp": 1280,
+    "reward_gold": 900,
+    "unlock_features": [
+      "relic_outer_upgrade"
+    ],
+    "desc": "解锁：遗物升阶"
+  },
+  {
+    "id": 16,
+    "exp": 1540,
+    "reward_gold": 960
+  },
+  {
+    "id": 17,
+    "exp": 1850,
+    "reward_gold": 1020
+  },
+  {
+    "id": 18,
+    "exp": 2220,
+    "reward_gold": 1080
+  },
+  {
+    "id": 19,
+    "exp": 2660,
+    "reward_gold": 1140
+  },
+  {
+    "id": 20,
+    "exp": 3190,
+    "reward_gold": 1200
+  },
+  {
+    "id": 21,
+    "exp": 3830,
+    "reward_gold": 1260
+  },
+  {
+    "id": 22,
+    "exp": 4600,
+    "reward_gold": 1320
+  },
+  {
+    "id": 23,
+    "exp": 5520,
+    "reward_gold": 1380
+  },
+  {
+    "id": 24,
+    "exp": 6620,
+    "reward_gold": 1440
+  },
+  {
+    "id": 25,
+    "exp": 7950,
+    "reward_gold": 1500
+  },
+  {
+    "id": 26,
+    "exp": 9540,
+    "reward_gold": 1560
+  },
+  {
+    "id": 27,
+    "exp": 11450,
+    "reward_gold": 1620
+  },
+  {
+    "id": 28,
+    "exp": 13740,
+    "reward_gold": 1680
+  },
+  {
+    "id": 29,
+    "exp": 16480,
+    "reward_gold": 1740
+  },
+  {
+    "id": 30,
+    "exp": 0,
+    "reward_gold": 3000,
+    "unlock_features": [
+      "all_content"
+    ],
+    "desc": "解锁：全部内容（满级）"
+  }
+]

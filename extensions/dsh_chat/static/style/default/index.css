@@ -1,0 +1,1267 @@
+/*
+ * DSH 对话面板 —— 组件样式层。
+ *
+ * 分工：`dsw-tokens.css`（脚本从 DSH 抽出来的 `--dsw-*` 设计 token，别手改）提供**设计系统**，
+ * 本文件只用 token 拼组件，不写死任何颜色/字号 —— 换主题、改字号、DSH 升级换色板，都只动 token。
+ *
+ * 三条口径：
+ * 1. **一切选择器都以 `.dsh-root` 开头**。面板的 style 注入在编辑器页面里，裸选择器会改到编辑器
+ *    自己的界面（旧版的 `html,body{background:#252526}` 就是这种写法）。
+ * 2. **只用 DSH 的语义 token**：表面 `bg-base/bg-layer-1/2/3`、文字 `label-primary/secondary/tertiary/caption`、
+ *    描边 `border-l1..l4`、状态 `state-*`、正文排版 `font-markdown-*`，高层级表面按 DSH 的口径
+ *    **不画 border，改用 `elevation-stroke` 发丝描边**（DSH 的 elevation 笔记就是这么定的）。
+ * 3. **面板窄**（停靠在 Inspector 旁边时只有几百像素）：所有行都要能收缩，长路径/长命令一律
+ *    `overflow-wrap:anywhere` + 超长省略，绝不出现横向滚动条撑破面板。
+ */
+
+/* ---------------------------------------------------------------- 骨架 */
+
+.dsh-root,
+.dsh-root * {
+    box-sizing: border-box;
+}
+
+.dsh-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--dsw-alias-bg-base);
+    color: var(--dsw-alias-label-primary);
+    font: var(--dsw-font-s-14);
+    font-family: var(--dsw-font-family);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- 头部 */
+
+.dsh-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+    background: var(--dsw-alias-bg-layer-1);
+}
+
+.dsh-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dsw-alias-label-caption);
+    transition: background var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.dsh-dot[data-state="ready"] {
+    background: var(--dsw-alias-state-success-primary);
+}
+.dsh-dot[data-state="installing"],
+.dsh-dot[data-state="starting"],
+.dsh-dot[data-state="stopping"] {
+    background: var(--dsw-alias-state-warn-primary);
+    animation: dsh-pulse 1.4s var(--ds-ease-in-out) infinite;
+}
+.dsh-dot[data-state="error"] {
+    background: var(--dsw-alias-state-error-primary);
+}
+
+@keyframes dsh-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.dsh-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.dsh-title {
+    font: var(--dsw-font-xs-strong-13);
+    color: var(--dsw-alias-label-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-sub {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+
+/* 按钮：幽灵款（默认）与图标款；主要动作走 DSH 的单色 primary */
+.dsh-btn {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    padding: 4px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+        color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.dsh-btn:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-btn:active:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-active);
+}
+
+.dsh-btn:disabled {
+    color: var(--dsw-alias-label-caption);
+    cursor: default;
+}
+
+.dsh-icon-btn {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--dsw-alias-label-tertiary);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.dsh-icon-btn:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-icon-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* ---------------------------------------------------------------- 横幅 / 设置 */
+
+.dsh-banner {
+    flex: 0 0 auto;
+    max-height: 32%;
+    overflow: auto;
+    padding: 8px 12px;
+    font: var(--dsw-font-xxs-12);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--dsw-alias-state-error-primary);
+    background: var(--dsw-alias-interactive-bg-hover-danger);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-banner[data-tone="info"] {
+    color: var(--dsw-alias-state-business-primary);
+    background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+.dsh-banner[hidden] {
+    display: none;
+}
+
+.dsh-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.dsh-banner-actions .dsh-btn {
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
+/* ---------------------------------------------------------------- 历史会话 */
+
+/*
+ * 抽屉是 `.dsh-root` 的直接子元素（在 #banner 之后、#body 之前），
+ * 所以它天然把对话区往下压 —— 不做绝对定位浮层：窄面板里浮层会盖住内容，
+ * 而「翻历史」本来就是个需要专注的动作。
+ */
+.dsh-history {
+    flex: 0 0 auto;
+    max-height: 62%;
+    overflow: auto;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-history[hidden] {
+    display: none;
+}
+
+.dsh-history-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-history-title {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xs-13);
+    font-weight: 600;
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-history-note {
+    padding: 6px 12px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-history-note[data-tone="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-history-list {
+    display: flex;
+    flex-direction: column;
+    padding: 0 8px 8px;
+    gap: 4px;
+}
+
+/* 一条会话 = 一个按钮（整块可点，键盘也能用） */
+.dsh-history-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 9px;
+    border: 1px solid transparent;
+    border-radius: var(--dsw-radius-m, 8px);
+    background: var(--dsw-alias-bg-layer-1);
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+}
+
+.dsh-history-item:hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.dsh-history-item[data-current="true"] {
+    border-color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-history-item-title {
+    font: var(--dsw-font-xs-13);
+    color: var(--dsw-alias-label-primary);
+    /* 标题最长 80 字，窄面板里必须能截断（否则一条会话把抽屉撑得很高） */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.dsh-history-item-meta {
+    margin-top: 3px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+}
+
+.dsh-history-empty {
+    padding: 10px 4px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+}
+
+/* 「你现在看的是一条历史会话」的横幅：只读时黄调，接上之后转成正常底色 */
+.dsh-history-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-state-warn-primary, var(--dsw-alias-label-primary));
+    background: var(--dsw-alias-interactive-bg-hover-accent);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-history-bar[hidden] {
+    display: none;
+}
+
+.dsh-history-bar[data-live="true"] {
+    color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-history-bar-text {
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+}
+
+.dsh-history-bar .dsh-btn {
+    flex: 0 0 auto;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
+.dsh-settings {
+    flex: 0 0 auto;
+    max-height: 72%;
+    overflow: auto;
+    padding: 10px 12px 12px;
+    background: var(--dsw-alias-bg-layer-1);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-settings[hidden] {
+    display: none;
+}
+
+.dsh-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.dsh-field > label {
+    flex: 0 0 88px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-field input[type="text"],
+.dsh-field input[type="number"],
+.dsh-field select {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-bg-base);
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.dsh-field input:focus,
+.dsh-field select:focus {
+    outline: none;
+    border-color: var(--dsw-alias-border-l4);
+}
+
+.dsh-field input[type="checkbox"] {
+    flex: 0 0 auto;
+    accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-hint {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 8px 0 2px;
+}
+
+.dsh-settings-group {
+    font: var(--dsw-font-xxxs-strong-11);
+    color: var(--dsw-alias-label-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 10px 0 6px;
+}
+
+/* ---------------------------------------------------------------- 转写区 */
+
+.dsh-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 换了一轮（用户又说话了）时拉一条发丝线，长对话里才分得清回合 */
+.dsh-turn-sep {
+    flex: 0 0 auto;
+    height: 1px;
+    background: var(--dsw-alias-border-l1);
+    margin: 2px 0;
+}
+
+/* 用户气泡：右对齐、实底、小圆角。
+   底色用 `interactive-bg-hover-solid` 而不是 `bg-layer-2` —— 后者在浅色主题里和底色
+   都是纯白（DSH 的 layer-1/2/3 在浅色下同为 #fff），气泡会只剩一圈描边、几乎看不出来。 */
+.dsh-msg-user {
+    align-self: flex-end;
+    max-width: 88%;
+    padding: 7px 11px;
+    border-radius: 12px;
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    box-shadow: var(--dsw-elevation-stroke);
+    font: var(--dsh-content-font-size, 14px) / 22px var(--dsw-font-family);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* 助手正文：不套框，直接排版（DSH 的正文就是「流」） */
+.dsh-msg-agent {
+    align-self: stretch;
+    min-width: 0;
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-note {
+    align-self: stretch;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-tertiary);
+    padding-left: 9px;
+    border-left: 2px solid var(--dsw-alias-border-l2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dsh-note[data-kind="stderr"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-error {
+    align-self: stretch;
+    padding: 8px 11px;
+    border-radius: 10px;
+    background: var(--dsw-alias-interactive-bg-hover-danger);
+    color: var(--dsw-alias-state-error-primary);
+    font: var(--dsw-font-xxs-12);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* ---- 思考块（默认折叠，流式时自动展开）---- */
+
+.dsh-think {
+    align-self: stretch;
+    border-radius: 10px;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+    overflow: hidden;
+}
+
+.dsh-think-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    user-select: none;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-think-head:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.dsh-think-caret {
+    width: 9px;
+    flex: 0 0 auto;
+    transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.dsh-think[data-collapsed="false"] .dsh-think-caret {
+    transform: rotate(90deg);
+}
+
+.dsh-think-body {
+    padding: 0 10px 9px 25px;
+    font: var(--dsw-font-xs-13);
+    color: var(--dsw-alias-label-secondary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.dsh-think[data-collapsed="true"] .dsh-think-body {
+    display: none;
+}
+
+/* ---- 工具卡片 ---- */
+
+.dsh-tool {
+    align-self: stretch;
+    min-width: 0;
+    border-radius: 10px;
+    background: var(--dsw-alias-bg-layer-1);
+    /* 高层级表面不画 border，用发丝 elevation 描边（DSH 的口径） */
+    box-shadow: var(--dsw-elevation-stroke);
+    overflow: hidden;
+}
+
+.dsh-tool[data-state="error"] {
+    background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.dsh-tool-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dsh-tool-head:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.dsh-tool-glyph {
+    flex: 0 0 auto;
+    width: 16px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-tool-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-tool-title code {
+    font-family: var(--ds-font-family-code);
+    font-size: 11px;
+    color: var(--dsw-alias-label-secondary);
+}
+
+.dsh-tool-state {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-tool-state[data-state="running"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+.dsh-tool-state[data-state="ok"] {
+    color: var(--dsw-alias-state-success-primary);
+}
+.dsh-tool-state[data-state="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-tool-body {
+    padding: 0 10px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.dsh-tool[data-open="false"] .dsh-tool-body {
+    display: none;
+}
+
+.dsh-tool-label {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+    margin-bottom: 3px;
+}
+
+.dsh-pre {
+    margin: 0;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: var(--dsw-alias-markdown-code-block);
+    color: var(--dsw-alias-label-secondary);
+    font: var(--dsw-font-markdown-code);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 300px;
+    overflow: auto;
+}
+
+.dsh-pre[data-tone="terminal"] {
+    background: var(--dsw-alias-markdown-code-block-banner);
+}
+
+/* ---- 正文 markdown ---- */
+
+.dsh-md {
+    font: var(--dsw-font-markdown-base);
+}
+.dsh-md > *:first-child {
+    margin-top: 0;
+}
+.dsh-md > *:last-child {
+    margin-bottom: 0;
+}
+.dsh-md p {
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.dsh-md h1 {
+    font: var(--dsw-font-markdown-h1);
+    margin: 16px 0 8px;
+}
+.dsh-md h2 {
+    font: var(--dsw-font-markdown-h2);
+    margin: 14px 0 8px;
+}
+.dsh-md h3 {
+    font: var(--dsw-font-markdown-h3);
+    margin: 12px 0 6px;
+}
+.dsh-md h4,
+.dsh-md h5,
+.dsh-md h6 {
+    font: var(--dsw-font-markdown-h4);
+    margin: 12px 0 6px;
+}
+.dsh-md ul,
+.dsh-md ol {
+    margin: 0 0 10px;
+    padding-left: 20px;
+}
+.dsh-md li {
+    margin: 2px 0;
+    overflow-wrap: anywhere;
+}
+.dsh-md blockquote {
+    margin: 0 0 10px;
+    padding: 2px 0 2px 10px;
+    border-left: 2px solid var(--dsw-alias-border-l3);
+    color: var(--dsw-alias-label-secondary);
+}
+.dsh-md hr {
+    border: 0;
+    border-top: 1px solid var(--dsw-alias-border-l1);
+    margin: 14px 0;
+}
+.dsh-md a {
+    color: var(--dsw-alias-state-business-primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--dsw-alias-border-l3);
+}
+.dsh-md strong {
+    font: var(--dsw-font-markdown-base-strong);
+}
+.dsh-md em {
+    font: var(--dsw-font-markdown-base-italic);
+}
+.dsh-md del {
+    color: var(--dsw-alias-label-tertiary);
+}
+.dsh-md code {
+    font: var(--dsw-font-markdown-code);
+    background: var(--dsw-alias-markdown-inline-code);
+    border-radius: 4px;
+    padding: 1px 4px;
+    overflow-wrap: anywhere;
+}
+.dsh-md table {
+    border-collapse: collapse;
+    /* fixed 是必须的：面板窄，auto 布局下「表头 + 长代码」的 min-content 宽度会把表撑出面板
+       （body 的 overflow-x:hidden 只会把它裁掉，看起来就是右边被切了） */
+    table-layout: fixed;
+    width: 100%;
+    margin: 0 0 10px;
+    font: var(--dsw-font-markdown-table);
+}
+.dsh-md th {
+    font: var(--dsw-font-markdown-table-head);
+    text-align: left;
+    color: var(--dsw-alias-label-secondary);
+}
+.dsh-md th,
+.dsh-md td {
+    border: 1px solid var(--dsw-alias-border-l1);
+    padding: 4px 7px;
+    overflow-wrap: anywhere;
+}
+
+/* 代码块：带一行 banner（语言 + 复制），跟 DSH 的 code block 一个结构 */
+.dsh-code {
+    margin: 0 0 10px;
+    border-radius: 8px;
+    background: var(--dsw-alias-markdown-code-block);
+    overflow: hidden;
+}
+
+.dsh-code-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 4px 10px;
+    background: var(--dsw-alias-markdown-code-block-banner);
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-code-head .dsh-code-lang {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dsh-code-head .dsh-btn {
+    padding: 1px 7px;
+    font: var(--dsw-font-xxxs-11);
+}
+
+.dsh-code > pre {
+    margin: 0;
+    padding: 8px 10px;
+    font: var(--dsw-font-markdown-code-block);
+    color: var(--dsw-alias-label-secondary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 360px;
+    overflow: auto;
+}
+
+/* ---- 空态 ---- */
+
+.dsh-empty {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 2px;
+    color: var(--dsw-alias-label-secondary);
+    font: var(--dsw-font-xs-13);
+}
+
+.dsh-empty-title {
+    font: var(--dsw-font-s-strong-14);
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-empty-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--dsw-alias-label-tertiary);
+    font: var(--dsw-font-xxs-12);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dsh-empty code {
+    font-family: var(--ds-font-family-code);
+    font-size: 11px;
+    background: var(--dsw-alias-markdown-inline-code);
+    border-radius: 4px;
+    padding: 0 4px;
+}
+
+.dsh-send-primary {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary-foreground);
+    background: var(--dsw-alias-button-primary-fill);
+    border: 0;
+    border-radius: 9px;
+    padding: 5px 13px;
+    cursor: pointer;
+}
+
+.dsh-send-primary:hover:not(:disabled) {
+    background: var(--dsw-alias-button-primary-hover);
+}
+
+.dsh-send-primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* ---- 「正在回复」的三个点 ---- */
+
+.dsh-typing {
+    align-self: flex-start;
+    display: inline-flex;
+    gap: 3px;
+    padding: 4px 2px;
+}
+
+.dsh-typing span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--dsw-alias-label-caption);
+    animation: dsh-blink 1.2s var(--ds-ease-in-out) infinite;
+}
+
+.dsh-typing span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+.dsh-typing span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes dsh-blink {
+    0%,
+    100% {
+        opacity: 0.25;
+        transform: translateY(0);
+    }
+    40% {
+        opacity: 1;
+        transform: translateY(-2px);
+    }
+}
+
+/* ---------------------------------------------------------------- 图片 */
+
+/*
+ * 三个地方的样式放一起（碎片 / 选择器 / 消息里的图），因为它们共享一条口径：
+ * **面板里只画缩略图**（原图是几 MB 的 base64，只该存在于内存与 IPC 里，绝不进 DOM 的 src）。
+ */
+
+/* 待发送的图片碎片：一条一个，横着排、放不下就换行 */
+.dsh-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 7px;
+}
+
+.dsh-attachments[hidden] {
+    display: none;
+}
+
+.dsh-attach {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    padding: 4px 5px 4px 4px;
+    border-radius: 9px;
+    background: var(--dsw-alias-bg-layer-2);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
+.dsh-attach-thumb {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-2));
+}
+
+.dsh-attach-meta {
+    min-width: 0;
+}
+
+.dsh-attach-name {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    /* 文件名可能很长：截断而不是把碎片撑宽（窄面板里会挤掉发送按钮） */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+}
+
+.dsh-attach-size {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+}
+
+.dsh-attach-del {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--dsw-alias-label-tertiary);
+    cursor: pointer;
+    font: var(--dsw-font-xxxs-11);
+    line-height: 18px;
+}
+
+.dsh-attach-del:hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    color: var(--dsw-alias-label-primary);
+}
+
+/* 输入框左边那个 🖼：附了图之后把数量标在角上（不然看不出「已附 2 张」） */
+.dsh-image-btn {
+    position: relative;
+}
+
+.dsh-image-btn[data-count]:not([data-count="0"])::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--dsw-alias-button-primary-fill);
+    color: var(--dsw-alias-label-primary-foreground);
+    font: var(--dsw-font-xxxs-11);
+    line-height: 14px;
+    text-align: center;
+}
+
+.dsh-image-btn[data-busy="true"] {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+/* 拖拽悬停时给整个面板一圈提示（拖进来的图与粘贴走同一条路） */
+.dsh-root[data-drag="true"] {
+    outline: 2px dashed var(--dsw-alias-border-l4);
+    outline-offset: -3px;
+}
+
+/* ---- 图片选择器（工程图片浏览器） ---- */
+
+.dsh-picker {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    max-height: 52%;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-picker[hidden] {
+    display: none;
+}
+
+.dsh-picker-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px 6px;
+}
+
+.dsh-picker-title {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xs-13);
+    font-weight: 600;
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-picker-head .dsh-btn {
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
+.dsh-picker-search {
+    flex: 0 0 auto;
+    margin: 0 10px 6px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+    color: var(--dsw-alias-label-primary);
+    font: var(--dsw-font-xxs-12);
+    outline: none;
+}
+
+.dsh-picker-search::placeholder {
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-picker-note {
+    padding: 0 12px 6px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-picker-note[data-tone="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-picker-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 8px 8px;
+    display: grid;
+    /* 窄到 380px 时是两列，宽面板自动变三列 —— 不用媒体查询，靠 minmax 自己算 */
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px;
+    align-content: start;
+}
+
+.dsh-pick-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: var(--dsw-radius-m, 8px);
+    background: var(--dsw-alias-bg-layer-1);
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+}
+
+.dsh-pick-item:hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+}
+
+.dsh-pick-thumb {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 5px;
+    /* 还没读出来时是一块哑色底：比空着好（能看出「这里将来是图」） */
+    background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-layer-2));
+}
+
+.dsh-pick-thumb[data-failed="true"] {
+    opacity: 0.35;
+}
+
+.dsh-pick-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dsh-pick-name {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-pick-path {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl; /* 路径太长时保住**结尾**（文件名那一段），比截掉后半截有用 */
+    text-align: left;
+}
+
+/* ---- 用户消息里的图片碎片（转写里只有元数据，见 constants.ts 的 EntryImage） ---- */
+
+.dsh-msg-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dsh-msg-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.dsh-msg-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 3px 7px 3px 4px;
+    border-radius: 7px;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
+.dsh-msg-image-thumb {
+    width: 20px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.dsh-msg-image-glyph {
+    font: var(--dsw-font-xxs-12);
+    line-height: 20px;
+}
+
+.dsh-msg-image-name {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-msg-image-meta {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- 输入区 */
+
+.dsh-foot {
+    flex: 0 0 auto;
+    padding: 9px 12px 8px;
+    background: var(--dsw-alias-bg-layer-1);
+    border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 5px 5px 5px 11px;
+    border-radius: 12px;
+    background: var(--dsw-alias-bg-layer-2);
+    box-shadow: var(--dsw-elevation-soft);
+}
+
+.dsh-composer:focus-within {
+    box-shadow:
+        var(--dsw-elevation-soft),
+        0 0 0 1px var(--dsw-alias-border-l4);
+}
+
+.dsh-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-height: 168px;
+    padding: 5px 0;
+    border: 0;
+    outline: none;
+    resize: none;
+    overflow-y: auto;
+    background: transparent;
+    color: var(--dsw-alias-label-primary);
+    font: var(--dsh-content-font-size, 14px) / 22px var(--dsw-font-family);
+}
+
+.dsh-input::placeholder {
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-send {
+    flex: 0 0 auto;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary-foreground);
+    background: var(--dsw-alias-button-primary-fill);
+    border: 0;
+    border-radius: 9px;
+    padding: 5px 13px;
+    cursor: pointer;
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.dsh-send:hover:not(:disabled) {
+    background: var(--dsw-alias-button-primary-hover);
+}
+
+.dsh-send:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/*
+ * 「停止本轮」：与「发送」同一档尺寸，但**不是主按钮的观感**（描边款）。
+ * 判据是「按下它的代价」：发送是常规动作，中断是打断模型正在做的事 ——
+ * 视觉上不该抢发送的位置，也不该看起来像删除类危险操作（它不丢上下文）。
+ * 只在 running 时出现（面板按 `snapshot.running` 切 hidden），所以常驻不占位。
+ */
+.dsh-stop {
+    color: var(--dsw-alias-label-primary);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l4);
+}
+
+.dsh-stop:hover:not(:disabled) {
+    background: var(--dsw-alias-bg-layer-3);
+}
+
+.dsh-statusline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dsh-live[data-tone="busy"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+.dsh-live[data-tone="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+}

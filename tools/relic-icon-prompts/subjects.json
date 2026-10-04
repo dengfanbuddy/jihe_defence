@@ -1,0 +1,2151 @@
+[
+  {
+    "key": "quelling_blade",
+    "zh": "压制之刃",
+    "en": "Quelling Blade",
+    "kind": "weapon_melee",
+    "subject": "a short single-bitted woodcutter's axe, a chipped grey steel head on a stubby dark wooden handle with a leather wrist loop"
+  },
+  {
+    "key": "stout_shield",
+    "zh": "圆盾",
+    "en": "Stout Shield",
+    "kind": "shield",
+    "subject": "a small round wooden shield, iron rim strips and a domed iron boss at its centre, worn planks across the face"
+  },
+  {
+    "key": "gauntlets",
+    "zh": "力量手套",
+    "en": "Gauntlets of Strength",
+    "kind": "garment",
+    "subject": "a single heavy leather work glove, thick padded knuckles and small iron studs along the back of the hand"
+  },
+  {
+    "key": "slippers",
+    "zh": "敏捷便靴",
+    "en": "Slippers of Agility",
+    "kind": "boots",
+    "subject": "a light soft leather slipper with a thin sole and a pointed upturned toe, laced with a single cord"
+  },
+  {
+    "key": "mantle",
+    "zh": "智力斗篷",
+    "en": "Mantle of Intelligence",
+    "kind": "garment",
+    "subject": "a short hooded cloak folded into a compact bundle, soft blue-grey cloth closed by a small silver clasp"
+  },
+  {
+    "key": "circlet",
+    "zh": "圆环",
+    "en": "Circlet",
+    "kind": "jewelry",
+    "subject": "a slender silver circlet of thin wire, one small round blue gem set at its front"
+  },
+  {
+    "key": "ring_of_protection",
+    "zh": "守护指环",
+    "en": "Ring of Protection",
+    "kind": "jewelry",
+    "subject": "a plain thick iron band ring with a flattened shield-like face and faint hammer marks"
+  },
+  {
+    "key": "ring_of_regen",
+    "zh": "回复指环",
+    "en": "Ring of Regen",
+    "kind": "jewelry",
+    "subject": "a small gold ring set with a round green gem in a raised claw setting"
+  },
+  {
+    "key": "sobi_mask",
+    "zh": "贤者面罩",
+    "en": "Sage's Mask",
+    "kind": "garment",
+    "subject": "a carved wooden face mask with narrow slanted eye slits, dark stained grain and small bone inlays at the brow"
+  },
+  {
+    "key": "magic_stick",
+    "zh": "魔棒",
+    "en": "Magic Stick",
+    "kind": "staff",
+    "subject": "a short wooden wand bound with a strip of pale cloth near the grip, a small amber bead fixed at the tip"
+  },
+  {
+    "key": "infused_raindrop",
+    "zh": "雨滴",
+    "en": "Infused Raindrops",
+    "kind": "gem",
+    "subject": "a single teardrop-shaped crystal droplet of pale blue glass with a bright core"
+  },
+  {
+    "key": "wind_lace",
+    "zh": "风灵之纹",
+    "en": "Wind Lace",
+    "kind": "jewelry",
+    "subject": "a small feather charm of three pale plumes bound to a braided cord with a bead"
+  },
+  {
+    "key": "wizard_hat",
+    "zh": "巫师帽",
+    "en": "Wizard Hat",
+    "kind": "garment",
+    "subject": "a tall pointed wizard's hat with a wide bent brim and a broad buckled band"
+  },
+  {
+    "key": "blight_stone",
+    "zh": "枯萎之石",
+    "en": "Orb of Blight",
+    "kind": "gem",
+    "subject": "a rough dull-green stone orb with a pitted cracked surface and dark seams"
+  },
+  {
+    "key": "orb_of_venom",
+    "zh": "淬毒之珠",
+    "en": "Orb of Venom",
+    "kind": "gem",
+    "subject": "a small round orb of green venom, a darker green core suspended inside the glassy surface"
+  },
+  {
+    "key": "blades_of_attack",
+    "zh": "攻击之爪",
+    "en": "Blades of Attack",
+    "kind": "weapon_melee",
+    "subject": "a pair of curved grey steel claw blades mounted on a hand grip, edges notched from use"
+  },
+  {
+    "key": "belt_of_strength",
+    "zh": "力量腰带",
+    "en": "Belt of Strength",
+    "kind": "garment",
+    "subject": "a heavy brown leather belt with a large square iron buckle and a row of rivets"
+  },
+  {
+    "key": "boots_of_elves",
+    "zh": "精灵布带",
+    "en": "Band of Elvenskin",
+    "kind": "garment",
+    "subject": "a band of pale striped cloth looped into a roll, its ends bound with a thin cord"
+  },
+  {
+    "key": "robe",
+    "zh": "法师长袍",
+    "en": "Robe of the Magi",
+    "kind": "garment",
+    "subject": "a deep blue mage's robe with wide hanging sleeves, a gold trim edge and a small collar clasp"
+  },
+  {
+    "key": "crown",
+    "zh": "王冠",
+    "en": "Crown",
+    "kind": "jewelry",
+    "subject": "a small gold crown of three points, each point capped with a bead and one red gem at the centre"
+  },
+  {
+    "key": "gloves",
+    "zh": "加速手套",
+    "en": "Gloves of Haste",
+    "kind": "garment",
+    "subject": "a pair of light tan leather gloves with open fingers and stitched cuffs"
+  },
+  {
+    "key": "shawl",
+    "zh": "披巾",
+    "en": "Shawl",
+    "kind": "garment",
+    "subject": "a folded shawl of soft pale cloth with a fringed hem and a fine woven pattern"
+  },
+  {
+    "key": "chainmail",
+    "zh": "锁子甲",
+    "en": "Chainmail",
+    "kind": "armor",
+    "subject": "a folded shirt of interlocking grey iron rings with a short slit collar"
+  },
+  {
+    "key": "boots",
+    "zh": "速度之靴",
+    "en": "Boots of Speed",
+    "kind": "boots",
+    "subject": "a single brown leather boot with a folded cuff, a low heel and cross-strap lacing"
+  },
+  {
+    "key": "voodoo_mask",
+    "zh": "巫毒面具",
+    "en": "Voodoo Mask",
+    "kind": "garment",
+    "subject": "a tribal mask of dark wood with bared bone teeth, a feathered brow and painted bands"
+  },
+  {
+    "key": "ring_of_health",
+    "zh": "恢复指环",
+    "en": "Ring of Health",
+    "kind": "jewelry",
+    "subject": "a heavy gold ring set with a square red gem held by four small prongs"
+  },
+  {
+    "key": "void_stone",
+    "zh": "虚无宝石",
+    "en": "Void Stone",
+    "kind": "gem",
+    "subject": "a dark violet gem cut into a tall faceted oval, its centre almost black"
+  },
+  {
+    "key": "chasm_stone",
+    "zh": "裂隙之石",
+    "en": "Chasm Stone",
+    "kind": "gem",
+    "subject": "a split grey stone disc with a deep dark crevice running through it and rough broken edges"
+  },
+  {
+    "key": "quarterstaff",
+    "zh": "短棍",
+    "en": "Quarterstaff",
+    "kind": "weapon_melee",
+    "subject": "a plain straight wooden staff with iron caps at both ends and leather wraps at the grips"
+  },
+  {
+    "key": "javelin",
+    "zh": "标枪",
+    "en": "Javelin",
+    "kind": "weapon_ranged",
+    "subject": "a light throwing javelin with a narrow leaf-shaped steel head and a feathered tail binding"
+  },
+  {
+    "key": "lifesteal",
+    "zh": "吸血面具",
+    "en": "Morbid Mask",
+    "kind": "garment",
+    "subject": "a pale bone-white face mask with narrow red eye slits and a hooked nose ridge"
+  },
+  {
+    "key": "gem",
+    "zh": "真视宝石",
+    "en": "Gem of True Sight",
+    "kind": "gem",
+    "subject": "a bright cut blue-white gem in a round faceted brilliant shape with a flat top"
+  },
+  {
+    "key": "cloak",
+    "zh": "抗魔斗篷",
+    "en": "Cloak",
+    "kind": "garment",
+    "subject": "a hooded cloak of dark blue cloth with a silver border band and a deep folded hood"
+  },
+  {
+    "key": "shadow_amulet",
+    "zh": "暗影护符",
+    "en": "Shadow Amulet",
+    "kind": "jewelry",
+    "subject": "a small dark obsidian amulet on a cord, a shallow carved face on its polished face"
+  },
+  {
+    "key": "splintmail",
+    "zh": "片甲",
+    "en": "Splintmail",
+    "kind": "armor",
+    "subject": "overlapping rectangular steel splints riveted in rows onto a dark leather backing"
+  },
+  {
+    "key": "helm_of_iron_will",
+    "zh": "铁意头盔",
+    "en": "Helm of Iron Will",
+    "kind": "helm",
+    "subject": "a plain iron cap helmet with riveted bands and a short straight nose guard"
+  },
+  {
+    "key": "broadsword",
+    "zh": "阔剑",
+    "en": "Broadsword",
+    "kind": "weapon_melee",
+    "subject": "a wide straight double-edged sword with a short simple crossguard and a wrapped grip"
+  },
+  {
+    "key": "diadem",
+    "zh": "头冠",
+    "en": "Diadem",
+    "kind": "jewelry",
+    "subject": "a jewelled golden diadem set with a row of alternating small round gems"
+  },
+  {
+    "key": "ogre_axe",
+    "zh": "食人魔之斧",
+    "en": "Ogre Axe",
+    "kind": "weapon_melee",
+    "subject": "a crude heavy axe with a chipped thick blade, iron banding and a knotted wooden haft"
+  },
+  {
+    "key": "blade_of_alacrity",
+    "zh": "欢欣之刃",
+    "en": "Blade of Alacrity",
+    "kind": "weapon_melee",
+    "subject": "a slim curved blade of pale green-grey steel with a slender swept hilt"
+  },
+  {
+    "key": "staff_of_wizardry",
+    "zh": "魔力法杖",
+    "en": "Staff of Wizardry",
+    "kind": "staff",
+    "subject": "a tall wooden staff topped by a blue crystal orb held in a three-claw metal mount"
+  },
+  {
+    "key": "blitz_knuckles",
+    "zh": "闪电指节",
+    "en": "Blitz Knuckles",
+    "kind": "weapon_melee",
+    "subject": "a set of iron knuckle dusters, the grip cut with a small lightning-bolt shaped opening"
+  },
+  {
+    "key": "claymore",
+    "zh": "大剑",
+    "en": "Claymore",
+    "kind": "weapon_melee",
+    "subject": "a long two-handed straight sword with a wide guard and a dark leather-wrapped grip"
+  },
+  {
+    "key": "ghost",
+    "zh": "幽魂权杖",
+    "en": "Ghost Scepter",
+    "kind": "staff",
+    "subject": "a pale sceptre with a small skull finial, its shaft shaped like a thin bone with a claw foot"
+  },
+  {
+    "key": "mithril_hammer",
+    "zh": "秘银锤",
+    "en": "Mithril Hammer",
+    "kind": "weapon_melee",
+    "subject": "a bright silver war hammer with a heavy square head and a short wooden haft"
+  },
+  {
+    "key": "ring_of_tarrasque",
+    "zh": "恐鳌之戒",
+    "en": "Ring of Tarrasque",
+    "kind": "jewelry",
+    "subject": "a heavy gold ring whose face is carved into a snarling beast head"
+  },
+  {
+    "key": "tiara_of_selemene",
+    "zh": "赛莉蒙娜之冠",
+    "en": "Tiara of Selemene",
+    "kind": "jewelry",
+    "subject": "a delicate crescent tiara of thin silver arms set with three pale moonstones"
+  },
+  {
+    "key": "blink",
+    "zh": "闪烁匕首",
+    "en": "Blink Dagger",
+    "kind": "weapon_melee",
+    "subject": "a curved dagger with a wide winged guard and a purple gem set in the pommel"
+  },
+  {
+    "key": "overwhelming_blink",
+    "zh": "撼地闪烁",
+    "en": "Overwhelming Blink",
+    "kind": "weapon_melee",
+    "subject": "a heavy ceremonial dagger with a broad chipped blade and a red crystal fixed in the guard"
+  },
+  {
+    "key": "swift_blink",
+    "zh": "疾速闪烁",
+    "en": "Swift Blink",
+    "kind": "weapon_melee",
+    "subject": "a slim dagger with three feathers bound at the pommel and a green gem in the guard"
+  },
+  {
+    "key": "arcane_blink",
+    "zh": "奥术闪烁",
+    "en": "Arcane Blink",
+    "kind": "weapon_melee",
+    "subject": "a runed dagger with a blue crystal embedded in the flat of the blade and etched lines along the spine"
+  },
+  {
+    "key": "famango",
+    "zh": "治疗莲花",
+    "en": "Healing Lotus",
+    "kind": "plant",
+    "subject": "a single pink lotus blossom with layered rounded petals opening around a pale centre"
+  },
+  {
+    "key": "great_famango",
+    "zh": "大型治疗莲花",
+    "en": "Great Healing Lotus",
+    "kind": "plant",
+    "subject": "a large lotus bloom with two rings of petals and a bright golden seed core"
+  },
+  {
+    "key": "greater_famango",
+    "zh": "巨型治疗莲花",
+    "en": "Greater Healing Lotus",
+    "kind": "plant",
+    "subject": "a huge lotus flower with broad overlapping petals fanning out around a raised centre"
+  },
+  {
+    "key": "ward_observer",
+    "zh": "侦查守卫",
+    "en": "Observer Ward",
+    "kind": "ward",
+    "subject": "a short wooden ward totem carved with a single wide eye, standing on a pointed stake bound with cord"
+  },
+  {
+    "key": "greater_faerie_fire",
+    "zh": "巨型仙灵之火",
+    "en": "Greater Faerie Fire",
+    "kind": "consumable",
+    "subject": "a small clay pot holding a bright pale blue flame that rises above the rim"
+  },
+  {
+    "key": "royal_jelly",
+    "zh": "皇家蜂蜜",
+    "en": "Royal Jelly",
+    "kind": "consumable",
+    "subject": "a wedge of golden honeycomb resting in a shallow dish, its cells open and glossy"
+  },
+  {
+    "key": "repair_kit",
+    "zh": "修理工具包",
+    "en": "Repair Kit",
+    "kind": "consumable",
+    "subject": "a rolled canvas tool wrap with a hammer, a wrench and a few nails poking out of the top"
+  },
+  {
+    "key": "roshans_banner",
+    "zh": "肉山旗帜",
+    "en": "Roshan's Banner",
+    "kind": "banner",
+    "subject": "a torn crimson battle banner on a short pole, a horned beast skull painted across the cloth"
+  },
+  {
+    "key": "madstone_bundle",
+    "zh": "狂石包裹",
+    "en": "Madstone Bundle",
+    "kind": "gem",
+    "subject": "a bundle of rough red crystal shards tied together with a dark cord"
+  },
+  {
+    "key": "royale_with_cheese",
+    "zh": "芝士块",
+    "en": "Block of Cheese",
+    "kind": "consumable",
+    "subject": "a thick yellow wedge of cheese with round holes and a waxed rind"
+  },
+  {
+    "key": "tango_single",
+    "zh": "吃树（分享）",
+    "en": "Tango (Shared)",
+    "kind": "plant",
+    "subject": "a small bundle of green herb leaves tied at the stems with a strip of twine"
+  },
+  {
+    "key": "blood_grenade",
+    "zh": "鲜血手雷",
+    "en": "Blood Grenade",
+    "kind": "consumable",
+    "subject": "a round glass grenade filled with dark red liquid, a short fuse cord through its neck"
+  },
+  {
+    "key": "ward_sentry",
+    "zh": "岗哨守卫",
+    "en": "Sentry Ward",
+    "kind": "ward",
+    "subject": "a squat wooden sentry ward carved with a narrow slit eye, bound with blue cloth and set on a stake"
+  },
+  {
+    "key": "ward_dispenser",
+    "zh": "守卫补给包",
+    "en": "Observer and Sentry Wards",
+    "kind": "ward",
+    "subject": "an open cloth satchel holding two small wooden ward totems, their carved heads showing above the rim"
+  },
+  {
+    "key": "courier",
+    "zh": "动物信使",
+    "en": "Animal Courier",
+    "kind": "creature",
+    "subject": "a small pack donkey carrying a strapped canvas satchel and a tiny lantern on its back"
+  },
+  {
+    "key": "smoke_of_deceit",
+    "zh": "诡计之雾",
+    "en": "Smoke of Deceit",
+    "kind": "consumable",
+    "subject": "a squat dark glass bottle with a cork stopper, grey vapour curling out from around the neck"
+  },
+  {
+    "key": "branches",
+    "zh": "铁树枝干",
+    "en": "Iron Branch",
+    "kind": "plant",
+    "subject": "three thin bare wooden branches tied together in a bundle, cut ends showing growth rings"
+  },
+  {
+    "key": "clarity",
+    "zh": "净化药水",
+    "en": "Clarity",
+    "kind": "consumable",
+    "subject": "a slim blue glass potion bottle with a cork stopper and a paper label band"
+  },
+  {
+    "key": "faerie_fire",
+    "zh": "仙灵之火",
+    "en": "Faerie Fire",
+    "kind": "consumable",
+    "subject": "a tiny blue flame hovering in a small earthen pot with a chipped rim"
+  },
+  {
+    "key": "enchanted_mango",
+    "zh": "魔法芒果",
+    "en": "Enchanted Mango",
+    "kind": "plant",
+    "subject": "a ripe golden mango with a single dark leaf at the stem and a soft blush on one side"
+  },
+  {
+    "key": "tome_of_knowledge",
+    "zh": "经验之书",
+    "en": "Tome of Knowledge",
+    "kind": "book",
+    "subject": "a thick closed book with a metal corner clasp, a ribbon bookmark and a plain cover"
+  },
+  {
+    "key": "dust",
+    "zh": "显影之尘",
+    "en": "Dust of Appearance",
+    "kind": "consumable",
+    "subject": "a small leather pouch tipped sideways, pale fine powder spilling from its open mouth"
+  },
+  {
+    "key": "tango",
+    "zh": "吃树",
+    "en": "Tango",
+    "kind": "plant",
+    "subject": "a tied bundle of green herb leaves with a short wooden tag on the cord"
+  },
+  {
+    "key": "flask",
+    "zh": "治疗药膏",
+    "en": "Healing Salve",
+    "kind": "consumable",
+    "subject": "a round glass flask of thick red salve with a cork stopper and a corded neck"
+  },
+  {
+    "key": "flying_courier",
+    "zh": "飞行信使",
+    "en": "Flying Courier",
+    "kind": "creature",
+    "subject": "a small winged courier with spread feathered wings above a strapped canvas satchel"
+  },
+  {
+    "key": "tpscroll",
+    "zh": "回城卷轴",
+    "en": "Town Portal Scroll",
+    "kind": "book",
+    "subject": "a rolled parchment scroll tied with a blue ribbon and sealed with a round wax stamp"
+  },
+  {
+    "key": "cheese",
+    "zh": "奶酪",
+    "en": "Cheese",
+    "kind": "consumable",
+    "subject": "a thick wedge of pale cheese with a bite taken out of one corner and a rind along the back"
+  },
+  {
+    "key": "refresher_shard",
+    "zh": "刷新碎片",
+    "en": "Refresher Shard",
+    "kind": "gem",
+    "subject": "a jagged blue crystal shard with sharp facets and a bright pale core"
+  },
+  {
+    "key": "moon_shard",
+    "zh": "银月之晶",
+    "en": "Moon Shard",
+    "kind": "gem",
+    "subject": "a crescent-moon shaped silver crystal, its inner curve polished and its outer edge rough"
+  },
+  {
+    "key": "mango_tree",
+    "zh": "芒果树",
+    "en": "Mango Tree",
+    "kind": "plant",
+    "subject": "a small potted mango tree with a short trunk, a few broad leaves and two ripe fruit"
+  },
+  {
+    "key": "fluffy_hat",
+    "zh": "绒毛帽",
+    "en": "Fluffy Hat",
+    "kind": "garment",
+    "subject": "a soft round white fur hat with folded ear flaps and a stitched brim"
+  },
+  {
+    "key": "energy_booster",
+    "zh": "能量之球",
+    "en": "Energy Booster",
+    "kind": "gem",
+    "subject": "a bright blue orb of dense energy with a lighter core and a smooth polished surface"
+  },
+  {
+    "key": "vitality_booster",
+    "zh": "活力之球",
+    "en": "Vitality Booster",
+    "kind": "gem",
+    "subject": "a deep red orb of solid vitality with a warm bright centre"
+  },
+  {
+    "key": "point_booster",
+    "zh": "精气之球",
+    "en": "Point Booster",
+    "kind": "gem",
+    "subject": "a pale green orb of clear glassy substance with a small dark core"
+  },
+  {
+    "key": "talisman_of_evasion",
+    "zh": "闪避护符",
+    "en": "Talisman of Evasion",
+    "kind": "jewelry",
+    "subject": "a winged silver talisman hung on a fine chain, its face cut with a shallow spiral"
+  },
+  {
+    "key": "platemail",
+    "zh": "板甲",
+    "en": "Platemail",
+    "kind": "armor",
+    "subject": "a folded suit of polished plate armour with ridged shoulder pieces and a segmented skirt"
+  },
+  {
+    "key": "hyperstone",
+    "zh": "振奋宝石",
+    "en": "Hyperstone",
+    "kind": "gem",
+    "subject": "a bright red faceted gem cut in a tall pointed shape with a hot lighter centre"
+  },
+  {
+    "key": "demon_edge",
+    "zh": "恶魔刀锋",
+    "en": "Demon Edge",
+    "kind": "weapon_melee",
+    "subject": "a jagged dark blade with a saw-toothed edge and a hooked tip, a horned guard at the hilt"
+  },
+  {
+    "key": "ultimate_orb",
+    "zh": "极限法球",
+    "en": "Ultimate Orb",
+    "kind": "gem",
+    "subject": "a plain grey-white orb of even matte surface with faint cloudy bands inside"
+  },
+  {
+    "key": "eagle",
+    "zh": "鹰歌弓",
+    "en": "Eaglesong",
+    "kind": "weapon_ranged",
+    "subject": "a curved horn bow with feathered tips and a braided string"
+  },
+  {
+    "key": "reaver",
+    "zh": "掠夺者之斧",
+    "en": "Reaver",
+    "kind": "weapon_melee",
+    "subject": "a massive axe with a jagged crescent blade, iron bands on the haft and a small skull pommel"
+  },
+  {
+    "key": "mystic_staff",
+    "zh": "神秘法杖",
+    "en": "Mystic Staff",
+    "kind": "staff",
+    "subject": "a dark wooden staff crowned with a purple crystal held in a clawed setting"
+  },
+  {
+    "key": "relic",
+    "zh": "圣者遗物",
+    "en": "Sacred Relic",
+    "kind": "weapon_melee",
+    "subject": "a curved golden blade fragment with a bright polished edge and a red gem set at the break"
+  },
+  {
+    "key": "orb_of_frost",
+    "zh": "寒霜宝珠",
+    "en": "Orb of Frost",
+    "kind": "gem",
+    "subject": "a pale blue orb of frost with a cluster of small ice shards frozen around its base"
+  },
+  {
+    "key": "buckler",
+    "zh": "玄冥盾牌",
+    "en": "Buckler",
+    "kind": "shield",
+    "subject": "a small round metal buckler with a raised domed centre and rivets around the rim"
+  },
+  {
+    "key": "ring_of_basilius",
+    "zh": "王者之戒",
+    "en": "Ring of Basilius",
+    "kind": "jewelry",
+    "subject": "a gold ring set with a blue gem, a small three-point crown motif on the band"
+  },
+  {
+    "key": "headdress",
+    "zh": "回复头巾",
+    "en": "Headdress",
+    "kind": "garment",
+    "subject": "a cloth headband of pale linen with a small red gem fixed at the brow"
+  },
+  {
+    "key": "magic_wand",
+    "zh": "魔杖",
+    "en": "Magic Wand",
+    "kind": "staff",
+    "subject": "a short wooden wand whose tip holds a green gem in a three-claw metal setting"
+  },
+  {
+    "key": "bracer",
+    "zh": "护腕",
+    "en": "Bracer",
+    "kind": "garment",
+    "subject": "a leather arm bracer plated with three iron strips and closed by two buckled straps"
+  },
+  {
+    "key": "wraith_band",
+    "zh": "怨灵系带",
+    "en": "Wraith Band",
+    "kind": "jewelry",
+    "subject": "a slender pale armband of ghostly cloth with a single small dark gem at its centre"
+  },
+  {
+    "key": "null_talisman",
+    "zh": "无用挂件",
+    "en": "Null Talisman",
+    "kind": "jewelry",
+    "subject": "a small dark talisman on a cord with a single dim gem set in its flat face"
+  },
+  {
+    "key": "bottle",
+    "zh": "魔瓶",
+    "en": "Bottle",
+    "kind": "consumable",
+    "subject": "a round glass bottle with a cork stopper and a shallow pool of liquid at the bottom"
+  },
+  {
+    "key": "soul_ring",
+    "zh": "魂戒",
+    "en": "Soul Ring",
+    "kind": "jewelry",
+    "subject": "a dark iron ring set with a square green soulstone, small studs around the band"
+  },
+  {
+    "key": "urn_of_shadows",
+    "zh": "影之灵龛",
+    "en": "Urn of Shadows",
+    "kind": "consumable",
+    "subject": "a small bone-white funerary urn with dark iron bands and a fitted lid"
+  },
+  {
+    "key": "tranquil_boots",
+    "zh": "静谧之鞋",
+    "en": "Tranquil Boots",
+    "kind": "boots",
+    "subject": "a soft pale leather boot with a small wing motif at the ankle and two buckled straps"
+  },
+  {
+    "key": "pocket_roshan",
+    "zh": "口袋肉山",
+    "en": "Pocket Roshan",
+    "kind": "creature",
+    "subject": "a miniature horned beast statue standing on a small stone base, thick arms folded across its chest"
+  },
+  {
+    "key": "orb_of_corrosion",
+    "zh": "腐蚀之球",
+    "en": "Orb of Corrosion",
+    "kind": "gem",
+    "subject": "a rusty green orb with corroded pitted surface and thick droplets hanging from its underside"
+  },
+  {
+    "key": "falcon_blade",
+    "zh": "猎鹰之刃",
+    "en": "Falcon Blade",
+    "kind": "weapon_melee",
+    "subject": "a straight sword with a falcon-head crossguard and rows of small feather shapes along the guard"
+  },
+  {
+    "key": "cornucopia",
+    "zh": "丰饶之角",
+    "en": "Cornucopia",
+    "kind": "consumable",
+    "subject": "a curved horn of plenty tipped over, round fruit and leaves spilling from its mouth"
+  },
+  {
+    "key": "pavise",
+    "zh": "帕维斯",
+    "en": "Pavise",
+    "kind": "shield",
+    "subject": "a tall rectangular standing shield of banded wood with iron edging and a narrow vision slot"
+  },
+  {
+    "key": "power_treads",
+    "zh": "动力鞋",
+    "en": "Power Treads",
+    "kind": "boots",
+    "subject": "a sturdy brown boot whose ankle strap carries three small gems in different tones"
+  },
+  {
+    "key": "pers",
+    "zh": "坚韧球",
+    "en": "Perseverance",
+    "kind": "jewelry",
+    "subject": "a heavy gold ring threaded onto a short chain, a dark gem hanging as its pendant"
+  },
+  {
+    "key": "aghanims_shard",
+    "zh": "阿哈利姆魔晶",
+    "en": "Aghanim's Shard",
+    "kind": "gem",
+    "subject": "a jagged bright blue crystal shard with long facets and a pale inner core"
+  },
+  {
+    "key": "aghanims_shard_roshan",
+    "zh": "阿哈利姆魔晶（肉山）",
+    "en": "Aghanim's Shard - Consumable",
+    "kind": "gem",
+    "subject": "a jagged blue crystal shard with a horned beast sigil carved into its flat face"
+  },
+  {
+    "key": "phase_boots",
+    "zh": "相位鞋",
+    "en": "Phase Boots",
+    "kind": "boots",
+    "subject": "a dark leather boot with a small angular blade fin at the heel and a strapped ankle"
+  },
+  {
+    "key": "arcane_boots",
+    "zh": "秘法鞋",
+    "en": "Arcane Boots",
+    "kind": "boots",
+    "subject": "a sturdy boot with a large blue gem set into the ankle strap and a plated toe cap"
+  },
+  {
+    "key": "oblivion_staff",
+    "zh": "空明杖",
+    "en": "Oblivion Staff",
+    "kind": "staff",
+    "subject": "a dark wooden staff topped with a small skull finial and a purple gem in its brow"
+  },
+  {
+    "key": "ancient_janggo",
+    "zh": "韧鼓",
+    "en": "Drum of Endurance",
+    "kind": "consumable",
+    "subject": "a small hand drum with a taut skin head, tightened by cords and hung with a beater"
+  },
+  {
+    "key": "vanguard",
+    "zh": "先锋盾",
+    "en": "Vanguard",
+    "kind": "shield",
+    "subject": "a heavy round shield with a domed iron boss, layered rim plates and a row of rivets"
+  },
+  {
+    "key": "veil_of_discord",
+    "zh": "纷争面纱",
+    "en": "Veil of Discord",
+    "kind": "garment",
+    "subject": "a purple cloth veil with a beaded brow band and a small gem hanging at its centre"
+  },
+  {
+    "key": "mekansm",
+    "zh": "梅肯斯姆",
+    "en": "Mekansm",
+    "kind": "helm",
+    "subject": "a golden ceremonial helm with a red gem at the brow and a fan-shaped crest above it"
+  },
+  {
+    "key": "essence_distiller",
+    "zh": "精华萃取器",
+    "en": "Essence Distiller",
+    "kind": "consumable",
+    "subject": "a glass distilling apparatus of tubes and a bulb, green liquid pooled in the lower flask"
+  },
+  {
+    "key": "dragon_lance",
+    "zh": "魔龙枪",
+    "en": "Dragon Lance",
+    "kind": "weapon_ranged",
+    "subject": "a long lance with a dragon-head socket, overlapping scale bands and a red gem at the collar"
+  },
+  {
+    "key": "mask_of_madness",
+    "zh": "疯狂面具",
+    "en": "Mask of Madness",
+    "kind": "garment",
+    "subject": "a horned mask with a wide grinning mouth, a red gem set between the horns"
+  },
+  {
+    "key": "lesser_crit",
+    "zh": "水晶剑",
+    "en": "Crystalys",
+    "kind": "weapon_melee",
+    "subject": "a sword whose blade is a single translucent crystal, a slim guard of pale metal at the hilt"
+  },
+  {
+    "key": "kaya",
+    "zh": "慧光",
+    "en": "Kaya",
+    "kind": "weapon_melee",
+    "subject": "a slender curved blade of pale violet crystal with a fine wire guard and a short grip"
+  },
+  {
+    "key": "sange",
+    "zh": "散华",
+    "en": "Sange",
+    "kind": "weapon_melee",
+    "subject": "a heavy red-tinted cleaver blade with a thick spine and a cord-wrapped grip"
+  },
+  {
+    "key": "yasha",
+    "zh": "夜叉",
+    "en": "Yasha",
+    "kind": "weapon_melee",
+    "subject": "a slim pale blue blade swept into a double curve, its hilt bound in pale cloth"
+  },
+  {
+    "key": "glimmer_cape",
+    "zh": "微光披风",
+    "en": "Glimmer Cape",
+    "kind": "garment",
+    "subject": "a hooded cape of pale shimmering cloth with a wide collar and a small clasp at the throat"
+  },
+  {
+    "key": "hand_of_midas",
+    "zh": "迈达斯之手",
+    "en": "Hand of Midas",
+    "kind": "garment",
+    "subject": "a golden gauntlet shaped like a hand, its palm open and a coin resting in it"
+  },
+  {
+    "key": "vladmir",
+    "zh": "弗拉迪米尔的祭品",
+    "en": "Vladmir's Offering",
+    "kind": "helm",
+    "subject": "a dark iron helm with two curved horns and a short red banner rising from its crest"
+  },
+  {
+    "key": "force_staff",
+    "zh": "原力法杖",
+    "en": "Force Staff",
+    "kind": "staff",
+    "subject": "a wooden staff with a white gem fixed in a ring mount at the top and carved bands below"
+  },
+  {
+    "key": "holy_locket",
+    "zh": "圣洁吊坠",
+    "en": "Holy Locket",
+    "kind": "jewelry",
+    "subject": "a heart-shaped metal locket on a fine chain, a red gem set into its hinged face"
+  },
+  {
+    "key": "rod_of_atos",
+    "zh": "阿托斯之棍",
+    "en": "Rod of Atos",
+    "kind": "staff",
+    "subject": "a short wooden rod banded with iron, a green gem held at the top between two prongs"
+  },
+  {
+    "key": "aether_lens",
+    "zh": "以太之镜",
+    "en": "Aether Lens",
+    "kind": "gem",
+    "subject": "a round lens in a brass frame with a ring of small notches around the rim"
+  },
+  {
+    "key": "blade_mail",
+    "zh": "刃甲",
+    "en": "Blade Mail",
+    "kind": "armor",
+    "subject": "a dark chest piece set with rows of outward-pointing blades along the shoulders and ribs"
+  },
+  {
+    "key": "travel_boots",
+    "zh": "远行鞋",
+    "en": "Boots of Travel",
+    "kind": "boots",
+    "subject": "a brown leather boot with small feathered wings at the heel and a blue gem on the cuff"
+  },
+  {
+    "key": "armlet",
+    "zh": "臂章",
+    "en": "Armlet of Mordiggian",
+    "kind": "jewelry",
+    "subject": "a heavy iron armlet with short spikes along its edge and a red gem set in the plate"
+  },
+  {
+    "key": "diffusal_blade",
+    "zh": "净魂之刃",
+    "en": "Diffusal Blade",
+    "kind": "weapon_melee",
+    "subject": "a curved pale blade with a faint blue sheen, its hilt bound in pale ribbon"
+  },
+  {
+    "key": "helm_of_the_dominator",
+    "zh": "支配头盔",
+    "en": "Helm of the Dominator",
+    "kind": "helm",
+    "subject": "a horned helm with a closed face plate and a red gem centred on the brow band"
+  },
+  {
+    "key": "specialists_array",
+    "zh": "专家阵列",
+    "en": "Specialist's Array",
+    "kind": "weapon_ranged",
+    "subject": "a fan of four slim throwing blades held in a stitched leather sheath"
+  },
+  {
+    "key": "solar_crest",
+    "zh": "炎阳纹章",
+    "en": "Solar Crest",
+    "kind": "jewelry",
+    "subject": "a round medallion with a raised sunburst face and a red gem at its centre"
+  },
+  {
+    "key": "phylactery",
+    "zh": "灵匣",
+    "en": "Phylactery",
+    "kind": "consumable",
+    "subject": "a small stoppered vessel of dark green glass bound with two bone bands"
+  },
+  {
+    "key": "cyclone",
+    "zh": "尤尔的神圣权杖",
+    "en": "Eul's Scepter of Divinity",
+    "kind": "staff",
+    "subject": "a tall wooden staff crowned with a small spiral cyclone ornament above a ring collar"
+  },
+  {
+    "key": "consecrated_wraps",
+    "zh": "圣化裹布",
+    "en": "Consecrated Wraps",
+    "kind": "garment",
+    "subject": "a roll of pale bandage cloth with a golden emblem stitched onto the outer wrap"
+  },
+  {
+    "key": "echo_sabre",
+    "zh": "回音战刃",
+    "en": "Echo Sabre",
+    "kind": "weapon_melee",
+    "subject": "a curved sabre with a doubled blade edge, a green gem set in the guard"
+  },
+  {
+    "key": "spirit_vessel",
+    "zh": "魂之灵瓮",
+    "en": "Spirit Vessel",
+    "kind": "consumable",
+    "subject": "a green glazed vessel with iron bands, a small pale flame rising above its mouth"
+  },
+  {
+    "key": "witch_blade",
+    "zh": "巫师之刃",
+    "en": "Witch Blade",
+    "kind": "weapon_melee",
+    "subject": "a curved blade coated in a green tarnish, a small gem fixed where the blade meets the guard"
+  },
+  {
+    "key": "meteor_hammer",
+    "zh": "陨星锤",
+    "en": "Meteor Hammer",
+    "kind": "weapon_melee",
+    "subject": "a war hammer whose head is a cracked stone meteor with a short chain hanging from the haft"
+  },
+  {
+    "key": "basher",
+    "zh": "碎颅锤",
+    "en": "Skull Basher",
+    "kind": "weapon_melee",
+    "subject": "a heavy mace with a horned skull-shaped head mounted on a banded iron haft"
+  },
+  {
+    "key": "maelstrom",
+    "zh": "漩涡",
+    "en": "Maelstrom",
+    "kind": "weapon_melee",
+    "subject": "a mace with a forked head, two angular lightning-bolt shapes springing from the top"
+  },
+  {
+    "key": "aeon_disk",
+    "zh": "永恒之盘",
+    "en": "Aeon Disk",
+    "kind": "jewelry",
+    "subject": "a thick round disc with toothed gear edges and a blue gem set in its centre"
+  },
+  {
+    "key": "soul_booster",
+    "zh": "灵魂之匣",
+    "en": "Soul Booster",
+    "kind": "gem",
+    "subject": "a green orb with a bright pale core, held in a clawed metal setting at its base"
+  },
+  {
+    "key": "dagon",
+    "zh": "达贡之神力",
+    "en": "Dagon",
+    "kind": "staff",
+    "subject": "a red-lacquered wand with a small skull finial and a red gem set in the skull's brow"
+  },
+  {
+    "key": "mage_slayer",
+    "zh": "法师克星",
+    "en": "Mage Slayer",
+    "kind": "weapon_melee",
+    "subject": "a curved grey blade with a notched back edge and a green gem in the crossguard"
+  },
+  {
+    "key": "invis_sword",
+    "zh": "影刃",
+    "en": "Shadow Blade",
+    "kind": "weapon_melee",
+    "subject": "a dark sword whose blade fades into pale drifting smoke toward the tip"
+  },
+  {
+    "key": "orchid",
+    "zh": "紫怨",
+    "en": "Orchid Malevolence",
+    "kind": "weapon_melee",
+    "subject": "a purple-crystal blade with a stylised orchid flower worked into the guard"
+  },
+  {
+    "key": "revenants_brooch",
+    "zh": "英灵胸针",
+    "en": "Revenant's Brooch",
+    "kind": "jewelry",
+    "subject": "a green brooch with a small carved ghost face inside its oval frame"
+  },
+  {
+    "key": "heavens_halberd",
+    "zh": "天堂之戟",
+    "en": "Heaven's Halberd",
+    "kind": "weapon_melee",
+    "subject": "a halberd with a broad axe head and a spear point, rows of feather shapes along the socket"
+  },
+  {
+    "key": "desolator",
+    "zh": "黯灭",
+    "en": "Desolator",
+    "kind": "weapon_melee",
+    "subject": "a heavy black blade with a corroded pitted edge and a wrapped two-handed grip"
+  },
+  {
+    "key": "pipe",
+    "zh": "洞察烟斗",
+    "en": "Pipe of Insight",
+    "kind": "consumable",
+    "subject": "a long-stemmed smoking pipe with a deep bowl, a green gem set into the bowl's band"
+  },
+  {
+    "key": "crimson_guard",
+    "zh": "赤红甲",
+    "en": "Crimson Guard",
+    "kind": "shield",
+    "subject": "a round shield lacquered deep red with a domed iron boss and a ring of rivets"
+  },
+  {
+    "key": "wraith_pact",
+    "zh": "怨灵契约",
+    "en": "Wraith Pact",
+    "kind": "banner",
+    "subject": "a dark wooden totem carved with a hooded wraith face and hung with two small charms"
+  },
+  {
+    "key": "lotus_orb",
+    "zh": "清莲宝珠",
+    "en": "Lotus Orb",
+    "kind": "gem",
+    "subject": "a blue crystal orb wrapped in an open ring of lotus petals"
+  },
+  {
+    "key": "eternal_shroud",
+    "zh": "永世法衣",
+    "en": "Eternal Shroud",
+    "kind": "garment",
+    "subject": "a dark hooded shroud whose opening reveals a pale blank face, cloth hanging in heavy folds"
+  },
+  {
+    "key": "bfury",
+    "zh": "狂战斧",
+    "en": "Battle Fury",
+    "kind": "weapon_melee",
+    "subject": "a heavy two-handed broadaxe, a wide crescent steel head pierced by two round cut-outs, a dark wooden haft bound in leather"
+  },
+  {
+    "key": "black_king_bar",
+    "zh": "黑皇杖",
+    "en": "Black King Bar",
+    "kind": "weapon_melee",
+    "subject": "a massive dark iron club with a squared head, a red gem set into its face"
+  },
+  {
+    "key": "ultimate_scepter",
+    "zh": "阿哈利姆神杖",
+    "en": "Aghanim's Scepter",
+    "kind": "staff",
+    "subject": "a golden scepter topped with a blue gem held in a clawed crown mount"
+  },
+  {
+    "key": "sange_and_yasha",
+    "zh": "散夜对剑",
+    "en": "Sange and Yasha",
+    "kind": "weapon_melee",
+    "subject": "a crossed pair of blades, a heavy red cleaver laid over a slim pale blue curved sword"
+  },
+  {
+    "key": "kaya_and_sange",
+    "zh": "慧散对剑",
+    "en": "Kaya and Sange",
+    "kind": "weapon_melee",
+    "subject": "a crossed pair of blades, a slender violet crystal blade laid over a heavy red cleaver"
+  },
+  {
+    "key": "yasha_and_kaya",
+    "zh": "夜慧对剑",
+    "en": "Yasha and Kaya",
+    "kind": "weapon_melee",
+    "subject": "a crossed pair of blades, a slim pale blue curved sword laid over a violet crystal blade"
+  },
+  {
+    "key": "boots_of_bearing",
+    "zh": "气宇之靴",
+    "en": "Boots of Bearing",
+    "kind": "boots",
+    "subject": "a sturdy boot with feathered wings at the heel and a small hand drum hanging beside it"
+  },
+  {
+    "key": "nullifier",
+    "zh": "否决挂饰",
+    "en": "Nullifier",
+    "kind": "gem",
+    "subject": "a dark orb wrapped in a short length of chain, one broken link hanging loose"
+  },
+  {
+    "key": "hurricane_pike",
+    "zh": "飓风长戟",
+    "en": "Hurricane Pike",
+    "kind": "weapon_ranged",
+    "subject": "a long pike whose collar carries two small spiral whirlwind ornaments"
+  },
+  {
+    "key": "guardian_greaves",
+    "zh": "卫士胫甲",
+    "en": "Guardian Greaves",
+    "kind": "boots",
+    "subject": "a heavy plated greave boot with overlapping shin plates and a green gem at the knee"
+  },
+  {
+    "key": "shivas_guard",
+    "zh": "希瓦的守护",
+    "en": "Shiva's Guard",
+    "kind": "armor",
+    "subject": "a blue-lacquered chest plate with a high collar, short ice shards growing from the shoulders"
+  },
+  {
+    "key": "manta",
+    "zh": "幻影斧",
+    "en": "Manta Style",
+    "kind": "weapon_melee",
+    "subject": "a pair of mirrored curved blades side by side, thin shafts and pale blue edges"
+  },
+  {
+    "key": "gungir",
+    "zh": "冈格尼尔",
+    "en": "Gleipnir",
+    "kind": "weapon_ranged",
+    "subject": "a short rod wound with a tight chain, its head cut into a jagged lightning-bolt shape"
+  },
+  {
+    "key": "bloodstone",
+    "zh": "血精石",
+    "en": "Bloodstone",
+    "kind": "gem",
+    "subject": "a deep red gem orb with dark cracks running across its surface and a dull centre"
+  },
+  {
+    "key": "radiance",
+    "zh": "辉耀",
+    "en": "Radiance",
+    "kind": "weapon_melee",
+    "subject": "a curved golden blade with a bright pale core, stylised flame tongues rising along its back edge"
+  },
+  {
+    "key": "harpoon",
+    "zh": "渔叉",
+    "en": "Harpoon",
+    "kind": "weapon_ranged",
+    "subject": "a barbed harpoon head on a short shaft with a coil of rope tied at the butt"
+  },
+  {
+    "key": "sphere",
+    "zh": "林肯法球",
+    "en": "Linken's Sphere",
+    "kind": "gem",
+    "subject": "a blue orb circled by a thin floating ring with a small clasp at its front"
+  },
+  {
+    "key": "crellas_crozier",
+    "zh": "克莱拉牧杖",
+    "en": "Crella's Crozier",
+    "kind": "staff",
+    "subject": "a tall shepherd's crook staff with a curled head and a green gem set in the curl"
+  },
+  {
+    "key": "octarine_core",
+    "zh": "奥术之心",
+    "en": "Octarine Core",
+    "kind": "gem",
+    "subject": "a violet orb with a visible lattice core of crossing bars inside its surface"
+  },
+  {
+    "key": "refresher",
+    "zh": "刷新球",
+    "en": "Refresher Orb",
+    "kind": "gem",
+    "subject": "a pale blue orb wrapped by two crossing metal rings, small studs where the rings meet"
+  },
+  {
+    "key": "monkey_king_bar",
+    "zh": "金箍棒",
+    "en": "Monkey King Bar",
+    "kind": "staff",
+    "subject": "a golden rod with a red gem set at its head and a small monkey face carved below it"
+  },
+  {
+    "key": "satanic",
+    "zh": "撒旦之邪力",
+    "en": "Satanic",
+    "kind": "weapon_melee",
+    "subject": "a heavy dark cleaver with a thick spine and a red gem mounted in the guard"
+  },
+  {
+    "key": "heart",
+    "zh": "恐鳌之心",
+    "en": "Heart of Tarrasque",
+    "kind": "organ",
+    "subject": "a heart-shaped deep red crystal with faceted faces and a pale seam down the middle"
+  },
+  {
+    "key": "greater_crit",
+    "zh": "代达罗斯之殇",
+    "en": "Daedalus",
+    "kind": "weapon_melee",
+    "subject": "a long crystal sword with a red gem set in the pommel and a straight bright-edged blade"
+  },
+  {
+    "key": "assault",
+    "zh": "强袭胸甲",
+    "en": "Assault Cuirass",
+    "kind": "armor",
+    "subject": "a dark chest plate with two wing-shaped shoulder plates and a row of short spikes along the collar"
+  },
+  {
+    "key": "sheepstick",
+    "zh": "邪恶镰刀",
+    "en": "Scythe of Vyse",
+    "kind": "staff",
+    "subject": "a wooden staff topped with a carved sheep's head, its horns curling back around a gem"
+  },
+  {
+    "key": "ethereal_blade",
+    "zh": "虚灵之刃",
+    "en": "Ethereal Blade",
+    "kind": "weapon_melee",
+    "subject": "a translucent violet blade with a pale inner light, a green gem at the guard"
+  },
+  {
+    "key": "butterfly",
+    "zh": "蝴蝶",
+    "en": "Butterfly",
+    "kind": "weapon_melee",
+    "subject": "a pair of wing-shaped blades sweeping apart from a single grip, their edges finely serrated"
+  },
+  {
+    "key": "mjollnir",
+    "zh": "雷神之锤",
+    "en": "Mjollnir",
+    "kind": "weapon_melee",
+    "subject": "a heavy war hammer with angular lightning-bolt shapes springing from both sides of its head"
+  },
+  {
+    "key": "angels_demise",
+    "zh": "坎达",
+    "en": "Khanda",
+    "kind": "weapon_melee",
+    "subject": "a heavy straight sword with a broad rectangular guard and a dark red gem in the pommel"
+  },
+  {
+    "key": "rapier",
+    "zh": "圣剑",
+    "en": "Divine Rapier",
+    "kind": "weapon_melee",
+    "subject": "a long slender rapier with a golden swept hilt and a straight gleaming blade"
+  },
+  {
+    "key": "helm_of_the_overlord",
+    "zh": "统御头盔",
+    "en": "Helm of the Overlord",
+    "kind": "helm",
+    "subject": "a dark horned helm with a tall red crest and a red gem set above the face opening"
+  },
+  {
+    "key": "silver_edge",
+    "zh": "白银之锋",
+    "en": "Silver Edge",
+    "kind": "weapon_melee",
+    "subject": "a pale curved blade trailing wisps of shadow along its spine, a dark gem at the guard"
+  },
+  {
+    "key": "ultimate_scepter_2",
+    "zh": "阿哈利姆福佑",
+    "en": "Aghanim's Blessing",
+    "kind": "book",
+    "subject": "a golden tablet with a blue gem at its centre and a band of small studs around the edge"
+  },
+  {
+    "key": "ultimate_scepter_roshan",
+    "zh": "阿哈利姆福佑（肉山）",
+    "en": "Aghanim's Blessing - Roshan",
+    "kind": "book",
+    "subject": "a golden tablet with a horned beast sigil carved at its centre and a blue gem above it"
+  },
+  {
+    "key": "skadi",
+    "zh": "斯嘉蒂之眼",
+    "en": "Eye of Skadi",
+    "kind": "gem",
+    "subject": "a pale blue-white orb with a narrow vertical pupil, small ice crystals clustered at its base"
+  },
+  {
+    "key": "hydras_breath",
+    "zh": "九头蛇之息",
+    "en": "Hydra's Breath",
+    "kind": "weapon_melee",
+    "subject": "a curved green blade whose guard carries three small serpent heads on slim necks"
+  },
+  {
+    "key": "devastator",
+    "zh": "帕拉斯玛",
+    "en": "Parasma",
+    "kind": "staff",
+    "subject": "a long rod with a purple crystal head and two thin rings floating around it"
+  },
+  {
+    "key": "disperser",
+    "zh": "斥散刃",
+    "en": "Disperser",
+    "kind": "weapon_melee",
+    "subject": "a slim curved blade with a green gem at the guard and a wrapped grip"
+  },
+  {
+    "key": "abyssal_blade",
+    "zh": "深渊之刃",
+    "en": "Abyssal Blade",
+    "kind": "weapon_melee",
+    "subject": "a heavy dark sword with a chipped edge, a red gem in the guard and a short chain hanging from the pommel"
+  },
+  {
+    "key": "trident",
+    "zh": "三叉戟",
+    "en": "Trident",
+    "kind": "weapon_ranged",
+    "subject": "a three-pronged trident with a blue gem set at the collar where the prongs meet"
+  },
+  {
+    "key": "bloodthorn",
+    "zh": "血棘",
+    "en": "Bloodthorn",
+    "kind": "staff",
+    "subject": "a staff wrapped in thorny vine, dark red thorns protruding along its length and a red gem at the tip"
+  },
+  {
+    "key": "wind_waker",
+    "zh": "风灵法杖",
+    "en": "Wind Waker",
+    "kind": "staff",
+    "subject": "a slim staff with a curled spiral ornament at its head and two small feathers tied below"
+  },
+  {
+    "key": "chipped_vest",
+    "zh": "碎裂背心",
+    "en": "Chipped Vest",
+    "kind": "armor",
+    "subject": "a ragged leather vest with three chipped iron plates stitched across the chest"
+  },
+  {
+    "key": "possessed_mask",
+    "zh": "附魂面具",
+    "en": "Possessed Mask",
+    "kind": "garment",
+    "subject": "a plain wooden mask with a second smaller face carved inside its mouth"
+  },
+  {
+    "key": "occult_bracelet",
+    "zh": "秘仪手环",
+    "en": "Occult Bracelet",
+    "kind": "jewelry",
+    "subject": "a bracelet of small carved bone links with a single dark gem at its clasp"
+  },
+  {
+    "key": "dagger_of_ristul",
+    "zh": "瑞斯图尔尖匕",
+    "en": "Dagger of Ristul",
+    "kind": "weapon_melee",
+    "subject": "a slim dagger with a hooked notched blade and a short bound grip"
+  },
+  {
+    "key": "duelist_gloves",
+    "zh": "决斗者手套",
+    "en": "Duelist Gloves",
+    "kind": "garment",
+    "subject": "a single fencing glove with a wide frilled cuff and a stitched back panel"
+  },
+  {
+    "key": "polliwog_charm",
+    "zh": "蝌蚪护符",
+    "en": "Pollywog Charm",
+    "kind": "jewelry",
+    "subject": "a small charm of glass holding a curled tadpole, hung on a woven cord"
+  },
+  {
+    "key": "kobold_cup",
+    "zh": "狗头人酒杯",
+    "en": "Kobold Cup",
+    "kind": "consumable",
+    "subject": "a squat clay cup with a chipped rim, a single coin resting at the bottom"
+  },
+  {
+    "key": "dormant_curio",
+    "zh": "沉睡奇物",
+    "en": "Dormant Curio",
+    "kind": "misc",
+    "subject": "a small closed wooden box with an iron keyhole and a carved lid"
+  },
+  {
+    "key": "weighted_dice",
+    "zh": "加重骰子",
+    "en": "Weighted Dice",
+    "kind": "misc",
+    "subject": "a pair of square bone dice, one tipped up to show a heavy iron core inside"
+  },
+  {
+    "key": "ash_legion_shield",
+    "zh": "余烬军团战盾",
+    "en": "Ash Legion Shield",
+    "kind": "shield",
+    "subject": "a round dark iron shield with a legion emblem stamped in the centre and ash grey paint flaking at the rim"
+  },
+  {
+    "key": "stonefeather_satchel",
+    "zh": "石羽小包",
+    "en": "Stonefeather Satchel",
+    "kind": "garment",
+    "subject": "a small leather satchel with three grey stone feather charms hanging from its flap"
+  },
+  {
+    "key": "foragers_kit",
+    "zh": "采菌套具",
+    "en": "Forager's Kit",
+    "kind": "consumable",
+    "subject": "a woven basket holding three mushrooms, a small knife tucked through the handle"
+  },
+  {
+    "key": "poor_mans_shield",
+    "zh": "穷鬼盾",
+    "en": "Poor Man's Shield",
+    "kind": "shield",
+    "subject": "a crude round shield of rough planks with two nailed iron bands across the face"
+  },
+  {
+    "key": "medallion_of_courage",
+    "zh": "勇气勋章",
+    "en": "Medallion of Courage",
+    "kind": "jewelry",
+    "subject": "a round bronze medallion with a carved rampant beast on its face and a ring at the top"
+  },
+  {
+    "key": "essence_ring",
+    "zh": "精华指环",
+    "en": "Essence Ring",
+    "kind": "jewelry",
+    "subject": "a thin metal ring enclosing a small green essence bead held in a wire cage"
+  },
+  {
+    "key": "pogo_stick",
+    "zh": "翻腾玩具",
+    "en": "Tumbler's Toy",
+    "kind": "misc",
+    "subject": "a small wooden roly-poly toy with a rounded weighted base and a painted grinning face"
+  },
+  {
+    "key": "seeds_of_serenity",
+    "zh": "宁静种籽",
+    "en": "Seeds of Serenity",
+    "kind": "plant",
+    "subject": "a split seed pod holding three round seeds, one small green sprout uncurling beside it"
+  },
+  {
+    "key": "defiant_shell",
+    "zh": "不屈护壳",
+    "en": "Defiant Shell",
+    "kind": "armor",
+    "subject": "a curved segment of thick shell armour with two rows of studs along its edge"
+  },
+  {
+    "key": "mana_draught",
+    "zh": "法力之饮",
+    "en": "Mana Draught",
+    "kind": "consumable",
+    "subject": "a small round bottle of bright blue draught with a wax-sealed cork"
+  },
+  {
+    "key": "crippling_crossbow",
+    "zh": "致残之弩",
+    "en": "Crippling Crossbow",
+    "kind": "weapon_ranged",
+    "subject": "a small hand crossbow with a loaded barbed bolt and a cranked winding handle"
+  },
+  {
+    "key": "searing_signet",
+    "zh": "炽热纹章",
+    "en": "Searing Signet",
+    "kind": "jewelry",
+    "subject": "a heavy signet ring whose red gem is cut with three stylised flame points"
+  },
+  {
+    "key": "cloak_of_flames",
+    "zh": "火焰斗篷",
+    "en": "Cloak of Flames",
+    "kind": "garment",
+    "subject": "a dark cloak whose hem is cut into a row of rising flame shapes"
+  },
+  {
+    "key": "psychic_headband",
+    "zh": "通灵头带",
+    "en": "Psychic Headband",
+    "kind": "garment",
+    "subject": "a narrow cloth headband with a small gem fixed where a third eye would sit"
+  },
+  {
+    "key": "stormcrafter",
+    "zh": "风暴宝器",
+    "en": "Stormcrafter",
+    "kind": "consumable",
+    "subject": "a round glass flask containing a small angular lightning bolt above dark clouds"
+  },
+  {
+    "key": "unrelenting_eye",
+    "zh": "不倦之眼",
+    "en": "Unrelenting Eye",
+    "kind": "jewelry",
+    "subject": "an eye-shaped amulet with a dark pupil, hung on a short chain"
+  },
+  {
+    "key": "gunpowder_gauntlets",
+    "zh": "火药手套",
+    "en": "Gunpowder Gauntlet",
+    "kind": "garment",
+    "subject": "a heavy leather gauntlet with two powder charges strapped on the back and a short fuse"
+  },
+  {
+    "key": "serrated_shiv",
+    "zh": "锯齿短刀",
+    "en": "Serrated Shiv",
+    "kind": "weapon_melee",
+    "subject": "a small knife with a deeply serrated edge and a stubby wrapped handle"
+  },
+  {
+    "key": "jidi_pollen_bag",
+    "zh": "基迪花粉袋",
+    "en": "Jidi Pollen Bag",
+    "kind": "consumable",
+    "subject": "a small cloth bag of pollen, a puff of pale dust escaping from its open neck"
+  },
+  {
+    "key": "spellslinger",
+    "zh": "咏咒之坠",
+    "en": "Spellslinger",
+    "kind": "jewelry",
+    "subject": "a small pendant in the shape of a rolled scroll with a rune stamped on its face"
+  },
+  {
+    "key": "partisans_brand",
+    "zh": "天游烙印",
+    "en": "Partisan's Brand",
+    "kind": "banner",
+    "subject": "a small rectangular banner plate bearing a forked pennant emblem, hung on a short pole"
+  },
+  {
+    "key": "dandelion_amulet",
+    "zh": "蒲公英护符",
+    "en": "Dandelion Amulet",
+    "kind": "jewelry",
+    "subject": "a round amulet holding a dandelion seed head, a few seeds floating free beside it"
+  },
+  {
+    "key": "rattlecage",
+    "zh": "回响之笼",
+    "en": "Rattlecage",
+    "kind": "misc",
+    "subject": "a small iron cage with a domed top, loose chain links rattling inside it"
+  },
+  {
+    "key": "giant_maul",
+    "zh": "巨人重锤",
+    "en": "Giant's Maul",
+    "kind": "weapon_melee",
+    "subject": "a huge two-handed maul with a rough stone head bound by two iron bands"
+  },
+  {
+    "key": "metamorphic_mandible",
+    "zh": "变态上颚",
+    "en": "Metamorphic Mandible",
+    "kind": "organ",
+    "subject": "a pair of insect mandibles joined at a hinge, dark chitin with serrated inner edges"
+  },
+  {
+    "key": "idol_of_screeauk",
+    "zh": "斯凯奥克神像",
+    "en": "Idol of Scree'auk",
+    "kind": "misc",
+    "subject": "a small carved stone idol of a bird with an open beak, standing on a stepped base"
+  },
+  {
+    "key": "flayers_bota",
+    "zh": "剥皮者之靴",
+    "en": "Flayer's Bota",
+    "kind": "boots",
+    "subject": "a soft hide boot with two curved claws stitched at the toe"
+  },
+  {
+    "key": "prophets_pendulum",
+    "zh": "先知灵摆",
+    "en": "Prophet's Pendulum",
+    "kind": "jewelry",
+    "subject": "a pointed crystal pendulum hanging from a short chain with a bead at the top"
+  },
+  {
+    "key": "enchanters_bauble",
+    "zh": "附魔师之椟",
+    "en": "Enchanter's Bauble",
+    "kind": "jewelry",
+    "subject": "a small ornate casket-like bauble with three tiny gems set into its lid"
+  },
+  {
+    "key": "conjurers_catalyst",
+    "zh": "咒术师触媒",
+    "en": "Conjurer's Catalyst",
+    "kind": "gem",
+    "subject": "a faceted crystal catalyst held in a wire ring mount with two small hooks"
+  },
+  {
+    "key": "desolator_2",
+    "zh": "冥河黯灭",
+    "en": "Stygian Desolator",
+    "kind": "weapon_melee",
+    "subject": "a heavy violet-black blade with a corroded edge and a dark gem in the guard"
+  },
+  {
+    "key": "spider_legs",
+    "zh": "网虫腿",
+    "en": "Spider Legs",
+    "kind": "creature",
+    "subject": "a harness of four jointed insect legs with hooked tips, strapped to a small back plate"
+  },
+  {
+    "key": "demonicon",
+    "zh": "冥灵书",
+    "en": "Book of the Dead",
+    "kind": "book",
+    "subject": "a dark bound book with a skull embossed on its cover and a bone clasp"
+  },
+  {
+    "key": "fallen_sky",
+    "zh": "天崩",
+    "en": "Fallen Sky",
+    "kind": "gem",
+    "subject": "a cracked stone sphere with a pale seam running around it and three small fragments floating loose beside it"
+  },
+  {
+    "key": "minotaur_horn",
+    "zh": "牛头人之角",
+    "en": "Minotaur Horn",
+    "kind": "organ",
+    "subject": "a thick curved horn banded with iron at its base and tapering to a dark tip"
+  },
+  {
+    "key": "heavy_blade",
+    "zh": "巫毒之刃",
+    "en": "Witchbane",
+    "kind": "weapon_melee",
+    "subject": "a broad curved blade with a carved bone grip and a small charm tied to the guard"
+  },
+  {
+    "key": "dezun_bloodrite",
+    "zh": "德尊血仪",
+    "en": "Dezun Bloodrite",
+    "kind": "misc",
+    "subject": "a shallow ritual bowl with red sigils cut around its rim and a short blade resting across it"
+  },
+  {
+    "key": "divine_regalia",
+    "zh": "神圣圣衣",
+    "en": "Divine Regalia",
+    "kind": "armor",
+    "subject": "an ornate golden chest piece with layered shoulder plates and a row of small gems down the front"
+  },
+  {
+    "key": "riftshadow_prism",
+    "zh": "影墟棱晶",
+    "en": "Riftshadow Prism",
+    "kind": "gem",
+    "subject": "a tall triangular prism of dark crystal with a bright slit running down its centre"
+  },
+  {
+    "key": "harmonizer",
+    "zh": "协和",
+    "en": "Harmonizer",
+    "kind": "misc",
+    "subject": "a small metal tuning fork with two prongs and a ring of fine notches around its handle"
+  },
+  {
+    "key": "aegis",
+    "zh": "不朽之守护",
+    "en": "Aegis of the Immortal",
+    "kind": "jewelry",
+    "subject": "a round golden medallion with a carved horned face at its centre and a studded rim"
+  },
+  {
+    "key": "tome_of_aghanim",
+    "zh": "阿哈利姆之书",
+    "en": "Tome of Aghanim",
+    "kind": "book",
+    "subject": "a thick blue-bound tome with a gem set in its cover and two metal corner pieces"
+  },
+  {
+    "key": "fusion_rune",
+    "zh": "融合符文",
+    "en": "Fusion Rune",
+    "kind": "rune_glyph",
+    "subject": "a flat rune stone carved with two interlocking rings cut through its face"
+  },
+  {
+    "key": "tier1_token",
+    "zh": "中立装备代币 I",
+    "en": "Tier 1 Token",
+    "kind": "misc",
+    "subject": "a plain bronze token coin with a single notch cut into its rim"
+  },
+  {
+    "key": "tier2_token",
+    "zh": "中立装备代币 II",
+    "en": "Tier 2 Token",
+    "kind": "misc",
+    "subject": "a silver token coin with two notches on its rim and a stamped centre mark"
+  },
+  {
+    "key": "tier3_token",
+    "zh": "中立装备代币 III",
+    "en": "Tier 3 Token",
+    "kind": "misc",
+    "subject": "a golden token coin with three notches on its rim and a small gem at its centre"
+  },
+  {
+    "key": "tier4_token",
+    "zh": "中立装备代币 IV",
+    "en": "Tier 4 Token",
+    "kind": "misc",
+    "subject": "a heavy pale-metal token coin with four notches and a raised four-point star on its face"
+  },
+  {
+    "key": "tier5_token",
+    "zh": "中立装备代币 V",
+    "en": "Tier 5 Token",
+    "kind": "misc",
+    "subject": "a dark ornate token coin with five notches and a red gem set into a crown-shaped centre"
+  },
+  {
+    "key": "enhancement_vast",
+    "zh": "高远",
+    "en": "Vast",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of one upward arrow splitting a long horizontal line, two wide arcs opening at the sides"
+  },
+  {
+    "key": "enhancement_quickened",
+    "zh": "迅速",
+    "en": "Quickened",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of two nested chevrons pointing right and a short trailing bar behind them"
+  },
+  {
+    "key": "enhancement_audacious",
+    "zh": "冒险",
+    "en": "Audacious",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a bold triangle with a diagonal stroke rising out of its apex"
+  },
+  {
+    "key": "enhancement_mystical",
+    "zh": "神秘",
+    "en": "Mystical",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of an open circle with a crescent set inside it and a dot at the centre"
+  },
+  {
+    "key": "enhancement_alert",
+    "zh": "警觉",
+    "en": "Alert",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a wide almond eye shape with a single dot as its pupil"
+  },
+  {
+    "key": "enhancement_brawny",
+    "zh": "壮实",
+    "en": "Brawny",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a thick square block with two heavy bars stacked beneath it"
+  },
+  {
+    "key": "enhancement_tough",
+    "zh": "坚强",
+    "en": "Tough",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a blocky hexagonal shield outline with a vertical bar down its middle"
+  },
+  {
+    "key": "enhancement_feverish",
+    "zh": "狂热",
+    "en": "Feverish",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of three rising wavy strokes of increasing height above a short base line"
+  },
+  {
+    "key": "enhancement_fleetfooted",
+    "zh": "捷足",
+    "en": "Fleetfooted",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a slim arrow with two short speed ticks trailing behind it"
+  },
+  {
+    "key": "enhancement_crude",
+    "zh": "粗暴",
+    "en": "Crude",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a jagged angular wedge with a rough chipped edge"
+  },
+  {
+    "key": "enhancement_boundless",
+    "zh": "无边",
+    "en": "Boundless",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a wide ring left open by a gap at the top right"
+  },
+  {
+    "key": "enhancement_wise",
+    "zh": "睿智",
+    "en": "Wise",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of two stacked triangles above a dot, forming a small tower"
+  },
+  {
+    "key": "enhancement_timeless",
+    "zh": "永恒",
+    "en": "Timeless",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of two triangles meeting at a point like an hourglass inside a ring"
+  },
+  {
+    "key": "enhancement_greedy",
+    "zh": "贪婪",
+    "en": "Greedy",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a thick ring closing on a small square held inside it"
+  },
+  {
+    "key": "enhancement_vampiric",
+    "zh": "吸血鬼",
+    "en": "Vampiric",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a droplet shape with two short fangs cut into its lower edge"
+  },
+  {
+    "key": "enhancement_keen_eyed",
+    "zh": "犀利",
+    "en": "Keen-eyed",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a crosshair of four short bars around a narrow slit pupil"
+  },
+  {
+    "key": "enhancement_evolved",
+    "zh": "进化",
+    "en": "Evolved",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a spiral opening outward from a solid dot at its centre"
+  },
+  {
+    "key": "enhancement_titanic",
+    "zh": "巨神",
+    "en": "Titanic",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a heavy trapezoid block with a thick bar across its middle"
+  },
+  {
+    "key": "enhancement_fierce",
+    "zh": "凶猛",
+    "en": "Fierce",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of three parallel claw slashes curving down to the left"
+  },
+  {
+    "key": "enhancement_dominant",
+    "zh": "主导",
+    "en": "Dominant",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a bold chevron pointing up above a heavy horizontal bar"
+  },
+  {
+    "key": "enhancement_restorative",
+    "zh": "恢复",
+    "en": "Restorative",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a thick plus sign set inside an open ring"
+  },
+  {
+    "key": "enhancement_thick",
+    "zh": "厚实",
+    "en": "Thick",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of two heavy stacked bars with a short upright between them"
+  },
+  {
+    "key": "enhancement_curious",
+    "zh": "释放",
+    "en": "Unleashed",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a ring burst open with three short strokes flying away from the break"
+  },
+  {
+    "key": "enhancement_vital",
+    "zh": "活力",
+    "en": "Vital",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a diamond heart shape crossed by a single pulse line"
+  },
+  {
+    "key": "enhancement_hulking",
+    "zh": "笨重",
+    "en": "Hulking",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a broad blocky silhouette with two heavy shoulder squares"
+  },
+  {
+    "key": "enhancement_manic",
+    "zh": "癫狂",
+    "en": "Manic",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of a zigzag lightning stroke coiled into a loose spiral"
+  },
+  {
+    "key": "enhancement_nimble",
+    "zh": "轻快",
+    "en": "Nimble",
+    "kind": "rune_glyph",
+    "subject": "an abstract emblem of two slim chevrons set at an angle with a fine dot between them"
+  },
+  {
+    "key": "thorn_mail",
+    "zh": "荆棘护甲",
+    "en": "Thorn Mail",
+    "kind": "armor",
+    "subject": "a dark chest plate with rows of short curved thorns growing outward from its surface"
+  },
+  {
+    "key": "vampire_fang",
+    "zh": "吸血獠牙",
+    "en": "Vampire Fang",
+    "kind": "organ",
+    "subject": "a pair of long curved fangs crossed over each other, a deep red seam running down one"
+  },
+  {
+    "key": "flame_sword",
+    "zh": "烈焰之剑",
+    "en": "Flame Sword",
+    "kind": "weapon_melee",
+    "subject": "a broad straight sword with angular flame tongues rising along both edges of the blade"
+  },
+  {
+    "key": "giant_heart",
+    "zh": "巨人之心",
+    "en": "Giant's Heart",
+    "kind": "organ",
+    "subject": "a large stone-grey heart shaped crystal with thick blocky facets and a pale vertical seam"
+  },
+  {
+    "key": "palm_mercy",
+    "zh": "掌中怜悯",
+    "en": "Mercy in Palm",
+    "kind": "misc",
+    "subject": "an open hand held palm upward with a small bright ember resting in the middle of it"
+  },
+  {
+    "key": "gloves_of_haste",
+    "zh": "敏捷手套",
+    "en": "Gloves of Haste",
+    "kind": "garment",
+    "subject": "a pair of slim pale leather gloves with feather-shaped stitching along the knuckles"
+  },
+  {
+    "key": "trusty_shovel",
+    "zh": "可靠铁锹",
+    "en": "Trusty Shovel",
+    "kind": "tool",
+    "subject": "a sturdy shovel with a broad iron blade and a straight wooden handle gripped by two hands' worth of wrap"
+  },
+  {
+    "key": "oak_heart",
+    "zh": "橡木之心",
+    "en": "Oak Heart",
+    "kind": "plant",
+    "subject": "a heart-shaped pendant carved from oak with rough bark edges and a small acorn hanging from it"
+  },
+  {
+    "key": "enchanted_quiver",
+    "zh": "附魔箭袋",
+    "en": "Enchanted Quiver",
+    "kind": "weapon_ranged",
+    "subject": "a leather quiver holding three arrows, their feathered fletching showing above the rim and a rune burned into the strap"
+  },
+  {
+    "key": "philosophers_stone",
+    "zh": "贤者之石",
+    "en": "Philosopher's Stone",
+    "kind": "gem",
+    "subject": "a deep crimson stone cut into a rounded lump, held in a banded brass ring mount"
+  },
+  {
+    "key": "imp_claw",
+    "zh": "恶魔之爪",
+    "en": "Imp Claw",
+    "kind": "organ",
+    "subject": "a curved horned claw with three hooked talons and a small red gem set at its base"
+  },
+  {
+    "key": "titan_slab",
+    "zh": "泰坦石板",
+    "en": "Titan Slab",
+    "kind": "misc",
+    "subject": "a thick rectangular stone slab covered in carved parallel grooves, one corner broken away"
+  },
+  {
+    "key": "pirate_hat",
+    "zh": "海盗帽",
+    "en": "Pirate Hat",
+    "kind": "garment",
+    "subject": "a dark tricorn hat with a turned-up brim and a small skull emblem pinned to its band"
+  },
+  {
+    "key": "apex",
+    "zh": "巅峰之器",
+    "en": "Apex",
+    "kind": "jewelry",
+    "subject": "an ornate pointed relic with three ascending blades fanning upward from a red gem at its base"
+  }
+]

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>集合防御 · 打击反馈音效试听（B4）</title>
+<style>
+    :root {
+        --paper: #EBF4FB;
+        --card: #F7FBFE;
+        --ink: #14181B;
+        --ink-soft: #445054;
+        --ink-faint: #6A696B;
+        --teal: #67999A;
+        --teal-soft: #CADDE3;
+        --danger: #C0392B;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        padding: 28px 32px 60px;
+        background: var(--paper);
+        color: var(--ink);
+        font: 13px/1.7 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: .5px; }
+    h2 { font-size: 14px; font-weight: 600; margin: 26px 0 8px; }
+    .sub { color: var(--ink-soft); margin: 0 0 18px; }
+    .note {
+        border: 1px solid var(--teal-soft); border-left: 3px solid var(--teal);
+        background: var(--card); padding: 10px 14px; margin: 14px 0 0; color: var(--ink-soft);
+    }
+    .note b { color: var(--ink); }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border-bottom: 1px solid var(--teal-soft); padding: 6px 8px; text-align: left; vertical-align: middle; }
+    th { color: var(--ink-faint); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--teal); }
+    td.k { font-family: Consolas, monospace; color: var(--ink-soft); }
+    td.t { color: var(--ink-soft); }
+    /* 缺文件 = 真问题（红）；配置里本来就是空串 = 故意的静音（灰）—— 两者必须长得不一样 */
+    tr.missing td { color: var(--danger); }
+    tr.silent td { color: var(--ink-faint); }
+    button {
+        font: inherit; color: var(--ink); background: var(--card);
+        border: 1px solid var(--teal); border-radius: 2px; padding: 3px 10px; cursor: pointer;
+    }
+    button:hover { background: #E3EFF6; }
+    button.small { padding: 1px 7px; font-size: 12px; }
+    button.on { background: var(--teal); color: #fff; }
+    input[type=range] { width: 130px; vertical-align: middle; }
+    .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 10px 0; }
+    .mono { font-family: Consolas, monospace; }
+    .stat { color: var(--ink-soft); }
+    .stat b { color: var(--ink); font-weight: 600; }
+    .warn { color: var(--danger); }
+    .hint { color: var(--ink-faint); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>集合防御 · 打击反馈音效试听（B4）</h1>
+<p class="sub">
+    11 个音 + 5 个音高变体，全部由 <span class="mono">tools/hit-feel-sfx/</span> 离线合成（自研生成器，无第三方素材）。
+    音色方向见 <span class="mono">docs/打击反馈设计.md</span> §12.2：干、短、近场，无混响尾巴、无低频轰鸣。
+</p>
+
+<div class="note">
+    <b>本页只负责"听"，不负责"对不对"。</b>
+    数值的权威是 <span class="mono">assets/scripts/game/common/HitFeelConfig.ts</span>；
+    节流账本是否真的成立，权威是 <span class="mono">npm run audit:hitfeel</span>（第 ⑰ 组）；
+    素材是否与配置一一对应，权威是 <span class="mono">node check-drift.mjs</span>。
+    下面那张表里的数字是从真源生成后写进本页的（DRIFT 段），改配置后跑一次 <span class="mono">node check-drift.mjs --write</span> 同步。
+</div>
+
+<div class="row">
+    <span>总音量</span>
+    <input id="master" type="range" min="0" max="100" value="70">
+    <span class="mono" id="masterV">70%</span>
+    <button id="playAll">全部顺序试听（每个隔 700ms）</button>
+    <button id="stopAll">停</button>
+    <span class="hint">若整页都没声音：浏览器要"用户点过页面"才允许播放音频（本页已按此设计，点任意按钮即可）。</span>
+</div>
+
+<h2>按档位试听（T0 → T7）</h2>
+<div id="tierInfo" class="hint"></div>
+<table id="tierTableRows">
+    <thead>
+        <tr><th style="width:230px">档位 / 场景</th><th style="width:150px">键名</th><th style="width:150px">音量（相对）</th><th style="width:200px">变体</th><th>试听</th></tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<h2>非档位音（出手 / 闪避 / 全局点击）</h2>
+<table id="extraRows">
+    <thead>
+        <tr><th style="width:230px">用途</th><th style="width:150px">键名</th><th style="width:150px">音量（相对）</th><th style="width:200px">变体</th><th>试听</th></tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<h2>节奏场景（听"合并与节流"到底成不成立）</h2>
+<div class="row">
+    <button id="wave">波次节奏：每 333ms 一批 6 只（同帧合并成 1 声）</button>
+    <button id="overload">过载：每帧都命中（听节流怎么吞）</button>
+    <span class="hint">两个场景都按真源的节流口径走：<span class="mono" id="budgetTxt"></span></span>
+</div>
+<div class="row stat">
+    响 <b id="played">0</b> 声 · 丢 <b id="dropped">0</b> 声 · 最近 <span class="mono" id="winMs"></span>ms 内 <b id="inWin">0</b> 声
+    <button id="reset" class="small">清零</button>
+</div>
+<div class="row hint">
+    场景说明：波次节奏 = 英雄每 833ms 出手一次（<span class="mono">attack_shot</span>）+ 每批 6 只怪各挨一下（<b>同帧合并成 1 声</b>）+ 每 4 批一次击杀音 + 每 12 批一次大击杀；
+    过载 = 每帧一发命中。<b>听不出"糊"就说明节流是有效的</b>。
+</div>
+
+<div id="jsErr" class="note warn" style="display:none"></div>
+
+<!-- DRIFT:BEGIN —— 这一段由 `node check-drift.mjs --write` 从 HitFeelConfig.ts 生成，别手改 -->
+    <script id="tierTable" type="application/json">
+    {
+        "source": "assets/scripts/game/common/HitFeelConfig.ts",
+        "note": "本段由 tools/hit-feel-sfx/check-drift.mjs 从真源生成，别手改；改配置后跑 `node check-drift.mjs --write`",
+        "tiers": [
+            {
+                "tier": "None",
+                "sfx": "",
+                "volume": 0,
+                "variants": 1
+            },
+            {
+                "tier": "Micro",
+                "sfx": "hit_light",
+                "volume": 0.35,
+                "variants": 3
+            },
+            {
+                "tier": "Crit",
+                "sfx": "hit_crit",
+                "volume": 0.7,
+                "variants": 2
+            },
+            {
+                "tier": "Kill",
+                "sfx": "kill_normal",
+                "volume": 0.65,
+                "variants": 3
+            },
+            {
+                "tier": "Elite",
+                "sfx": "hit_heavy",
+                "volume": 0.6,
+                "variants": 1
+            },
+            {
+                "tier": "BossHit",
+                "sfx": "hit_boss",
+                "volume": 0.65,
+                "variants": 1
+            },
+            {
+                "tier": "BigKill",
+                "sfx": "kill_big",
+                "volume": 0.85,
+                "variants": 1
+            },
+            {
+                "tier": "HeroHurt",
+                "sfx": "hero_hurt",
+                "volume": 0.9,
+                "variants": 1
+            },
+            {
+                "tier": "Clear",
+                "sfx": "clear",
+                "volume": 1,
+                "variants": 1
+            }
+        ],
+        "extra": {
+            "attackShot": {
+                "key": "attack_shot",
+                "volume": 0.3,
+                "variants": 1
+            },
+            "evade": {
+                "key": "evade",
+                "volume": 0.4,
+                "variants": 1
+            }
+        },
+        "budget": {
+            "sfxWindowMs": 50,
+            "sfxMaxPerWindow": 2
+        },
+        "variantSuffixes": [
+            "",
+            "_v2",
+            "_v3"
+        ]
+    }
+    </script><!-- DRIFT:END -->
+
+<script>
+'use strict';
+
+/**
+ * 页面自己的错误兜底：这是个"给人听"的工具页，出了异常如果只烂在 console 里，
+ * 使用者只会以为"没声音"，然后把问题报到别处去 —— 所以直接把第一条错误挂在页面上。
+ * （也方便自动化验证：页面只要有异常就会多出一个可见节点。）
+ */
+window.addEventListener('error', (e) => {
+    const box = document.getElementById('jsErr');
+    box.style.display = '';
+    box.textContent = '页面 JS 出错：' + (e.message || e.error || '未知') + '　（先看 console 的堆栈）';
+});
+
+/* ====================== 真源快照（DRIFT 段，别手改） ====================== */
+const CFG = JSON.parse(document.getElementById('tierTable').textContent);
+const SUFFIXES = CFG.variantSuffixes || [''];
+const WIN = CFG.budget.sfxWindowMs;
+const MAXN = CFG.budget.sfxMaxPerWindow;
+const DIR = '../../assets/resources/sfx/';
+
+/** 档位的中文标签（纯展示文案，不是数值，所以不参与对账） */
+const TIER_LABEL = {
+    None: '（不发声 · 英雄死亡交给结算面板）',
+    Micro: 'T0 微 · 普攻未击杀 / DoT',
+    Crit: 'T1 重 · 暴击命中',
+    Kill: 'T2 击杀 · 普通怪死亡',
+    Elite: 'T3 精英 / 技能命中',
+    BossHit: 'T4 Boss 命中',
+    BigKill: 'T5 大击杀 · 精英 / Boss 死亡',
+    HeroHurt: 'T6 我被打 · 英雄受击',
+    Clear: 'T7 通关 · 最终 Boss 死亡',
+};
+const EXTRA_LABEL = { attackShot: '出手（起手虚线的声音）', evade: '闪避（打空了）' };
+const CLICK_LABEL = '全局点击（AudioMgr.defaultTouchStart）';
+
+/* ====================== 播放 ====================== */
+const master = () => Number(document.getElementById('master').value) / 100;
+const cache = new Map();
+const missing = new Set();
+
+function clip(key) {
+    if (!cache.has(key)) {
+        const a = new Audio(DIR + key + '.wav');
+        a.preload = 'auto';
+        a.addEventListener('error', () => { missing.add(key); paintMissing(); });
+        cache.set(key, a);
+    }
+    return cache.get(key);
+}
+
+/** 播一声（**cloneNode**：同一个音要能重叠播，"每帧都命中"那个场景就会撞上） */
+function play(key, volume) {
+    const a = clip(key).cloneNode();
+    a.volume = Math.max(0, Math.min(1, master() * volume));
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { /* 浏览器自动播放策略：点过页面之后就不会再走到这里 */ });
+}
+
+/** 音高变体：引擎没有变调 API，所以是"预渲染几份、随机挑一份"（与 HitFeelDirector 同口径） */
+function pickVariant(base, variants) {
+    if (!base || variants <= 1) return base;
+    return base + (SUFFIXES[Math.floor(Math.random() * variants)] || '');
+}
+
+/* ====================== 节流账本（**页内复制**，权威在 HitFeelDirector.requestSfx） ====================== */
+const ledger = { stamps: [], played: 0, dropped: 0, windowMs: WIN, max: MAXN };
+
+function request(base, volume, variants) {
+    if (!base) return false;
+    const now = performance.now();
+    while (ledger.stamps.length && now - ledger.stamps[0] >= ledger.windowMs) ledger.stamps.shift();
+    if (ledger.stamps.length >= ledger.max) { ledger.dropped++; paintCounters(); return false; }
+    ledger.stamps.push(now);
+    ledger.played++;
+    play(pickVariant(base, variants), volume);
+    paintCounters();
+    return true;
+}
+
+/* ====================== 画表格 ====================== */
+const tierByKey = {};   // 键名 → 该档的配置（场景按钮要用）
+for (const t of CFG.tiers) { if (t.sfx) tierByKey[t.sfx] = t; }
+
+function rowFor(label, sfx, volume, variants, note) {
+    const tr = document.createElement('tr');
+    // 「配置里就是空串」（故意的静音，如 None 档）与「文件缺失」（真问题）必须长得不一样，
+    // 后者由 clip() 的 error 回调打上 missing —— 页面上第一次真的播它才会知道
+    if (!sfx) tr.className = 'silent';
+    if (sfx) tr.dataset.key = sfx;
+    const td1 = document.createElement('td');
+    td1.className = 't';
+    td1.textContent = label + (note ? '　' + note : '');
+    const td2 = document.createElement('td');
+    td2.className = 'k';
+    td2.textContent = sfx || '（空 = 不发声）';
+    const td3 = document.createElement('td');
+    const range = document.createElement('input');
+    range.type = 'range'; range.min = '0'; range.max = '100'; range.value = String(Math.round(volume * 100));
+    const val = document.createElement('span');
+    val.className = 'mono';
+    val.textContent = ' ' + volume.toFixed(2);
+    range.addEventListener('input', () => { val.textContent = ' ' + (Number(range.value) / 100).toFixed(2); });
+    td3.appendChild(range); td3.appendChild(val);
+    const td4 = document.createElement('td');
+    if (variants > 1) {
+        for (let i = 0; i < variants; i++) {
+            const suffix = i === 0 ? '' : (SUFFIXES[i] || '');
+            const b = document.createElement('button');
+            b.className = 'small';
+            b.textContent = suffix || '本体';
+            b.title = sfx + suffix + '.wav';
+            b.addEventListener('click', () => play(sfx + suffix, Number(range.value) / 100));
+            td4.appendChild(b);
+            td4.appendChild(document.createTextNode(' '));
+        }
+    } else {
+        td4.className = 'hint';
+        td4.textContent = '无（1 份）';
+    }
+    const td5 = document.createElement('td');
+    const b = document.createElement('button');
+    b.textContent = '▶ 试听';
+    b.addEventListener('click', () => play(pickVariant(sfx, variants), Number(range.value) / 100));
+    td5.appendChild(b);
+    if (!sfx) { b.disabled = true; td5.appendChild(document.createTextNode(' ')); }
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5);
+    return tr;
+}
+
+(function build() {
+    const tb = document.querySelector('#tierTableRows tbody');
+    // 发声的档位按 T0 → T7 排在前，静音档（None）压到最后一行：
+    // DRIFT 段里仍按源码顺序存（真源怎么排就怎么存），这里只调**显示**顺序
+    const voiced = CFG.tiers.filter((t) => t.sfx);
+    const silent = CFG.tiers.filter((t) => !t.sfx);
+    for (const t of voiced.concat(silent)) {
+        tb.appendChild(rowFor(TIER_LABEL[t.tier] || t.tier, t.sfx, t.volume, t.variants, ''));
+    }
+    const eb = document.querySelector('#extraRows tbody');
+    for (const k of Object.keys(CFG.extra)) {
+        const e = CFG.extra[k];
+        eb.appendChild(rowFor(EXTRA_LABEL[k] || k, e.key, e.volume, e.variants, ''));
+    }
+    eb.appendChild(rowFor(CLICK_LABEL, 'click', 0.5, 1, '（音量写在平台层，见 AudioMgr）'));
+    document.getElementById('budgetTxt').textContent =
+        `每 ${WIN}ms 最多 ${MAXN} 声（超限丢弃并计数，不排队不补偿）`;
+    document.getElementById('winMs').textContent = String(WIN);
+    document.getElementById('tierInfo').textContent =
+        `${CFG.tiers.filter((t) => t.sfx).length} 档发声 · ${Object.keys(CFG.extra).length + 1} 个非档位音 · 真源 = ${CFG.source}`;
+})();
+
+function paintMissing() {
+    const list = [...missing];
+    // 行上打标记（哪一条缺，一眼看到）；横幅只建一次
+    for (const k of list) {
+        const tr = document.querySelector('tr[data-key="' + k + '"]');
+        if (tr) tr.classList.add('missing');
+    }
+    const warn = document.getElementById('missWarn');
+    const html = '<b>⚠ 有音效文件没找到</b>（路径 <span class="mono">' + DIR + '</span>）：'
+        + list.map((k) => '<span class="mono">' + k + '</span>').join('、')
+        + '　→ 跑 <span class="mono">node render.mjs</span> 生成。';
+    if (list.length && !warn) {
+        const d = document.createElement('div');
+        d.id = 'missWarn';
+        d.className = 'note warn';
+        d.innerHTML = html;
+        document.body.insertBefore(d, document.querySelector('h2'));
+    } else if (list.length) {
+        warn.innerHTML = html;
+    }
+}
+
+/* ====================== 计数器 ====================== */
+function paintCounters() {
+    document.getElementById('played').textContent = String(ledger.played);
+    document.getElementById('dropped').textContent = String(ledger.dropped);
+    document.getElementById('inWin').textContent = String(ledger.stamps.length);
+}
+
+/* ====================== 场景 ====================== */
+let timers = [];
+let raf = 0;
+
+function stopAll() {
+    for (const t of timers) clearInterval(t);
+    timers = [];
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    for (const id of ['wave', 'overload']) document.getElementById(id).classList.remove('on');
+    paintCounters();
+}
+
+/** 波次节奏：英雄出手 833ms 一次；每 333ms 一批 6 只（同帧合并成 1 声）；每 4 批一次击杀、每 12 批一次大击杀 */
+function runWave() {
+    stopAll();
+    document.getElementById('wave').classList.add('on');
+    const micro = tierByKey['hit_light'], kill = tierByKey['kill_normal'], big = tierByKey['kill_big'];
+    let batch = 0;
+    timers.push(setInterval(() => {
+        batch++;
+        // 一批 6 只：**同一个 50ms 窗口内只出 1 声** —— 这正是"同帧合并"的听感
+        for (let i = 0; i < 6; i++) { request(micro.sfx, micro.volume, micro.variants); break; }
+        if (batch % 4 === 0) request(kill.sfx, kill.volume, kill.variants);
+        if (batch % 12 === 0) request(big.sfx, big.volume, big.variants);
+    }, 333));
+    timers.push(setInterval(() => {
+        const a = CFG.extra.attackShot;
+        request(a.key, a.volume, a.variants);
+    }, 833));
+}
+
+/** 过载：每帧一发命中（模拟后期 AoE/DoT 铺满）→ 节流必须吞掉大部分 */
+function runOverload() {
+    stopAll();
+    document.getElementById('overload').classList.add('on');
+    const micro = tierByKey['hit_light'];
+    const loop = () => {
+        request(micro.sfx, micro.volume, micro.variants);
+        raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+}
+
+/** 全部顺序试听（每个隔 700ms） */
+function playAll() {
+    stopAll();
+    const list = [];
+    for (const t of CFG.tiers) if (t.sfx) list.push([t.sfx, t.volume, t.variants]);
+    for (const k of Object.keys(CFG.extra)) list.push([CFG.extra[k].key, CFG.extra[k].volume, CFG.extra[k].variants]);
+    list.push(['click', 0.5, 1]);
+    let i = 0;
+    play(list[i][0], list[i][1]);
+    i++;
+    timers.push(setInterval(() => {
+        if (i >= list.length) { stopAll(); return; }
+        play(list[i][0], list[i][1]);
+        i++;
+    }, 700));
+}
+
+document.getElementById('master').addEventListener('input', (e) => {
+    document.getElementById('masterV').textContent = e.target.value + '%';
+});
+document.getElementById('playAll').addEventListener('click', playAll);
+document.getElementById('stopAll').addEventListener('click', stopAll);
+document.getElementById('wave').addEventListener('click', runWave);
+document.getElementById('overload').addEventListener('click', runOverload);
+document.getElementById('reset').addEventListener('click', () => {
+    ledger.played = 0; ledger.dropped = 0; ledger.stamps.length = 0; paintCounters();
+});
+paintCounters();
+</script>
+</body>
+</html>

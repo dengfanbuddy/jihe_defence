@@ -19,24 +19,33 @@ import type { SkillSlots } from './SkillSlots';
  *   RelicShop（本类）                  本局商店状态（抽了几次 / 广告用了几次 / 本轮候选 / 本轮选没选过）
  *        │                               ＋交互流程（能不能抽、要不要看广告、选中后发放到哪）
  *        ▼
- *   RelicDraw                         抽取规则（混合池：品质权重 / 阶段门槛 / 越阶 / 种类权重 / 技能保底 / 去重）
+ *   RelicDraw                         抽取规则（混合池：品质权重 / 阶段门槛 / 越阶 / 技能配额 / 去重）
  *        ├──▶ RelicSystem（BattleEquipSystem）  遗物：入背包 + 挂 modifiers_inner（属性/被动当场生效）
  *        └──▶ SkillSlots                        技能：写入技能槽（升级 / 填空槽 / 替换未锁定槽）
  * ```
  *
  * ── 混合池（2026-09）──
- *   一轮会同时出**遗物**和**肉鸽额外技能**（比例见 `shop_constants.relicSkillPoolWeight`，
- *   技能还有 `guaranteeSkillPerDraw` 保底）。两者走**两条不同的发放通道**：
+ *   一轮会同时出**遗物**和**肉鸽额外技能**，技能个数由**技能配额**先定好
+ *   （`shop_constants.skillDrawChance` 掷有没有技能 → `skillCountWeight` 掷 1 个还是 2 个，
+ *   上限 `skillMaxPerDraw`），剩下的格子全是遗物。两者走**两条不同的发放通道**：
  *     遗物 → `RelicSystem.AddRelic`（本局唯一，重复获得被拒）
  *     技能 → `SkillSlots.grant`（重复抽到 = 升级；没满级的技能会一直留在池子里）
  *
  * ── 状态（`ref`，由宿主 `Scene_Game_Stage` provide 给 UI 子树的**只读门面 `RelicShopVM`**，键见 `StageScope`）──
  *   `panelVisible` 面板开关（宿主按它写面板节点 active）
- *   `slots`        4 个格子的展示状态（空槽 / 已被选走 → id 0；见 `ShopSlotVM`）
+ *   `slots`        本次抽取的格子展示状态（**格数 = `RelicDraw.optionCount()`**，默认 4、成就效果可 +1；
+ *                  空槽 / 已被选走 → id 0；见 `ShopSlotVM`）
  *   `rollUsed`     本次刷新是否已选过（已选 → 剩余槽位置灰）
  *   `adMode`       剩余槽位是否转为「看广告才能选」（广告补选）
- *   `refreshCost`  下一次刷新的金币费用（面板显示 + 置灰判据）
- *   `adFreeLeft`   剩余「广告免费刷新」次数
+ *   `refreshCost`  下一次刷新的金币费用（面板显示 + 置灰判据；**含成就折扣**）
+ *   `adFreeLeft`   剩余「广告免费刷新」次数（**含成就加成**）
+ *
+ * ── 成就特殊效果（全部走宿主的**开局快照**，经 `RelicShopDeps` 的 `getAch*` 注入）──
+ *   `shop_draw_discount` 抽取费用折扣比例 → `drawCostNow()`（显示与实扣同一口径）
+ *   `shop_option_plus`   每次抽取的额外候选数 → `RelicDraw.optionCount(bonus)`
+ *   `ad_free_draw`       额外广告免费抽次数 → `RelicDraw.adFreeDrawLimit(bonus)`（叠加在配置上）
+ *   `relic_start_gift`   开局白送遗物件数 → `grantStartGift()`（复用 `RelicDraw.relicPool` 纯函数）
+ *   ⚠ 本类**不自己读** `AchievementData`：实时读会让"打到一半费用/选项数突然变"，与设计稿 §5.2 相反。
  *
  * ── 生命周期 ──
  *   本类随**界面**创建一次（宿主 `onLoad`，它持有的状态要 provide 给 UI 子树）；
@@ -95,6 +104,31 @@ export interface RelicShopDeps {
      * 不提供就只打日志。
      */
     onSkillAllLocked?(option: ShopOption): void;
+
+    /* ── 成就特殊效果（**全部走开局快照**，宿主 getter 返回本局开局读到的值）──
+     * ⚠ 语义：本类**不许**自己调 `AchievementData.getEffects()`（那是实时的，会让"打到一半突然多一个商店选项"）。
+     *   未注入 / 未生效时一律按 0 处理（`??` 兜底），所以不接线也能跑。 */
+
+    /** `shop_draw_discount` —— 抽取费用折扣**比例**（配表百分数 / 100：`10` → `0.1` = 打 9 折） */
+    getAchDrawDiscount?(): number;
+    /**
+     * 遗物属性「24 抽卡折扣」—— 同样返回**比例**（运行时 0.35 = 打 6.5 折）。
+     * 与成就折扣**加法叠加**（不是叠乘），上限由属性自身钳制（attributes.json max 80）。
+     */
+    getRelicDrawDiscount?(): number;
+    /** `shop_option_plus` —— 每次抽取的**额外选项数**（+1 个 = 5 选 1） */
+    getAchOptionBonus?(): number;
+    /** `ad_free_draw` —— 额外「广告免费抽」次数（**叠加**在 `shop_constants.adFreeDrawPerRun` 上） */
+    getAchAdFreeBonus?(): number;
+    /** `relic_start_gift` —— 每局开局白送的随机遗物件数（0 = 不送） */
+    getAchStartGift?(): number;
+
+    /* ── 上报给宿主的进度钩子（**走回调，不 import 数据层**，分层口径同 `SkillSlots.onSkillGranted`）── */
+
+    /** 一轮抽取真的成功了（宿主用它上报成就 `draw_count`；付费抽与广告免费抽都算一次） */
+    onDraw?(): void;
+    /** 遗物真的发到手里了（宿主用它写遗物图鉴 + 上报成就 `relic_collected`） */
+    onRelicGranted?(relicId: number): void;
 }
 
 /**
@@ -152,6 +186,8 @@ export class RelicShop {
     private pickedInRoll = false;
     /** 本轮剩余的广告补选次数 */
     private adPicksLeft = 0;
+    /** 本局是否已发过「开局赠遗物」（成就效果 `relic_start_gift`；一局只发一次，换英雄不重发） */
+    private startGiftGranted = false;
     /**
      * 本轮「点了但发不出去」的候选（目前只有一种：技能槽全锁定）。
      * 只置灰这一格、**不消耗本次选择** —— 玩家还能改选别的，去解锁之后再抽。
@@ -171,6 +207,32 @@ export class RelicShop {
     /** 当前遗物池白名单 */
     private relicPoolIds(): number[] {
         return typeof this.poolIds === 'function' ? (this.poolIds() ?? []) : (this.poolIds ?? []);
+    }
+
+    /* ===================================================================
+     * 成就效果（开局快照）折算 —— **费用 / 选项数 / 广告次数的唯一口径**
+     * =================================================================== */
+
+    /**
+     * 抽取费用折扣比例 —— **显示与实扣的唯一口径**。
+     * 两个来源**加法叠加**：成就 `shop_draw_discount`（开局快照）+ 遗物属性「24 抽卡折扣」（实时）。
+     */
+    private discount(): number {
+        const ach = this.deps.getAchDrawDiscount?.() ?? 0;
+        const relic = this.deps.getRelicDrawDiscount?.() ?? 0;
+        return Math.max(0, Math.min(1, ach + relic));
+    }
+
+    /**
+     * 第 `this.drawCount` 次付费刷新的**实付费用** = 配置价 × (1 − 折扣)，四舍五入取整。
+     *
+     * ⚠ 显示（`syncCost`）与实扣（`roll`）都读这里 —— 曾经两处各算一次，
+     *   只改一处会让「面板显示 45、实际扣 50」，所以口径只能有一处。
+     */
+    private drawCostNow(): number {
+        const base = RelicDraw.drawCost(this.drawCount);
+        const d = this.discount();
+        return Math.max(0, Math.round(base * (1 - d)));
     }
 
     /* ===================================================================
@@ -235,12 +297,13 @@ export class RelicShop {
         });
     }
 
-    /** 真正抽 4 个并写进槽位（规则见 `RelicDraw.roll`：混合池 + 品质权重 + 阶段门槛 + 技能保底） */
+    /** 真正抽 4 个并写进槽位（规则见 `RelicDraw.roll`：混合池 + 品质权重 + 阶段门槛 + 技能配额） */
     private roll(free: boolean): void {
         const bag = this.deps.getBag();
         if (!bag) return;
 
-        const cost = RelicDraw.drawCost(this.drawCount);
+        // 实付 = 配置价 × (1 − 成就折扣)；`drawCostNow()` 与面板显示的 `refreshCost` 是同一口径
+        const cost = this.drawCostNow();
         if (free) {
             if (this.adFreeLeft.value <= 0) return;
             this.adFreeUsed++;
@@ -249,10 +312,12 @@ export class RelicShop {
             return;
         }
 
+        // 成就效果 `shop_option_plus`：本局每次抽取多出 N 个候选（快照值，局中领奖不变）
+        const optionCount = RelicDraw.optionCount(this.deps.getAchOptionBonus?.() ?? 0);
         const options = RelicDraw.roll({
             heroLevel: this.deps.getHeroLevel(),
             phase: this.deps.getPhase(),
-            count: RelicDraw.optionCount(),
+            count: optionCount,
             ownedRelics: bag.getAll().map((r) => r.getId()),
             ownedSkills: this.deps.getSkillSlots()?.ownedLevels() ?? new Map<number, number>(),
             pool: this.relicPoolIds(),
@@ -262,6 +327,10 @@ export class RelicShop {
             this.syncCost();
             return;
         }
+
+        // 成就进度：肉鸽商店累计抽取次数（target=draw_count；付费抽与广告免费抽都算一次）
+        // —— 上报交给宿主（本类不认识数据层，见 deps.onDraw 的注释）
+        this.deps.onDraw?.();
 
         this.current = options;
         this.pickedInRoll = false;
@@ -275,7 +344,7 @@ export class RelicShop {
         this.adMode.value = false;
         this.syncCost();
 
-        console.log(`[遗物] ${free ? '广告免费刷新' : `花费 ${cost} 金刷新`}：`
+        console.log(`[遗物] ${free ? '广告免费刷新' : `花费 ${cost} 金刷新`}（${options.length} 个候选）：`
             + options.map((o) => `${o.kind === 'skill' ? '技' : '遗'}${o.name}[${o.rarity}]`).join(' / '));
     }
 
@@ -368,6 +437,9 @@ export class RelicShop {
             return false;
         }
         console.log(`[遗物] 获得「${option.name}」[${option.rarity}]，背包共 ${bag.getAll().length} 件`);
+        // 遗物**图鉴**收集（`relic_collected` 的数据源）—— 由宿主写：
+        // 「只记图鉴里那 37 件（有局外版）」的过滤与上报都在宿主那一侧（见 `Scene_Game_Stage.onRelicCollected`）
+        this.deps.onRelicGranted?.(option.id);
         return true;
     }
 
@@ -431,8 +503,42 @@ export class RelicShop {
 
     /** 把费用与广告剩余次数同步给面板（换局 / 换英雄 / 刷新后都要调） */
     syncCost(): void {
-        this.refreshCost.value = RelicDraw.drawCost(this.drawCount);
-        this.adFreeLeft.value = Math.max(0, RelicDraw.adFreeDrawLimit() - this.adFreeUsed);
+        // 费用与实扣同一条口径（含成就折扣），否则面板显示的价与实际扣的钱会对不上
+        this.refreshCost.value = this.drawCostNow();
+        // 广告免费抽：配置额度 + 成就效果 `ad_free_draw`（叠加，快照值）
+        this.adFreeLeft.value = Math.max(0,
+            RelicDraw.adFreeDrawLimit(this.deps.getAchAdFreeBonus?.() ?? 0) - this.adFreeUsed);
+    }
+
+    /**
+     * 开局赠遗物（成就效果 `relic_start_gift`）—— 宿主在**本局首次选完英雄**后调一次。
+     *
+     * 复用**同一套抽取纯函数**（`RelicDraw.relicPool` / `makeRelicOption`）与**同一个发放通道**
+     * （`grantRelic` → `RelicSystem.AddRelic`），所以「开局送的」与「商店抽到的」在背包、
+     * 属性挂载、`relics_picked` 进度上报上完全同口径 —— 不另开一条发遗物的路。
+     *
+     * ⚠ 幂等：一局只发一次（`startGiftGranted`，`reset()` 复位），换英雄不会重发。
+     */
+    grantStartGift(): void {
+        if (this.startGiftGranted) return;
+        this.startGiftGranted = true;
+
+        const count = Math.max(0, Math.floor(this.deps.getAchStartGift?.() ?? 0));
+        const bag = this.deps.getBag();
+        if (count <= 0 || !bag) return;
+
+        const owned = bag.getAll().map((r) => r.getId());
+        for (let i = 0; i < count; i++) {
+            const pool = RelicDraw.relicPool(this.relicPoolIds(), owned);
+            if (!pool.length) {
+                console.warn('[遗物] 开局赠遗物：池子里已经没有可送的遗物（都拥有了 / 白名单为空）');
+                return;
+            }
+            const def = pool[Math.min(pool.length - 1, Math.floor(Math.random() * pool.length))];
+            const option = RelicDraw.makeRelicOption(def, false);
+            if (!this.grantRelic(option)) return;
+            owned.push(def.id); // 多件时逐件去重（同一件不送两次）
+        }
     }
 
     /**
@@ -447,6 +553,8 @@ export class RelicShop {
         this.pickedInRoll = false;
         this.adPicksLeft = 0;
         this.rejected.clear();
+        // 换局：开局赠遗物重新可发（效果是"每局开局"送的，不是只送一次）
+        this.startGiftGranted = false;
 
         this.slots.value = [];
         this.rollUsed.value = false;

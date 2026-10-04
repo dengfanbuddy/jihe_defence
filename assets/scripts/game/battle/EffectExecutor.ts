@@ -170,10 +170,25 @@ export class EffectExecutor {
                 // @param duration 缺省 = 永久（-1）
                 const tgt = target ?? actor;
                 if (!tgt?.modifiers) break;
-                tgt.modifiers.AddModifier(
-                    MODIFY_ATTR_TEMPLATE_ID, actor, action.duration ?? -1,
+                const dur = action.duration ?? -1;
+                const apply = () => tgt.modifiers.AddModifier(
+                    MODIFY_ATTR_TEMPLATE_ID, actor, dur,
                     { attrs: action.attrs }, origin,
                 );
+                /**
+                 * **永久**上限变化走「满血带血」口径 —— 与遗物（`BattleEquip.Apply`）、
+                 * 击杀商店 Buff（`BuffShop.applyStack`）走的是同一条路。
+                 *
+                 * 为什么必须包（2026-10 补）：不包的话「恶魔契约 -40% 最大生命」会把上限压下去
+                 * 而当前生命不动，满血买完就是 `hp > maxHp` 的脏数据（实测 320/192）。
+                 * 临时上限（`duration >= 0`）**刻意不包** —— 到期时上限回落而当前生命不回落，
+                 * 仍然要靠 `Entity.ClampHpToMax`，那是 `ModifierSystem` 侧的既有缺口。
+                 */
+                if (dur < 0 && typeof tgt.ApplyWithMaxHpCarry === 'function') {
+                    tgt.ApplyWithMaxHpCarry(apply);
+                } else {
+                    apply();
+                }
                 break;
             }
             case 'execute_script': {

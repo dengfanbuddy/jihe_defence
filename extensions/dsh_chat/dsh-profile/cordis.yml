@@ -1,0 +1,5 @@
+# dsh profile root —— 一个空的条目列表。整棵树由 patch 层组合出来：
+# 依次是 package.json 里 dsh.profile.bundles 的每个 bundle、本 profile 的
+# cordis.patch.yml、$DSH_HOME 级 patch、以及 --patch 覆盖层。
+# 要改配置请改 cordis.patch.yml，不要改这个文件（每次启动都会被重写）。
+[]

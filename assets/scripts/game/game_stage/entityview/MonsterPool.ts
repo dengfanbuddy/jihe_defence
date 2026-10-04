@@ -51,6 +51,19 @@ export class MonsterPool {
     private activeParent: Node;
     private cacheParent: Node;
 
+    /**
+     * **难度缩放钩子**（由场景注入；池子自己不知道"难度"是什么）。
+     *
+     * 在实体出池（`EntityPool.acquire` → 可能新建也可能复用）之后、**挂表现之前**调用一次：
+     *   · 必须在挂表现之前 —— `EntityView.bind` 会拿当前 `hp/maxHp` 初始化血条，
+     *     缩放写在后面就会出现"血条满格但实际血量是缩放后的值"这一帧的错位；
+     *   · 必须在**每次** acquire 都调用 —— 池子复用实体时会先按配置 `Reinit`（基础属性回到配置值），
+     *     所以倍率是"每只怪出生一次"的动作，缓存成"只算一次"会让第二只同 id 的怪没有加成。
+     *
+     * 不注入 = 不缩放（池子单独用也成立，这是它能保持"不知道难度"的原因）。
+     */
+    statScaleHook: ((entity: Entity, kind?: UnitKind) => void) | null = null;
+
     constructor(ctx: BattleContext, activeParent: Node, cacheParent: Node) {
         this.entityPool = new EntityPool(ctx);
         this.viewPool = new EntityViewPool();
@@ -69,6 +82,8 @@ export class MonsterPool {
         const entity = this.entityPool.acquire(def, kind);
         // 占位美术：体型只由缩放决定，碰撞半径按占位图半径重算（保证推距与画面一致）
         this.applyPlaceholderBody(entity, kind);
+        // 难度缩放（见 statScaleHook 的注释：排在挂表现之前）
+        this.statScaleHook?.(entity, kind);
         this.viewPool.acquire(entity, MONSTER_PREFAB, this.activeParent);
         return entity;
     }

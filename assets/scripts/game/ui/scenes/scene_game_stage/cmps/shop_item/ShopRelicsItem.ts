@@ -1,28 +1,30 @@
-import { _decorator, Color, Label, Node, Sprite, SpriteFrame, Button, resources } from 'cc';
+import { _decorator, Color, Label, Node, Sprite, SpriteFrame, Button } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
-import { ShopConfig, type ShopRarity } from '../../../../../data/configs/ShopConfig';
+import { ShopConfig } from '../../../../../data/configs/ShopConfig';
 import { StageScopeEvents } from '../StageScope';
+import { AtlasIcon } from '../../../../../common/AtlasIcon';
+import { rarityColor } from '../../../../../common/RelicRarityColor';
 import type { ShopSlotVM } from '../../../../../battle/RelicShop';
 
 const { ccclass, property } = _decorator;
-
-/**
- * 遗物品质配色（**唯一配色源**，与预制件里的占位色无关）
- * 白 common / 蓝 rare / 黄 epic（美术取色偏紫）/ 红 legendary
- */
-const RARITY_COLOR: Record<ShopRarity, string> = {
-    common: '#DDDDDD',
-    rare: '#5096FF',
-    epic: '#CF68FF',
-    legendary: '#FF6464',
-};
 
 /** 不可选（本次已选过 / 空槽）时的灰化色 */
 const DISABLED_GREY = new Color(124, 124, 124, 255);
 
 /**
- * 没有配 `icon` 时的兜底图（**肉鸽技能目前全都没有图标**，abilities.json 的 icon 列是空的）。
- * 留着占位图而不是清空，是因为空格子看起来像"坏了"；等美术出图后把 icon 列填上即可。
+ * 技能格的底框色。
+ * 品质框是**遗物**的口径（品质→底色），技能没有品质，所以给它一个中性的白框以示区别
+ * （预制件里 `head` 的默认色恰好等于白档 `#DDDDDD`，不显式复位就会把上一格遗物的品质色留在技能格上）。
+ */
+const FRAME_COLOR_SKILL = '#FFFFFF';
+
+/** 图标底框在预制件里的节点名（`content/head`；图标本体是它的子节点 `head/inner`） */
+const FRAME_NODE_NAME = 'head';
+
+/**
+ * 没有配 `icon` 时的兜底图（30 个肉鸽技能在 2026-10 都已配图标，
+ * `abilities.json` 的 `icon` 列共有 43 条；其余回落这张）。
+ * 留着占位图而不是清空，是因为空格子看起来像"坏了"。
  */
 const PLACEHOLDER_ICON = 'textures/skills/bullet';
 
@@ -48,6 +50,13 @@ export class ShopRiItem extends UIWidget {
     /** 图标（预制件放的是 `head/inner` 那层的 Sprite） */
     @property(Sprite)
     icon: Sprite = null;
+    /**
+     * 图标**底框**（预制件里的 `content/head`，白色圆角九宫格 `common/rect_rd_5_white.png`）。
+     * 品质就靠染它的颜色表现 —— 出图本身不含品质色（见 `docs/relic-icon/README.md` §2 第四条）。
+     * 没在编辑器里拖也可以：`ensureFrame()` 会按名字兜底找。
+     */
+    @property(Sprite)
+    frame: Sprite = null;
     /** 遗物名（按品质上色） */
     @property(Label)
     nameLabel: Label = null;
@@ -141,8 +150,9 @@ export class ShopRiItem extends UIWidget {
         }
         if (this.nameLabel) {
             this.nameLabel.string = cfg.name ?? '';
-            this.baseColors.set('name', new Color(RARITY_COLOR[cfg.rarity] ?? RARITY_COLOR.common));
+            this.baseColors.set('name', new Color(rarityColor(cfg.rarity)));
         }
+        this.setFrameColor(rarityColor(cfg.rarity));
         if (this.descLabel) this.descLabel.string = ShopConfig.getRelicDesc(cfg);
         this.loadIcon(cfg.icon);
     }
@@ -167,10 +177,30 @@ export class ShopRiItem extends UIWidget {
         if (this.nameLabel) {
             const lvTag = owned > 0 ? `Lv.${owned}→${shown}/${max} 升级` : `Lv.1/${max}`;
             this.nameLabel.string = `${cfg.name ?? ''}  ${lvTag}`;
-            this.baseColors.set('name', new Color(RARITY_COLOR[cfg.rarity] ?? RARITY_COLOR.common));
+            this.baseColors.set('name', new Color(rarityColor(cfg.rarity)));
         }
         if (this.descLabel) this.descLabel.string = ShopConfig.getSkillLevelDesc(cfg, shown);
+        this.setFrameColor(FRAME_COLOR_SKILL);  // 技能无品质 → 复位成中性白框，别留着上一格的品质色
         this.loadIcon(cfg.icon);
+    }
+
+    /**
+     * 设置底框颜色（品质色的唯一落点）。
+     * 必须先写进 `baseColors` 再让 `applySelectable` 读 —— 否则首次灰化会把预制件里的默认色
+     * 当成"原色"缓存下来，品质色就再也回不来了（`name` 也是同一套路）。
+     */
+    private setFrameColor(hex: string): void {
+        this.baseColors.set('frame', new Color(hex));
+        const sp = this.ensureFrame();
+        if (sp) sp.color = new Color(hex);
+    }
+
+    /** 底框 Sprite：优先用编辑器拖的引用，没拖就按名字 `content/head` 找（同 `HpBar.hp_bar` 的套路） */
+    private ensureFrame(): Sprite {
+        if (this.frame?.isValid) return this.frame;
+        const found = this.node.getChildByName('content')?.getChildByName(FRAME_NODE_NAME);
+        this.frame = found?.getComponent(Sprite) ?? null;
+        return this.frame;
     }
 
     /** 配置缺失时的收尾（别留上一格的脏内容） */
@@ -201,10 +231,11 @@ export class ShopRiItem extends UIWidget {
             comp.color = grey ? DISABLED_GREY.clone() : this.baseColors.get(key).clone();
         };
         tint(this.icon, 'icon', !canSelect);
+        tint(this.ensureFrame(), 'frame', !canSelect);
         tint(this.descLabel, 'desc', !canSelect);
         // 名字用品质色，灰化时也要灰掉（品质色本身很亮，不然"置灰"看不出来）
         if (this.nameLabel) {
-            if (!this.baseColors.has('name')) this.baseColors.set('name', new Color(RARITY_COLOR.common));
+            if (!this.baseColors.has('name')) this.baseColors.set('name', new Color(rarityColor('common')));
             this.nameLabel.color = canSelect
                 ? this.baseColors.get('name').clone()
                 : DISABLED_GREY.clone();
@@ -219,9 +250,14 @@ export class ShopRiItem extends UIWidget {
 
     /**
      * 加载图标。
-     * 遗物的 `icon` 是**远程 URL**（steam CDN），技能与本地图是 resources 内相对路径，三种都支持：
-     * 远程走 `ezgame.res.loadRemoteFrame`，本地走 `resources.load(.../spriteFrame)`；按 url 缓存，失败只报错。
-     * 没配图标（**肉鸽技能目前都没配**）→ 用占位图，别清空（空图标看起来像坏了）。
+     * `icon` 两种口径都要支持（历史原因，见 Notes「遗物图标落本地」）：
+     *   · **本地**：resources 内相对路径且**不带扩展名**（`textures/relics/quelling_blade`，帧名取路径主干）；
+     *   · **远程**：steam CDN 的 http(s) URL，走 `ezgame.res.loadRemoteFrame` ——
+     *     只剩 7 件局外独有中立道具（1294/1295/1297/1298/1299/1301/1302，素材站没有对应文件）。
+     * **本地解析共用 `AtlasIcon`**（图集 → 帧子资源 → 旧碎图路径，三条都试，见 `common/AtlasIcon.ts`），
+     * 这里只留「远程 URL 分支」与「按 `icon` 值缓存」两件本组件自己的事；
+     * 全都失败只报错（不清空，别让格子看起来像坏了）。
+     * 没配图标（5 件手工 demo 遗物 + 1296/1300，以及**全部肉鸽技能**）→ 回落占位图。
      */
     private loadIcon(url: string): void {
         if (!this.icon) return;
@@ -245,12 +281,19 @@ export class ShopRiItem extends UIWidget {
             });
             return;
         }
-        resources.load(`${path}/spriteFrame`, SpriteFrame, (err, sf) => {
-            if (err || !sf) {
-                ezgame.error(`[遗物面板] 图标加载失败：${path}`, err);
+
+        AtlasIcon.loadIconFrame(path).then((sf) => {
+            if (sf) {
+                apply(sf);
                 return;
             }
-            apply(sf);
+            if (!ShopRiItem.iconMissLogged) {
+                ShopRiItem.iconMissLogged = true;
+                ezgame.error(`[遗物面板] 图标三条路都没取到：${path}（后续同类只报一次）`);
+            }
         });
     }
+
+    /** 图标彻底取不到时的报错只报一次，别刷屏 */
+    private static iconMissLogged = false;
 }

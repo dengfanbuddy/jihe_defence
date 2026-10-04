@@ -1,0 +1,26 @@
+{
+  "name": "ark-style-transfer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "火山方舟(Ark) Seedream 图片风格迁移工具：参考图 + 目标图 → 同风格、透明背景图标，带 Web 操作台与批量处理",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs --port 8788 --no-open",
+    "test": "node tests/alpha-test.mjs && node tests/pipeline-guard.mjs && node tests/ui-contract.mjs",
+    "test:alpha": "node tests/alpha-test.mjs",
+    "test:guard": "node tests/pipeline-guard.mjs",
+    "test:ui": "node tests/ui-contract.mjs",
+    "test:e2e": "node tests/batch-e2e.mjs",
+    "test:models": "node tests/check-models.mjs",
+    "test:transparent": "node tests/check-transparent.mjs",
+    "tune": "node tests/tune-alpha.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "sharp": "^0.34.0"
+  }
+}

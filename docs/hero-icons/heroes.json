@@ -1,0 +1,938 @@
+{
+  "meta": {
+    "generated_by": "tools/hero-icon-prompts/gen-prompts.mjs",
+    "source": "tools/hero-icon-prompts/heroes.json",
+    "count": 10,
+    "damage_types": [
+      "physical",
+      "magical"
+    ]
+  },
+  "heroes": [
+    {
+      "id": 1001,
+      "code": "huoqiang",
+      "name": "火枪",
+      "name_en": "Sniper",
+      "dota2": "Sniper",
+      "existing": true,
+      "damage": "physical",
+      "role": "物理 · 超远点杀",
+      "blurb": "射程最远的炮台。锁定最靠外的敌人点名，靠击退把贴脸的怪推回去。",
+      "base_attributes": [
+        [
+          1,
+          320
+        ],
+        [
+          2,
+          120
+        ],
+        [
+          3,
+          40
+        ],
+        [
+          4,
+          120
+        ],
+        [
+          16,
+          350
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          12
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "attack_interval": 1,
+      "attack_targeting": "farthest",
+      "attack_projectile": "musket",
+      "head_icon": "textures/heros/huoqiang",
+      "skill": {
+        "id": 16,
+        "name": "爆头冲击(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 23,
+            "duration": -1,
+            "kv": {
+              "pct": 0.05,
+              "chance": 0.15,
+              "knockback": 1
+            }
+          }
+        ],
+        "lv1": "普攻附带 5% 攻击力的额外伤害；15% 概率击退敌人 1m",
+        "max_level": 1,
+        "modifier_ref": "modifiers.json 23（script_id: Modifier_MusketHeadshot，已实现）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1002,
+      "code": "shangjin",
+      "name": "赏金猎人",
+      "name_en": "Bounty Hunter",
+      "dota2": "Bounty Hunter",
+      "existing": true,
+      "damage": "physical",
+      "role": "物理 · 经济成长",
+      "blurb": "攻速最快、血量最厚的前排经济引擎。每一次命中都在偷钱。",
+      "base_attributes": [
+        [
+          1,
+          520
+        ],
+        [
+          2,
+          100
+        ],
+        [
+          3,
+          200
+        ],
+        [
+          4,
+          120
+        ],
+        [
+          16,
+          200
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          10
+        ],
+        [
+          3,
+          2.5
+        ]
+      ],
+      "attack_interval": 0.85,
+      "attack_targeting": "nearest",
+      "attack_projectile": "shuriken",
+      "head_icon": "textures/heros/shangjin",
+      "_warn": "攻击力 200 明显离群（其余英雄 24~44，设计稿写的是 12），疑似配表笔误，落地前请确认",
+      "skill": {
+        "id": 7,
+        "name": "偷钱(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 13,
+            "duration": -1
+          }
+        ],
+        "lv1": "普攻命中偷取 20 金币",
+        "max_level": 1,
+        "modifier_ref": "modifiers.json 13（events: on_attack_landed → steal_gold 20，纯声明式）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1003,
+      "code": "zhousi",
+      "name": "宙斯",
+      "name_en": "Zeus",
+      "dota2": "Zeus",
+      "existing": true,
+      "damage": "magical",
+      "role": "法术 · 连锁爆发",
+      "blurb": "射程 600 的法术炮台，靠链式弹射一次清算一整排怪。",
+      "base_attributes": [
+        [
+          1,
+          340
+        ],
+        [
+          2,
+          220
+        ],
+        [
+          3,
+          26
+        ],
+        [
+          4,
+          100
+        ],
+        [
+          16,
+          600
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          10
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          3,
+          2.5
+        ]
+      ],
+      "attack_interval": 1.4,
+      "attack_targeting": "nearest",
+      "attack_projectile": "lightning",
+      "head_icon": "textures/heros/zhousi",
+      "skill": {
+        "id": 19,
+        "name": "雷霆之核·一阶(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 26,
+            "duration": -1,
+            "kv": {
+              "chain": 1,
+              "decay": 0.6,
+              "pct": 0.035,
+              "autoT": 0,
+              "autoPct": 0
+            }
+          }
+        ],
+        "lv1": "普攻追加目标当前生命 3.5% 的法术伤害，并向附近 1 个敌人链式弹射（60% 衰减）",
+        "max_level": 1,
+        "upgrades_to": 20,
+        "modifier_ref": "modifiers.json 26（script_id: Modifier_ZeusThunder，已实现；19→20→21→22 是换 id 升阶链）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1004,
+      "code": "fuwang",
+      "name": "斧王",
+      "name_en": "Axe",
+      "dota2": "Axe",
+      "existing": true,
+      "damage": "physical",
+      "role": "物理 · 近战坦克反伤",
+      "blurb": "血量最高的沙包。挨打本身就是它的输出手段。",
+      "base_attributes": [
+        [
+          1,
+          560
+        ],
+        [
+          2,
+          80
+        ],
+        [
+          3,
+          34
+        ],
+        [
+          4,
+          100
+        ],
+        [
+          16,
+          200
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          22
+        ],
+        [
+          3,
+          1.5
+        ]
+      ],
+      "attack_interval": 1.25,
+      "attack_targeting": "nearest",
+      "attack_projectile": "",
+      "head_icon": "textures/heros/fuwang",
+      "skill": {
+        "id": 17,
+        "name": "反击风暴(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 24,
+            "duration": -1,
+            "kv": {
+              "need": 5,
+              "radiusFactor": 0.5
+            }
+          }
+        ],
+        "lv1": "每受到 5 次攻击，对半个攻击距离内的所有敌人各造成一次攻击力的物理伤害",
+        "max_level": 1,
+        "modifier_ref": "modifiers.json 24（script_id: Modifier_CounterStorm，已实现）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1005,
+      "code": "huanci",
+      "name": "幻影刺客",
+      "name_en": "Phantom Assassin",
+      "dota2": "Phantom Assassin",
+      "existing": false,
+      "damage": "physical",
+      "role": "物理 · 暴击爆发",
+      "blurb": "近战暴击核心。伤害方差最大的英雄，靠暴击倍率把单次普攻抬到 2.4 倍。",
+      "base_attributes": [
+        [
+          1,
+          300
+        ],
+        [
+          2,
+          100
+        ],
+        [
+          3,
+          44
+        ],
+        [
+          4,
+          110
+        ],
+        [
+          16,
+          200
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          11
+        ],
+        [
+          3,
+          3.2
+        ]
+      ],
+      "attack_interval": 1,
+      "attack_targeting": "nearest",
+      "attack_projectile": "",
+      "head_icon": "textures/heros/huanci",
+      "skill": {
+        "id": 23,
+        "name": "恩赐解脱(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 27,
+            "duration": -1
+          }
+        ],
+        "lv1": "暴击率 +25%，暴击倍率提升至 240%",
+        "max_level": 1,
+        "modifier": {
+          "id": 27,
+          "name": "幻影暴击",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "effects": [
+            {
+              "type": "modify_attr",
+              "attrs": [
+                [
+                  14,
+                  25,
+                  "add"
+                ],
+                [
+                  15,
+                  240,
+                  "best"
+                ]
+              ]
+            }
+          ]
+        },
+        "note": "纯声明式：暴击率 base=0 → 必须 add 百分点；暴击倍率 base=150 → 必须 best（写 add 会变成 150+240=390%）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1006,
+      "code": "zhuoer",
+      "name": "卓尔游侠",
+      "name_en": "Drow Ranger",
+      "dota2": "Drow Ranger",
+      "existing": false,
+      "damage": "physical",
+      "role": "物理 · 远程攻速点杀",
+      "blurb": "攻速 140 的远程射手，专挑残血补刀，靠霜冻箭把整排怪拖成慢动作。",
+      "base_attributes": [
+        [
+          1,
+          300
+        ],
+        [
+          2,
+          120
+        ],
+        [
+          3,
+          32
+        ],
+        [
+          4,
+          140
+        ],
+        [
+          16,
+          420
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          11
+        ],
+        [
+          3,
+          2.6
+        ]
+      ],
+      "attack_interval": 0.9,
+      "attack_targeting": "lowest_hp",
+      "attack_projectile": "arrow",
+      "head_icon": "textures/heros/zhuoer",
+      "skill": {
+        "id": 24,
+        "name": "霜冻之箭(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 28,
+            "duration": -1
+          }
+        ],
+        "lv1": "攻击力 +6；普攻命中使敌人移速 -40%、持续 2 秒",
+        "max_level": 1,
+        "modifier": {
+          "id": 28,
+          "name": "霜冻之箭(被动)",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "effects": [
+            {
+              "type": "modify_attr",
+              "attrs": [
+                [
+                  3,
+                  6,
+                  "add"
+                ]
+              ]
+            }
+          ],
+          "events": [
+            {
+              "event": "on_attack_landed",
+              "actions": [
+                {
+                  "type": "apply_modifier",
+                  "modifier": 2,
+                  "duration": 2,
+                  "kv": {
+                    "slow": -40
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "note": "纯声明式：复用现成的 modifier 2「减速」（它的 attrs 用 value:-90、var:'slow' 占位，kv 传 -40 即 -40%）"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1007,
+      "code": "shuijing",
+      "name": "水晶室女",
+      "name_en": "Crystal Maiden",
+      "dota2": "Crystal Maiden",
+      "existing": false,
+      "damage": "magical",
+      "role": "法术 · 控场冻结",
+      "blurb": "法术侧的坦克。魔抗与回蓝最厚，靠概率冰封把冲脸的怪按在原地。",
+      "base_attributes": [
+        [
+          1,
+          420
+        ],
+        [
+          2,
+          260
+        ],
+        [
+          3,
+          24
+        ],
+        [
+          4,
+          100
+        ],
+        [
+          16,
+          380
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          16
+        ],
+        [
+          2,
+          12
+        ],
+        [
+          3,
+          1.8
+        ]
+      ],
+      "attack_interval": 1.3,
+      "attack_targeting": "nearest",
+      "attack_projectile": "ice",
+      "head_icon": "textures/heros/shuijing",
+      "skill": {
+        "id": 25,
+        "name": "冰霜结界(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 29,
+            "duration": -1
+          }
+        ],
+        "lv1": "魔抗 +20、每秒回蓝 +3；普攻命中 20% 概率冰封敌人 0.8 秒",
+        "max_level": 1,
+        "modifier": {
+          "id": 29,
+          "name": "冰霜结界(被动)",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "effects": [
+            {
+              "type": "modify_attr",
+              "attrs": [
+                [
+                  7,
+                  20,
+                  "add"
+                ],
+                [
+                  10,
+                  3,
+                  "add"
+                ]
+              ]
+            }
+          ],
+          "events": [
+            {
+              "event": "on_attack_landed",
+              "actions": [
+                {
+                  "type": "apply_modifier",
+                  "modifier": 7,
+                  "duration": 0.8,
+                  "chance": 0.2
+                }
+              ]
+            }
+          ]
+        },
+        "note": "纯声明式：魔抗 7 base=25 → add 20 → 45%；回蓝 10 base=0 → 必须 add（percent 恒为 0）；冰封复用 modifier 7「眩晕」"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1008,
+      "code": "lina",
+      "name": "莉娜",
+      "name_en": "Lina",
+      "dota2": "Lina",
+      "existing": false,
+      "damage": "magical",
+      "role": "法术 · 单体贯穿爆发",
+      "blurb": "点杀最肉的怪。普攻自带额外法术伤害，越打越疼。",
+      "base_attributes": [
+        [
+          1,
+          320
+        ],
+        [
+          2,
+          200
+        ],
+        [
+          3,
+          30
+        ],
+        [
+          4,
+          105
+        ],
+        [
+          16,
+          480
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          12
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          3,
+          2.4
+        ]
+      ],
+      "attack_interval": 1.15,
+      "attack_targeting": "strongest",
+      "attack_projectile": "fire",
+      "head_icon": "textures/heros/lina",
+      "skill": {
+        "id": 26,
+        "name": "神灭斩(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 30,
+            "duration": -1
+          }
+        ],
+        "lv1": "伤害输出 +20%；普攻命中额外造成 30 点法术伤害",
+        "max_level": 1,
+        "modifier": {
+          "id": 30,
+          "name": "炽热之魂(被动)",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "effects": [
+            {
+              "type": "modify_attr",
+              "attrs": [
+                [
+                  11,
+                  20,
+                  "add"
+                ]
+              ]
+            }
+          ],
+          "events": [
+            {
+              "event": "on_attack_landed",
+              "actions": [
+                {
+                  "type": "damage",
+                  "value": 30,
+                  "damage_type": "magical"
+                }
+              ]
+            }
+          ]
+        },
+        "note": "纯声明式：伤害输出倍率 11 base=100 → add 20 → 120（1.2×）；on_attack_landed 的 event.target 就是被打的敌人，所以 damage 直接落在它身上"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1009,
+      "code": "viper",
+      "name": "冥界亚龙",
+      "name_en": "Viper",
+      "dota2": "Viper",
+      "existing": false,
+      "damage": "magical",
+      "role": "法术 · 持续剧毒",
+      "blurb": "唯一会叠层的英雄。攻速越快，毒叠得越满、怪被黏得越死。",
+      "base_attributes": [
+        [
+          1,
+          380
+        ],
+        [
+          2,
+          160
+        ],
+        [
+          3,
+          28
+        ],
+        [
+          4,
+          120
+        ],
+        [
+          16,
+          340
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          14
+        ],
+        [
+          3,
+          2.2
+        ]
+      ],
+      "attack_interval": 1.1,
+      "attack_targeting": "nearest",
+      "attack_projectile": "venom",
+      "head_icon": "textures/heros/viper",
+      "skill": {
+        "id": 27,
+        "name": "幽冥剧毒(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 31,
+            "duration": -1
+          }
+        ],
+        "lv1": "普攻命中施加剧毒：每秒 8 点法术伤害，每层使敌人移速 -10%（可叠 5 层）、持续 4 秒",
+        "max_level": 1,
+        "modifier": {
+          "id": 31,
+          "name": "幽冥剧毒(被动)",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "events": [
+            {
+              "event": "on_attack_landed",
+              "actions": [
+                {
+                  "type": "apply_modifier",
+                  "modifier": 32,
+                  "duration": 4
+                }
+              ]
+            }
+          ]
+        },
+        "modifier_extra": [
+          {
+            "id": 32,
+            "name": "剧毒",
+            "is_debuff": true,
+            "is_hidden": false,
+            "dispel_level": 1,
+            "duration": 4,
+            "stack_mode": "stack",
+            "max_stack": 5,
+            "effects": [
+              {
+                "type": "modify_attr",
+                "attrs": [
+                  [
+                    5,
+                    -30,
+                    "add"
+                  ]
+                ]
+              },
+              {
+                "type": "tick_damage",
+                "interval": 1,
+                "value": 8,
+                "damage_type": "magical"
+              }
+            ]
+          }
+        ],
+        "note": "纯声明式，需新增 2 条 modifier（31 施加者模板 + 32 可叠的毒）。⚠ **层数只放大属性、不放大 tick** —— `ModifierSystem.processTickEffect` 用的是 `eff.value` 原值、不乘 `stackCount`，只有 `modify_attr` 会乘（`Modifier.resolveAttr`：value × stackCount）。所以设计成「层数放大减速（每层 -30 移速，5 层 -150 即基础 300 的 -50%）+ DoT 恒为 8/s」。想让 DoT 本身也随层数涨，要改的是 `processTickEffect` 里那一行。"
+      },
+      "needs_code": false
+    },
+    {
+      "id": 1010,
+      "code": "mituan",
+      "name": "谜团",
+      "name_en": "Enigma",
+      "dota2": "Enigma",
+      "existing": false,
+      "damage": "magical",
+      "role": "法术 · 暗影溅射",
+      "blurb": "法术侧的群伤。每一发普攻都在目标身上撕开一个扩散的暗影裂口，专治抱团推进。",
+      "base_attributes": [
+        [
+          1,
+          400
+        ],
+        [
+          2,
+          240
+        ],
+        [
+          3,
+          26
+        ],
+        [
+          4,
+          95
+        ],
+        [
+          16,
+          360
+        ]
+      ],
+      "growthValues": [
+        [
+          1,
+          15
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          3,
+          2
+        ]
+      ],
+      "attack_interval": 1.35,
+      "attack_targeting": "strongest",
+      "attack_projectile": "shadow",
+      "head_icon": "textures/heros/mituan",
+      "skill": {
+        "id": 28,
+        "name": "黑洞(被动)",
+        "behavior": "passive",
+        "cooldown": 0,
+        "mana_cost": 0,
+        "cast_range": 0,
+        "targeting": "nearest",
+        "effects": [
+          {
+            "type": "apply_modifier",
+            "modifier": 33,
+            "duration": -1
+          }
+        ],
+        "lv1": "攻击力 +8；普攻命中在目标处撕开暗影，对 130 半径内敌人造成 28 点法术伤害",
+        "max_level": 1,
+        "modifier": {
+          "id": 33,
+          "name": "黑洞(被动)",
+          "is_debuff": false,
+          "is_hidden": false,
+          "dispel_level": 1,
+          "duration": -1,
+          "stack_mode": "refresh",
+          "effects": [
+            {
+              "type": "modify_attr",
+              "attrs": [
+                [
+                  3,
+                  8,
+                  "add"
+                ]
+              ]
+            }
+          ],
+          "events": [
+            {
+              "event": "on_attack_landed",
+              "actions": [
+                {
+                  "type": "aoe_damage",
+                  "radius": 130,
+                  "value": 28,
+                  "damage_type": "magical"
+                }
+              ]
+            }
+          ]
+        },
+        "note": "纯声明式（溅射版）：aoe_damage 以 event.target 为圆心",
+        "upgrade_path": "要做成 Dota2 那种「把怪吸成一堆」的真聚怪，需要新增一个 script_id 逃逸口（如 Modifier_BlackHole：每 N 秒把攻击范围内敌人向自己拉近 1m，参照 Entity.ApplyKnockback 的反向）。声明式词汇里没有位移动作，这是全部 10 个设计里唯一需要写 TS 的一条。"
+      },
+      "needs_code": false,
+      "needs_code_if": "只有想做「真聚怪」时才需要（溅射版不需要）"
+    }
+  ]
+}

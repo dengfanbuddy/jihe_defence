@@ -1,8 +1,8 @@
 {
   "optionCount": 4,
   "pickCount": 1,
-  "drawCostBase": 2,
-  "drawCostStep": 1,
+  "drawCostBase": 50,
+  "drawCostStep": 25,
   "drawCostCap": 200,
   "drawCostResetEachPhase": 0,
   "stageMaxByPhase": [
@@ -11,11 +11,12 @@
     3,
     4
   ],
-  "relicSkillPoolWeight": {
-    "relic": 1,
-    "skill": 1
+  "skillMaxPerDraw": 2,
+  "skillDrawChance": 20,
+  "skillCountWeight": {
+    "1": 70,
+    "2": 30
   },
-  "guaranteeSkillPerDraw": 1,
   "duplicateSkillUpgrade": 1,
   "maxSkillSlots": 3,
   "adFreeDrawEnabled": 1,
@@ -24,5 +25,7 @@
   "adExtraPickCount": 1,
   "adRefreshEnabled": 0,
   "killBuffPriceGrowth": 1.35,
-  "killBuffMaxStackDefault": 10
+  "killBuffMaxStackDefault": 10,
+  "killBuffRefreshCost": 50,
+  "heroSelectRefreshCost": 100
 }

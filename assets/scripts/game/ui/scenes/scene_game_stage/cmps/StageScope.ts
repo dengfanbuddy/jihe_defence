@@ -41,6 +41,7 @@ import type { HeroSelectVM } from '../../../../battle/HeroSelect';
 import type { RelicShopVM } from '../../../../battle/RelicShop';
 import type { BuffShopVM } from '../../../../battle/BuffShop';
 import type { SkillSlotsVM } from '../../../../battle/SkillSlots';
+import type { BossSchedulerVM } from '../../../../battle/BossScheduler';
 
 export const StageScopeKeys = {
     /** 退出战斗（动作）：由 `Scene_Game_Stage` 提供，战斗 UI 内任意深度都能调用 */
@@ -57,6 +58,12 @@ export const StageScopeKeys = {
 
     /** 技能槽功能门面（`SkillSlotsVM`：4 个格子的技能 id / 等级 / 锁定 + 冷却进度） */
     SkillSlots: 'skillSlots:vm',
+
+    /**
+     * Boss 调度功能门面（`BossSchedulerVM`：三个槽位的库存 / 倒计时 / 可点性）。
+     * HUD 的 `bosses` 子树读它渲染；点击向上发 `StageScopeEvents.BossDeploy`。
+     */
+    BossScheduler: 'bossScheduler:vm',
 } as const;
 
 /**
@@ -69,6 +76,7 @@ export interface StageScopeMap {
     [StageScopeKeys.RelicShop]: RelicShopVM;
     [StageScopeKeys.BuffShop]: BuffShopVM;
     [StageScopeKeys.SkillSlots]: SkillSlotsVM;
+    [StageScopeKeys.BossScheduler]: BossSchedulerVM;
 }
 
 /** 局内 UI 的作用域事件（每个 UIWidget 一条独立总线，随作用域销毁自动清空，不用手写 off） */
@@ -112,6 +120,14 @@ export const StageScopeEvents = {
      * （面板要能读完，松手就收会常常一帧都画不出来）。
      */
     SkillDetailDismissed: 'skill:detailDismissed',
+
+    /* ── Boss 条目：HUD 的 `bosses` 三个子节点 → 宿主 ── */
+
+    /**
+     * 点了某个 Boss 条目：参数 `(key: BossSlotKey)`（`'gold' | 'kill' | 'guard'`）。
+     * 宿主转给 `BossScheduler.deploy(key)` —— 由它校验库存与场上上限（HUD 不判能不能放）。
+     */
+    BossDeploy: 'boss:deploy',
 } as const;
 
 /* ===================================================================
