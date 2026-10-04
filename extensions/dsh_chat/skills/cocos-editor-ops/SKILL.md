@@ -1,9 +1,23 @@
 ---
 name: cocos-editor-ops
-description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表——时使用。含 8 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实）。
+description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表——时使用。含 9 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段、Widget 单边对齐回写漂移）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实）。
 ---
 
 # Cocos Creator 编辑器操作（dsh_chat 的 cocos_* 工具 / Code Mode）
+<!-- fact: bundled-skill-wired | verify: script:bundled-skill-wired | 断言 dsh-host.ts 真的注入了 DSH_BUNDLED_SKILL_DIR，且本文件在位 -->
+<!-- fact: no-shadowing-skill | verify: script:no-shadowing-skill | 断言消费工程里没有同名的 cocos-editor-ops（有就会整体覆盖本文件） -->
+<!-- fact: bundled-skill-end-to-end | verify: manual | 开 Cocos 编辑器 → 面板启动 agent → 看会话开头的 skill catalog / `skill` 工具列表里有没有 cocos-editor-ops。上面那条 script 锚点只证明「代码接了线」，**没证明 DSH 真扫到了** -->
+
+> **这个 skill 管什么**：Cocos Creator 3.8.6 的**引擎/编辑器行为** + **`dsh_chat` 插件自身的边界**。
+> 它随插件发布（DSH 的 bundled skill 根），所以**换项目也照样生效**。
+>
+> **它不管什么**：具体项目的业务约定 —— 设计分辨率取哪个、节点怎么命名、允不允许引用工程资源、
+> 数值口径是什么。那些属于**项目自己的 skill 或 `AGENTS.md`**。
+>
+> ⚠ **同名会被「整体覆盖」而不是「合并」**：DSH 的 skill 按名字去重，**rank 小的赢**
+> （`dsh-skill-filesystem`：工程 `.agents/skills` = 200 → 用户 `~/.agents/skills` = 500 →
+> 本 skill 的 bundled 根 = 600）。所以**工程里不要再放一个同名的 `cocos-editor-ops`** ——
+> 那会把这里全部 9 条坑一起吃掉。要写项目专有约定，**另起一个名字**（如 `mygame-ui-conventions`）。
 
 ## 何时使用
 
@@ -14,6 +28,7 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 **不适用**：纯 TS 代码改动（那直接改源码）。
 
 ## 工具面：只有 4 个 tool
+<!-- fact: tool-count | verify: script:tool-count-is-4 | 断言 bridge 里 ctx.tools.register 正好 4 次 -->
 
 编辑器执行能力由 **`dsh_chat` 扩展自带**（沙箱与场景脚本都在它里面，见
 `extensions/dsh_chat/source/core/engine.ts` + `source/scene.ts`）。
@@ -89,6 +104,7 @@ return { ok: true };
 ---
 
 ## 坑 1：场景树里 97% 的节点不是你的内容
+<!-- fact: pit-1-editor-nodes | verify: script:prune-reports-hidden | 断言 source/scene.ts 仍回 editorChildrenHidden -->
 
 **症状**：`eachNode` / `tree()` 回一堆 `xAxis` / `Rectangle` / `Plane` / `LinesNode` / `gizmoRoot`，
 模型照着这些名字去推断游戏结构，然后写错。
@@ -134,6 +150,7 @@ const isEditorRoot = (node) => (node.hideFlags & HIDE_IN_HIERARCHY) !== 0;
 ---
 
 ## 坑 2：`cc.find` 找不到名字含 `/` 的节点，而且是**静默返回 null**
+<!-- fact: pit-2-ccfind-slash | verify: script:nodebypath-greedy | 断言 source/scene.ts 仍是贪心按段匹配 -->
 
 **症状**：明明在层级面板里看得到，`cc.find('a/b/c')` 却返回 `null`，
 调用方以为「节点不存在」而走了错误分支。
@@ -158,6 +175,7 @@ cc.find('Canvas/weird/name/deep')                                     // ❌ nul
 ---
 
 ## 坑 3：存预制件没有「一个标准调用」，而且失败**不给原因**
+<!-- fact: pit-3-prefab-apis | verify: manual | 真编辑器里两条路各试一次，看失败回执给不给原因 -->
 
 实测两次结果**不一样**，这点必须先知道：
 
@@ -184,6 +202,7 @@ return { uuid, stillInScene: !!nodeByUuid(root.uuid) };
 ---
 
 ## 坑 4：`EditBox` 会把宿主节点撑成贴图尺寸（踩过两次）
+<!-- fact: pit-4-editbox-sizemode | verify: manual | 真编辑器里建 EditBox 赋帧，回报 contentSize 有没有被贴图改掉 -->
 
 **症状**：`addComponent(cc.EditBox)` 或给它的背景 Sprite 赋 `spriteFrame` 之后，输入框节点的
 `contentSize` 变成贴图的原始尺寸（实测变成过 **2×2** 和 **63×63**），标签排版跟着全错。
@@ -193,6 +212,9 @@ return { uuid, stillInScene: !!nodeByUuid(root.uuid) };
 **修法**：**先把 `sizeMode` 设成 `CUSTOM`，再赋 `spriteFrame`，最后复位 `contentSize`**。
 同一个顺序对**所有** Sprite 都成立（普通图片节点、九宫格、按钮底图都一样），
 只是 EditBox 会**自己建**一个背景 Sprite，所以特别容易漏。
+
+**EditBox 自己建的两个子节点叫 `TEXT_LABEL` 与 `PLACEHOLDER_LABEL`**（`n.getChildByName('TEXT_LABEL')` 直接能取到）——
+要规整字号/颜色/对齐就改它们；它们同样是 `UITransform` + `Label`，锚点一般设成 `(0, 1)`。
 
 ```js
 const sp = node.addComponent(cc.Sprite);
@@ -207,6 +229,7 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 ---
 
 ## 坑 5：`cocos_capture_view` 可能整帧空白 —— 先量，别硬试，别自建渲染器
+<!-- fact: pit-5-blank-capture | verify: script:capture-reports-viewstate | 断言回执仍带 view.visibleMatchesDesign -->
 
 **症状**：回执里 `blankRatio` 接近 `1`，像素全 0。
 
@@ -228,6 +251,7 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 ---
 
 ## 坑 6：`ReferenceError: cc is not defined` = **context 选错了**（旧版记的「`snapshot: true` 的副作用」是错的）
+<!-- fact: pit-6-context-cc | verify: script:context-inference | 断言 engine.ts 仍推断 context 并回 contextInferred -->
 
 **症状**：一段明明能跑的构建脚本（用 `cc` / `nodeByPath` / `tree()`）报 `ReferenceError: cc is not defined`，
 **而且一个节点都没建出来**（不是"建完再报错"）。
@@ -254,6 +278,7 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 所以：**写代码时永远显式带上 `context`**（口诀：改文件/查资源库 → `editor`；碰节点/组件 → `scene`）。
 
 ## 坑 7：三个"静默改你数据"的 UI 组件
+<!-- fact: pit-7-silent-ui-components | verify: manual | 真编辑器里探 cc.Layout 的键；若真有 HorizontalAlign 说明这条过期 -->
 
 | 组件 | 它干了什么 | 正解 |
 |---|---|---|
@@ -262,6 +287,7 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 | `cc.Layout` | **`cc.Layout.HorizontalAlign` / `VerticalAlign` 在 3.8 不存在** —— `Object.keys(cc.Layout)` 里只有 `Type/VerticalDirection/HorizontalDirection/ResizeMode/AxisDirection/Constraint`（两次实测：技能记录 + 2026-09-30 会话里模型自己 probe 了一遍），写了就是 `Cannot read properties of undefined (reading 'CENTER')` | ① **多数情况根本不用写**：`alignHorizontal` 默认已是 `CENTER`（横向排列时"居中"就是常见诉求）；② 真要改：`cc.HorizontalTextAlignment`（`LEFT=0 / CENTER=1 / RIGHT=2`）**确实是 `cc` 模块的顶层导出**（已按引擎声明文件核实：`declare module "cc"` 里的 `export enum HorizontalTextAlignment`），但**"赋给 `layout.alignHorizontal` 是否生效"没实测过** —— 声明文件把该属性写成 `boolean`（可疑），所以别当结论用：先 `cocos_describe_api({context:'scene', target:'cc.Layout', nodeUuid:'<一个真 Layout 节点>'})` 看真实类型/当前值，或先赋值再 `return { value: layout.alignHorizontal }` 复核 |
 
 ## 坑 8：编辑态下两个"看着能用其实不可信"的查询手段
+<!-- fact: pit-8-editor-untrusted-queries | verify: script:loadframe-rejects-internal | 断言 scene.ts 的 loadFrame 仍显式拒绝 db://internal -->
 
 - **`UITransform.getBoundingBoxToWorld()` 在编辑态给过自相矛盾的值**：同一棵树里 `view`
   （实测 `contentSize` 710×1074、position (0,0)）被报成 **710×1170**，而 1170 恰好是它子节点
@@ -276,6 +302,53 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
   也接受 `'<uuid>@<子资源键>'` 与裸 uuid。**别再手工两步走**（editor 查 `query-asset-info` → 拿
   `subAssets['f9941'].uuid` → 场景侧 `loadAny({uuid})`），那是这个助手出现之前的绕法。
   ⚠ `query-assets` 用 `pattern: '...x.png/spriteFrame'` 查 **返回空数组**（不报错），别以为"没有这个子资源"。
+
+---
+
+## 坑 9：Widget 的**单边对齐**会在回写时漂移 —— 贴边的一排东西改用 Layout
+<!-- fact: pit-9-widget-one-side-align | verify: manual | 真编辑器里同一节点分别用「只开 bottom」与 Layout(BOTTOM_TO_TOP) 各摆一次，比 y -->
+
+**症状**：只打开单边对齐（比如 `isAlignBottom`）的横条，在 `updateAlignment()` 与后续回写之后位置会漂，
+跟子节点高度对不上；同一份代码重跑一次，结果还可能不一样。
+
+**修法**：**贴边的一排东西别用单边对齐，改用 `cc.Layout` 排**：
+
+```js
+const lay = bar.addComponent(cc.Layout);
+lay.type = cc.Layout.Type.VERTICAL;
+lay.verticalDirection = cc.Layout.VerticalDirection.BOTTOM_TO_TOP;   // 从下往上堆
+lay.horizontalDirection = cc.Layout.HorizontalDirection.LEFT_TO_RIGHT;
+lay.resizeMode = cc.Layout.ResizeMode.NONE;                           // 容器尺寸自己管
+lay.paddingBottom = 24; lay.paddingLeft = 30; lay.paddingRight = 30;
+lay.spacingY = 6;
+// 子节点挂完之后**必须显式调一次**，否则这次排版没生效：
+lay.updateLayout(true);
+```
+
+**Widget 的正确写法**（一次真跑通的搭树脚本里定下来的形状，别各自发明一套）：
+
+```js
+const w = n.addComponent(cc.Widget);
+w.alignMode = cc.Widget.AlignMode.ALWAYS;
+// 只打开**显式给了值**的那些对齐项
+for (const key of ['Left', 'Right', 'Top', 'Bottom', 'HorizontalCenter', 'VerticalCenter']) {
+    const prop = key[0].toLowerCase() + key.slice(1);
+    if (cfg[prop] != null) w['isAlign' + key] = true;
+}
+for (const key of ['left', 'right', 'top', 'bottom', 'horizontalCenter', 'verticalCenter']) {
+    if (cfg[key] != null) w[key] = cfg[key];
+}
+w.updateAlignment();
+```
+
+**两条口径 —— 老实说清哪条是「引擎行为」、哪条只是「某次搭树的取舍」**：
+
+- **单边对齐在 Widget 回写时会漂移** → 上面那段 Layout 写法的由来，**实测踩到过**。这是引擎行为，可以直接依赖。
+- **只用「四边拉伸 + 居中」两种对齐** → ⚠ **这是某次搭树的取舍，不是引擎规则。**
+  它够用、且避开了这类漂移，**照做可以，但别当成因果结论往外推** ——
+  别的项目要不要收敛到两种，由那个项目自己定。
+- 设计分辨率**别背数字**：开局查一次 `cc.view.getDesignResolutionSize()` 就知道；
+  而且它属于「编辑器的东西」，不许改（纪律 3）。
 
 ---
 
@@ -306,7 +379,8 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 
 ## 内置资源：按**路径**取，不要背 uuid
 
-只用引擎内置资源（不许引用 `assets/` 下任何东西）时，`db://internal/default_ui/` 下有
+当你需要**只用引擎内置资源、不引用工程内任何资源**时（例如想搭一个能独立验证的 demo，
+或所在项目有「产物不得引用 `assets/`」的硬要求），`db://internal/default_ui/` 下有
 20 张贴图与 2 个图集，覆盖常见 UI：
 
 | 用途 | 路径（`db://internal/default_ui/…`） |
@@ -329,6 +403,7 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 ---
 
 ## recipe：跑通的代码别丢
+<!-- fact: archive-not-indexed | verify: script:archive-not-indexed | 断言 .dsh-mcp/archive/ 下的文件不被 findRecipes 索引 -->
 
 跑通一段以后还会用的代码（建场景、按契约搭节点树、批量改资源…），
 用**与 `cocos_execute_code` 完全相同的一段代码**存下来：
@@ -369,6 +444,16 @@ await runRecipe('create-2d-scene', { name: 'BossArena' }); // 直接跑
 | 工程专有的流程、约定、坑点 | 本文件（`.agents/skills/`） | 需要人策展、能 review、能 git diff |
 | **跑通了的代码** | **recipe** | 文件存事实会过期成谎话；代码过期会当场报错 |
 | 只对这一次成立的探索 | 对话里 `return` 出来就够 | 它进 recipe 只会让 `findRecipes` 多一条跑不通的噪声 |
+| **结构写死、只能换文案/贴图的一次性布局** | 哪都不进（要留就 `.dsh-mcp/archive/`） | 换个用途搭不出来，名字还命不中 —— **错的 recipe 比没有 recipe 更贵** |
+
+**「跑通了」≠「能存」** —— 还要过三条形状判据：
+
+1. **换个参数还能跑**：代码里没有写死的节点路径 / 文案 / uuid。
+2. **能说出 ≥2 个「形状相同、用途不同」的未来调用点**；说不出 → 它是「这次探索的记录」，`return` 出来就行。
+3. **名字按「形状」而不是「用途」命名** —— 名字就是索引。
+
+对照（都在 `.dsh-mcp/`）：`recipes/build-subtabbed-list-page`（按形状命名 + 18 个真参数，✅）
+vs `archive/build-login-ui-tree`（结构写死 + 按用途命名，❌ 已退出索引；它夹带的事实已搬进坑 4 / 坑 9 / 纪律 1）。
 
 ---
 
@@ -378,7 +463,7 @@ await runRecipe('create-2d-scene', { name: 'BossArena' }); // 直接跑
 
 1. **改了什么**：`return` 具体的 uuid / 名字 / 属性前后值，不要 `return node`。
 2. **数量对不对**：`eachNode` 数一遍（注意已自动滤掉编辑器装饰）。
-3. **契约对不对**：按名字取子节点/组件（如 UI 树的 `底板`/`Layout`/`lv_detail`），
+3. **契约对不对**：按名字取你**自己约定过**的子节点/组件（例如「这棵树必有 `bg`/`title`/`list`」），
    缺一个就报出来，别假定它在。
 4. **画面对不对**（改布局/UI 时）：
    - 先 `cocos_capture_view` 截一张，用图片读取能力**看一眼** —— 坐标数字看不出叠字、错位、空白图；
@@ -408,6 +493,9 @@ await runRecipe('create-2d-scene', { name: 'BossArena' }); // 直接跑
 - **扩展改动没有热重载**：改完 `extensions/dsh_chat/` 的源码/场景脚本，要**重启一次 Cocos Creator**
   才会生效；「真实编辑器里的那一跳」在会话里验不了，**必须明确告诉用户去重启**。
   改完的标准动作：`cd extensions/dsh_chat && npm run build && node scripts/verify-cocos-engine.js`（假 `Editor` + 假 `cc` 真跑）。
+  **再加上事实门禁**：`node scripts/verify-skill-facts.js`（或 `npm run verify:skill`）——
+  **本文件里每条事实都挂了一条 `<!-- fact: … | verify: … -->` 声明**，改错了它会当场红。
+  新写一条坑时必须同时声明它怎么被验证（能算的写 `script:<锚点名>`，只能人验的写 `manual` + 一句「人在哪看什么」）。
 - **`cocos_capture_view` 可能整帧空白**（`blankRatio ≈ 1`）：先按坑 5 量视图状态，
   **不要反复重试、不要自建离屏渲染器**；这一项没做成要如实说。
 - **超时掐不断已在跑的异步代码**：`vm` 的 `timeout` 只管同步段，Node 没有抢占式取消。

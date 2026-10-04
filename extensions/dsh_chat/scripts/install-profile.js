@@ -38,8 +38,14 @@ const { dirname, join, relative, resolve } = require('node:path');
 /** profile 名。`dsh --profile cocos` 就是它。 */
 const PROFILE_NAME = 'cocos';
 
-/** 与 `dsh-profile/` 的内容绑定；改了 profile 就抬这个号，方便一眼看出装的是哪版。 */
-const PROFILE_VERSION = '0.2.0';
+/**
+ * profile 内容版本 —— **从插件 `package.json` 的 `version` 派生**，不再单独维护。
+ *
+ * 之前这里硬编码 `'0.2.0'`，而 `constants.ts` / `package.json` 是 `0.1.0` ——
+ * 三处不一致时，用户报的版本号没法判断「装的到底是哪一版内容」。
+ * 现在唯一真源 = `package.json` 的 `version`。
+ */
+const PROFILE_VERSION = require('../package.json').version;
 
 /** 我们**拥有**的 profile 根文件（会按内容同步；profile 里别的东西一律不碰）。 */
 const OWNED_ROOT_FILES = ['package.json', 'cordis.patch.yml'];
@@ -105,13 +111,32 @@ function syncFile(source, dest, changes, label) {
     return true;
 }
 
+/** profile 运行必需的 DSH 侧 bundles（住在 `$DSH_HOME/profiles/node_modules/@deepseek-ai/`）。 */
+const REQUIRED_BUNDLES = ['dsh-base', 'dsh-sdk-app'];
+
+/**
+ * 校验运行期依赖 —— 这几个 bundle 缺任何一个，**插件的 4 个工具会整体加载失败**
+ * （profile 里的 bridge 插件加载不起来），而 profile 自己看起来是"装好了"。
+ *
+ * 为什么必须做：之前的实现无论如何都回 `ok: true`，于是用户拿到的是
+ * **「装成功 + 工具凭空消失」**——最难查的一类故障（要等 initialize 超时或报"未知的编辑器方法"）。
+ *
+ * @param {string} dshHome - DSH home。
+ * @returns {{ok: boolean, root: string, missing: string[]}} 校验结果。
+ */
+function checkRuntimeDeps(dshHome) {
+    const root = join(dshHome, 'profiles', 'node_modules', '@deepseek-ai');
+    const missing = REQUIRED_BUNDLES.filter((name) => !existsSync(join(root, name, 'package.json')));
+    return { ok: missing.length === 0, root, missing };
+}
+
 /**
  * 安装/修复 profile。幂等：内容一致时一个字节都不写。
  *
  * @param {object} [options] - 可选项。
  * @param {string} [options.sourceDir] - `dsh-profile/` 的位置（默认按脚本位置推算）。
  * @param {string} [options.dshHome] - 覆盖 DSH home。
- * @returns {{ok: boolean, dshHome: string, profileDir: string, version: string, changes: string[], profileExisted: boolean}} 安装报告。
+ * @returns {{ok: boolean, dshHome: string, profileDir: string, version: string, changes: string[], profileExisted: boolean, deps: object, warnings: string[]}} 安装报告。
  */
 function installProfile(options = {}) {
     const sourceDir = options.sourceDir ? resolve(options.sourceDir) : resolve(__dirname, '..', 'dsh-profile');
@@ -162,7 +187,19 @@ function installProfile(options = {}) {
         );
     }
 
-    return { ok: true, dshHome, profileDir, version: PROFILE_VERSION, changes, profileExisted };
+    // 校验运行期依赖。缺 bundle **不改 ok**（profile 文件确实装好了），但必须显式带出去让调用方报红 ——
+    // 静默的 `ok: true` 正是之前那次「工具凭空消失」的根因。
+    const deps = checkRuntimeDeps(dshHome);
+    /** @type {string[]} */
+    const warnings = deps.ok
+        ? []
+        : [
+            `profile 缺少 DSH 侧 bundle：${deps.missing.join('、')}（找的位置：${deps.root}）。`,
+            '缺了它，插件的 4 个 cocos_* 工具会**整体加载失败**，而 profile 自己看起来是装好的。',
+            '先装好 `@deepseek-ai/dsh`（bundle 会落在 $DSH_HOME/profiles/node_modules/），再重开面板。',
+        ];
+
+    return { ok: true, dshHome, profileDir, version: PROFILE_VERSION, changes, profileExisted, deps, warnings };
 }
 
 module.exports = { installProfile, resolveDshHome, PROFILE_NAME, PROFILE_VERSION, PLUGIN_PACKAGE_NAME };
@@ -174,6 +211,9 @@ if (require.main === module) {
         console.log(`[dsh_chat] profile 已就位：${report.profileDir}`);
         console.log(`[dsh_chat] 版本 ${report.version}；${report.changes.length === 0 ? '无变更（已是最新）' : ''}`);
         for (const line of report.changes) console.log(`  - ${line}`);
+        for (const line of report.warnings ?? []) console.warn(`[dsh_chat] ⚠ ${line}`);
+        // 依赖不齐 → 退出码 1，这样它能当门禁用（之前无论缺什么都 exit 0）。
+        if (report.deps && !report.deps.ok) process.exitCode = 1;
     } catch (error) {
         console.error(`[dsh_chat] 安装 profile 失败：${error instanceof Error ? error.message : error}`);
         process.exitCode = 1;

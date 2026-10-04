@@ -1,8 +1,7 @@
 {
   "version": 1,
   "engine": "CocosCreator 3.8.6",
-  "project": "D:\\Project\\cocos\\jihe_defence",
-  "projectKey": "--D-Project-cocos-jihe_defence--",
+  "_projectNote": "工程路径与工程键**故意不写死**：它们随消费工程而变，写死等于把作者本机的路径发给所有人。oracle.mjs 缺省用本仓库根；score.mjs 缺省按 DSH 的 projectKey 规则从当前工作目录推导。要固定就自己加 \"project\" / \"projectKey\" 字段。",
   "conventions": {
     "marker": "每条用例的 prompt 以 [BENCH:<id>] 开头 —— score.mjs 靠它自动认领对应的会话日志",
     "scene": "所有用例都在专用空场景 assets/scenes/Bench.scene 里跑，禁止在 Main/Loading/Game_Stage 等真实场景里做实验",

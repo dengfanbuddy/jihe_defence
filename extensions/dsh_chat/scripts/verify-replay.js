@@ -48,7 +48,13 @@ function installEditorStub(projectPath) {
 let failures = 0;
 const check = (label, ok, detail = '') => {
     console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}${detail ? ` —— ${detail}` : ''}`);
-    if (!ok) failures += 1;
+    if (!ok) {
+        failures += 1;
+        // ⚠ 在这里就置退出码，**不要只靠结尾那一行** ——
+        // 本脚本原本在最关键的失败上 `if (!listed.ok) return;` 早退，
+        // 于是「连会话都列不出来」反而 exit 0（跟 score.mjs 恒 exit 0 是同一类洞）。
+        process.exitCode = 1;
+    }
 };
 
 async function main() {

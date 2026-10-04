@@ -1,3 +1,22 @@
+/* ⚠ 已归档（2026-10-04）—— 这一条**不是 recipe**。留在 `.dsh-mcp/archive/` 只作参考实现，**不要放回 `recipes/`**。
+ *
+ * 为什么归档（判据 = 换参数还能跑 + 能说出 ≥2 个未来调用点）：
+ *   它的**结构是写死的**（背景 / 柔化层 / SafeArea / 居中主列 / 圆角面板 / 两个 EditBox / 登录注册按钮 / 版本协议条），
+ *   9 个参数只能换文案与贴图 uuid —— 换个用途（设置页、背包页）根本搭不出来。
+ *   名字也按**用途**（login）而非**形状**命名，检索时命不中。
+ *   对照：`recipes/build-subtabbed-list-page.js` 按形状命名 + 18 个真参数，那条才是 recipe。
+ *
+ * 它夹带的**事实**已搬进 skill（纪律 6：丢代码之前先把事实搬走）：
+ *   ① Widget 只用「四边拉伸 / 居中」两种对齐、且只打开显式给了值的对齐项  → SKILL.md 坑 9
+ *   ② 贴底横条用 Layout(VERTICAL / BOTTOM_TO_TOP) 绕开单边对齐漂移        → SKILL.md 坑 9
+ *   ③ Sprite 先 sizeMode=CUSTOM 再赋 spriteFrame                          → 早已在 SKILL.md 坑 4
+ *   ④ EditBox 自建背景 Sprite 的 sizeMode 也要先改                         → 早已在 SKILL.md 坑 4
+ *      （本文件独有的那条：EditBox 的两个子节点叫 TEXT_LABEL / PLACEHOLDER_LABEL —— 已并入坑 4）
+ *   ⑤ 建树脚本幂等：同名根先删再建                                        → 早已在 SKILL.md 纪律 1
+ *
+ * 归档而不是删除：`.dsh-mcp/` 当时**未入库**（`git ls-files .dsh-mcp` = 0），删了就找不回来。
+ * 不影响索引：`listRecipeRecords` 是 `readdirSync(recipes/)` 非递归、只收本层 `*.js`（`source/core/recipes.ts:214-226`）。
+ */
 /* @dsh-recipe
 {
   "name": "build-login-ui-tree",

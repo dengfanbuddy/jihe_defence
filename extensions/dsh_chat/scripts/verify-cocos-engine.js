@@ -58,6 +58,7 @@ function check(label, ok, detail) {
         return;
     }
     failures += 1;
+    process.exitCode = 1; // 早退路径也要红 —— 别只靠结尾那一行（见 verify-replay 踩过的洞）。
     console.log(`  ❌ ${label}`);
     if (detail !== undefined) console.log(`     证据：${typeof detail === 'string' ? detail : JSON.stringify(detail)}`);
 }
@@ -641,6 +642,25 @@ async function main() {
         'describe_api(scene) 转发给本扩展场景脚本（拿到反射结果）',
         sceneDescribe.ok === true && Boolean(sceneDescribe.data.className),
         sceneDescribe.text.slice(0, 200),
+    );
+
+    // ── node 定位（`paths.ts` 曾经 0 覆盖，而里面藏着一条**恒为死代码**的兜底）──────
+    // 那个 bug：`join(NVM_SYMLINK ?? 'C:\\nvm4w', 'nodejs', 'node.exe')`，
+    // 而 `NVM_SYMLINK` 本身就已经是 `C:\nvm4w\nodejs` → 拼出 `…\nodejs\nodejs\node.exe`，
+    // 永远不存在。症状是「PATH 探测失败后仍然找不到 node」，而且**无从察觉**。
+    const paths = require(join(EXT_ROOT, 'dist', 'paths.js'));
+    const nodeCandidates = paths.knownNodePaths();
+    check('knownNodePaths 给出了候选', Array.isArray(nodeCandidates) && nodeCandidates.length > 0, nodeCandidates.join(' | '));
+    check(
+        '候选里没有「拼两遍 nodejs」的死路径',
+        nodeCandidates.every((p) => !/nodejs[\\/]+nodejs/i.test(p)),
+        nodeCandidates.join(' | '),
+    );
+    const runtime = paths.resolveRuntime({ nodePath: '', dshBin: '' });
+    check(
+        'resolveRuntime 在本机找得到 node',
+        typeof runtime.nodeExe === 'string' && runtime.nodeExe !== '' && existsSync(runtime.nodeExe),
+        `${runtime.nodeExe}（来源：${runtime.nodeSource}）`,
     );
 
     // ---------------------------------------------------------------------

@@ -36,7 +36,13 @@
  *    工具不报 ENOENT 之类的底层错，而是明确说「请在 Cocos Creator 里打开 DSH 面板」。
  * 2. **超时自己管**：编辑器可能卡住（场景重载、资源导入），不能让模型调用无限挂起。
  * 3. **本文件是纯 ESM JS，不经过编译**：由 Cordis Loader 直接 import。改完不用 build，
- *    但**必须同步到 profile**（`scripts/install-profile.js`），`patchReload: live` 会热重载。
+ *    但**必须同步到 profile**（`scripts/install-profile.js`），**并且重启一次 agent**。
+ *
+ *    ⚠ **`patchReload: live` 不会热重载本文件**（实测，见 README 坑 23）——它只盯
+ *    `cordis.patch.yml` 这类 patch 配置：launcher 在 `patchReload === 'live'` 时建的 HMR 实例
+ *    `root: []`，**不监视任何模块目录**（`dsh-base` 里 `hmr` row 也是 `disabled: true`）。
+ *    所以**新增/改名工具、改工具 description 之后，模型手里不会自动变**，要 stop/start 一次 agent。
+ *    这条曾经被写反过（原文写"会热重载"），**别再改回去**。
  *
  * @module dsh-cocos-bridge
  */
@@ -516,6 +522,8 @@ const EXECUTE_CODE_DESCRIPTION = [
     '',
     '参数用 `args` 传：`cocos_execute_code({context:"scene", code:"return { name: args.name }", args:{name:"x"}})`。同一段代码换参数复用走它，不要在代码里拼字符串。',
     '**改完节点树/布局要看画面**时用 `cocos_capture_view`（它把场景视图存成图片并回路径），不要靠坐标数字猜 —— 叠字、错位、贴图空白只有画面看得出。',
+    '',
+    '⚠ **沙箱是「防手滑」，不是安全边界**：`editor` 侧是 `vm` 起的新 realm（但 `require(\'process\')` 仍能拿到真的）；`scene` 侧**零隔离**（跑在宿主 realm）。这段代码是在**用户正开着的编辑器进程里**跑的，`editor` 上下文能读改工程文件、能访问网络。所以**只做用户要求的事** —— 别顺手扫盘、别碰工程外的路径、别把工程内容往外发。',
     '',
     '判别口诀：**改文件/查资源库 → editor；碰节点/组件 → scene。**',
     '',

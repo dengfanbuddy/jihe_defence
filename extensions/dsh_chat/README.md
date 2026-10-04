@@ -118,6 +118,10 @@ scene 转发的快照与降级文案，以及 `cocos-tools` 四个 IPC 方法的
 |---|---|
 | `dsh-profile/` | **profile 的源**（可评审、进 Git）。装到 `$DSH_HOME/profiles/cocos/` 只是它的投影 |
 | `dsh-profile/plugin/dsh-cocos-bridge/index.js` | DSH 侧的插件：经 IPC 注册 `cocos_execute_code` / `cocos_describe_api` / `cocos_editor_state` / `cocos_capture_view`。**纯 ESM JS，不编译**；四段 description 就是模型唯一的说明书 |
+| `skills/` | **随插件发布的通用 skill**（引擎/编辑器行为 + 插件自身边界）。`source/dsh-host.ts` fork 时注入 `DSH_BUNDLED_SKILL_DIR=<这里>`，DSH 当 bundled 根扫（rank 600）→ **换个工程装上就有**。⚠ 同名是「整体覆盖」不是合并，工程里**别**再放一份同名的 —— 口径与 6 个根的全表见 `skills/README.md` |
+| `skills/cocos-editor-ops/SKILL.md` | 那份 skill 本体：9 条坑 + 3 条铁律 + 6 条纪律 + 13 条 `<!-- fact: -->` 声明 |
+| `scripts/verify-skill-facts.js` | **事实门禁**：每条坑必须声明怎么验；`script:` 锚点必须真跑通过；工程里不许有同名 skill（会遮蔽插件这份）。改 `SKILL.md` 后跑它（`npm run verify:skill`） |
+| `i18n/zh.js` `i18n/en.js` | 编辑器菜单文案 —— `package.json` 的 `contributions.menu` 用 `i18n:menu.panel/dsh_chat` 寻址，**缺了 i18n 目录菜单组名会显示成原始 key** |
 | `scripts/install-profile.js` | 幂等安装器（CJS）。编辑器每次加载扩展都会调它；也能手工 `node scripts/install-profile.js` |
 | `scripts/verify-bridge.js` | 验证 bridge 插件：装的那份 == 源的那份、`apply()` 注册了 4 个工具、描述里那几条要点还在。**不开编辑器、不碰正在跑的会话** |
 | `source/` | 扩展源码（主进程 + 面板），编译到 `dist/` |

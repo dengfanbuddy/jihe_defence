@@ -43,6 +43,10 @@ interface InstallReport {
     profileDir?: string;
     version?: string;
     changes?: string[];
+    /** 运行期依赖校验 —— 缺 bundle 时 profile「装好了」但 4 个工具会整体加载失败。 */
+    deps?: { ok: boolean; root: string; missing: string[] };
+    /** 安装器给出的、必须让用户看见的警告。 */
+    warnings?: string[];
     error?: string;
 }
 
@@ -100,7 +104,17 @@ function syncProfile(): InstallReport {
             `[dsh_chat] profile ${report.version} 已就位：${report.profileDir}` +
                 (report.changes?.length ? `（${report.changes.length} 处变更）` : '（无变更）'),
         );
-        lastInstall = { ...report, ok: true };
+        // ⚠ 别在这里写死 `ok: true`。profile 文件装好了 ≠ 这台机器能用：
+        // 缺 `dsh-base` / `dsh-sdk-app` 时 profile 看起来一切正常，而模型手里 4 个工具全没了
+        // （要等 initialize 超时或报"未知的编辑器方法"才发现）。所以 ok 反映的是**可用性**，
+        // 并把原因写进 `error`（面板已有显示失败原因的那条路）。
+        const depsOk = report.deps ? report.deps.ok : true;
+        for (const line of report.warnings ?? []) console.warn(`[dsh_chat] ⚠ ${line}`);
+        lastInstall = {
+            ...report,
+            ok: depsOk,
+            error: depsOk ? undefined : (report.warnings ?? []).join(' '),
+        };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[dsh_chat] 同步 profile 失败：${message}`);

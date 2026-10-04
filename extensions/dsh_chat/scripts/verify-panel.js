@@ -30,7 +30,11 @@ const ROOT = resolve(__dirname, '..');
 let failures = 0;
 const check = (label, ok, detail = '') => {
     console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}${detail ? ` —— ${detail}` : ''}`);
-    if (!ok) failures += 1;
+    if (!ok) {
+        failures += 1;
+        // 早退路径也要红 —— 别只靠结尾那一行（见 verify-replay 踩过的洞）。
+        process.exitCode = 1;
+    }
 };
 
 /** 面板会用到的样式类（在 index.css 里必须都有定义）。 */

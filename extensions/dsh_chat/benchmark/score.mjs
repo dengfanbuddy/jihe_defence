@@ -36,6 +36,20 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const suite = JSON.parse(readFileSync(join(HERE, 'cases.json'), 'utf8'));
 const PROJECT = resolve(suite.project ?? join(HERE, '..', '..', '..'));
 
+/**
+ * DSH 的工程键：`D:\Project\cocos\jihe_defence` → `--D-Project-cocos-jihe_defence--`。
+ *
+ * 为什么要有这个兜底：`cases.json` 原来把 `projectKey` **写死成作者本机的工程** ——
+ * 那份文件一旦跟着插件发出去，别人跑基准就永远在找一个不存在的目录。
+ * 现在缺省按当前工作目录推导；`cases.json` 里显式给了才用显式的。
+ */
+function projectKeyOf(dir) {
+    return `--${resolve(dir).replace(/[:\\/]+/g, '-')}--`;
+}
+
+/** 基准所属工程的键（`cases.json` 可覆盖；缺省 = 当前工作目录）。 */
+const PROJECT_KEY = (suite.projectKey ?? '').trim() || projectKeyOf(process.cwd());
+
 /* ------------------------------------------------------------------ *
  * 会话日志解码（照抄 DSH 的帧扫描口径：zstdDecompressSync 只吃单帧）
  * ------------------------------------------------------------------ */
@@ -111,7 +125,7 @@ function sessionsRoot() {
 
 /** 列出本工程最近的会话（按日志 mtime 倒序）。 */
 function recentSessions(limit) {
-    const dir = join(sessionsRoot(), suite.projectKey);
+    const dir = join(sessionsRoot(), PROJECT_KEY);
     if (!existsSync(dir)) return [];
     const rows = [];
     for (const name of readdirSync(dir)) {
@@ -410,7 +424,7 @@ const candidates = cli.session
     : recentSessions(cli.recent);
 
 if (candidates.length === 0) {
-    console.error(`在 ${join(sessionsRoot(), suite.projectKey)} 下没找到会话日志`);
+    console.error(`在 ${join(sessionsRoot(), PROJECT_KEY)} 下没找到会话日志`);
     process.exit(1);
 }
 

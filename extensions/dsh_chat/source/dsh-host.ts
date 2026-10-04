@@ -22,6 +22,7 @@
 
 import { fork, type ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
+import { join } from 'path';
 
 import { COCOS_IPC_METHODS } from './cocos-tools';
 import {
@@ -45,6 +46,22 @@ import { type ValidImage } from './images';
 import { resolveRuntime, type ResolvedRuntime } from './paths';
 import { SdkClient } from './sdk-client';
 import { getSettings } from './settings';
+
+/**
+ * 随扩展发布的通用 skill 目录（`<扩展根>/skills`）。
+ *
+ * 为什么要显式注入：DSH 的 `@deepseek-ai/dsh-skill-filesystem` 会读环境变量
+ * `DSH_BUNDLED_SKILL_DIR` 并把它当成 **bundled 根**扫描（`rank = 600`，全表最低优先级）。
+ * 于是「引擎/编辑器操作的通用知识」**跟着插件走** —— 换个工程装上就有，
+ * 而工程自己的 `.agents/skills/`（rank 200）、用户级 `~/.agents/skills/`（rank 500）仍然优先。
+ *
+ * ⚠ **同名是「整体覆盖」而不是「合并」**（`dsh-skill` 的 `collectLayer` 按 rank 升序 + 按名字去重），
+ * 所以消费工程里**不要**再放一个同名的 `cocos-editor-ops` —— 那会把插件这份整个吃掉。
+ * 完整口径见 `skills/README.md`。
+ */
+function bundledSkillDir(): string {
+    return join(__dirname, '..', 'skills');
+}
 
 /** 转写保留上限（超出丢最老的）。面板只看最近这些，够用且不涨内存。 */
 const MAX_ENTRIES = 600;
@@ -295,7 +312,12 @@ export class DshHost {
                 cwd,
                 stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
                 windowsHide: true,
-                env: { ...process.env },
+                env: {
+                    ...process.env,
+                    // 随扩展发布的通用 skill 根 —— 让「引擎/编辑器操作的通用知识」跟着插件走，
+                    // 换工程装上就有。见 bundledSkillDir() 与 skills/README.md。
+                    DSH_BUNDLED_SKILL_DIR: bundledSkillDir(),
+                },
                 // `windowsHide` 是真实存在的选项（Windows 上别弹黑框），但本地的 @types/node
                 // 比它旧、ForkOptions 里还没声明，所以这里断言一下而不是删掉这个选项。
             } as import('child_process').ForkOptions);

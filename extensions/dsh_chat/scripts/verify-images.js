@@ -43,7 +43,11 @@ let failures = 0;
  */
 function check(label, ok, detail = '') {
     console.log(`${ok ? '  ok  ' : ' FAIL '} ${label}${detail ? ` —— ${detail}` : ''}`);
-    if (!ok) failures += 1;
+    if (!ok) {
+        failures += 1;
+        // 早退路径也要红 —— 别只靠结尾那一行（见 verify-replay 踩过的洞）。
+        process.exitCode = 1;
+    }
 }
 
 /** 造一遍临时工程结构。 */

@@ -56,15 +56,27 @@ function dshBinFromShim(shimPath: string | null): string | null {
     return existsSync(candidate) ? candidate : null;
 }
 
-/** 已知的 node 安装位置（兜底用；探测不到 PATH 时按顺序试）。 */
-function knownNodePaths(): string[] {
-    if (process.platform !== 'win32') return ['/usr/local/bin/node', '/usr/bin/node'];
-    return [
+/**
+ * 已知的 node 安装位置（兜底用；探测不到 PATH 时按顺序试）。
+ *
+ * 导出是为了能被 `scripts/verify-cocos-engine.js` 断言 —— 这个模块曾经 0 测试覆盖，
+ * 而里面藏着一条**恒为死代码**的兜底（拼了两遍 `nodejs`）。
+ */
+export function knownNodePaths(): string[] {
+    if (process.platform !== 'win32') {
+        // 覆盖 Linux 与 macOS（含 Apple Silicon 的 Homebrew 前缀）
+        return ['/usr/local/bin/node', '/usr/bin/node', '/opt/homebrew/bin/node'];
+    }
+    const out = [
         'C:\\Program Files\\nodejs\\node.exe',
         'C:\\Program Files (x86)\\nodejs\\node.exe',
-        // nvm-for-windows 的默认根
-        join(process.env.NVM_SYMLINK ?? 'C:\\nvm4w', 'nodejs', 'node.exe'),
     ];
+    // nvm-for-windows：`NVM_SYMLINK` **本身就已经是那个 nodejs 目录**（实测本机是 `C:\nvm4w\nodejs`），
+    // 所以不能再往下拼一层 `nodejs`。之前拼了，于是这条兜底恒为死代码
+    // （`…\nodejs\nodejs\node.exe` 不存在）—— 表现为"PATH 探测失败后仍然找不到 node"。
+    const nvmSymlink = process.env.NVM_SYMLINK;
+    out.push(nvmSymlink ? join(nvmSymlink, 'node.exe') : 'C:\\nvm4w\\nodejs\\node.exe');
+    return out;
 }
 
 /**
