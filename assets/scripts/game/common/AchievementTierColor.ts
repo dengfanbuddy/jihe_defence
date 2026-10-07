@@ -3,15 +3,18 @@ import type { AchTier } from '../excel_table/Tb_AchievementConfig';
 /**
  * 成就档位配色与名称（**全工程唯一源**）
  *
- * 与 `RelicRarityColor.ts` 同风格：色值只有一份，卡面（`AchievementItem`）、
- * 档位文字（`lv`）都从这里取，别在界面里各写一套。
+ * 与 `RelicRarityColor.ts` 同风格：色值只有一份，卡面（`AchievementItem`）从这里取，
+ * 别在界面里各写一套。
  *
- * ⚠ **卡面底色用的是「同色 + 低透明度」**（`ACH_TIER_BG_ALPHA`），不是满色：
- * 设计稿里「`bg` 按档位染色」与「`lv` 文字用档位色」两条同时满色会互相吃掉
- * （金档最严重：`#F2C14E` 压 `#F2C14E`），满色底也会与正文的深色文字抢对比度。
- * 要更深/更浅只改 `ACH_TIER_BG_ALPHA`，别换色相。
+ * ⚠ **档位色是「点缀」，不是「底色」**（2026-11 卡面改版后的口径）：
+ * 卡面是纯白 `c-surface` + `rect_rd_20` 大圆角（`docs/美术风格预设.md` §6「内容卡片」），
+ * 档位色**只出现在两处之外的一处** —— 卡左缘那条 `tier_bar` 刻度条（`AchievementItem.applyBgAndTier`）。
+ * 为什么不铺满/晕染卡面：① 浅底上会与正文的深色文字抢对比度，金档 `#F2C14E` 最严重；
+ * ② 铜/银/金是本卡唯一的「暖色强调」，铺成面积就变成第三种强调色（违反 §10）；
+ * ③ §9-4 的原则是「档位差主要靠**形状与附件**而不是换色相」。
  *
- * 另一种用法：卡面底色低透明度叠在局外纸面底（`#EFEEED`）上 —— 见设计稿 §7.4。
+ * 卡面上的档位名（`lv`，铜/银/金）走 `c-ink-900` 墨色 —— 档位色由刻度条回答，
+ * 文字只管可读（`#F2C14E` 写在白底上只有 1.5:1，读不出来）。
  */
 export const ACH_TIER_COLOR: Record<AchTier, string> = {
     1: '#C98B5E',   // 铜
@@ -25,9 +28,6 @@ export const ACH_TIER_NAME: Record<AchTier, string> = {
     2: '银',
     3: '金',
 };
-
-/** 卡面 `bg` 的档位色透明度（0~255；60 ≈ 24% 叠在纸面底上） */
-export const ACH_TIER_BG_ALPHA = 60;
 
 /** 取档位色（越界/未知一律回落铜档，绝不返回 undefined） */
 export function tierColor(tier: number): string {

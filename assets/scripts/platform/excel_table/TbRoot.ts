@@ -58,16 +58,29 @@ export class TbRoot {
 
   /**
    * 异步加载所有已注册的配置表
+   *
+   * @param onProgress 每张表加载结束（无论成功/失败）回调一次：`(已完成数, 总数)`。
+   *                   Loading 场景的进度条靠它拿到"配表阶段"的真实进度；不传则零开销。
    */
-  public async loadTbs(): Promise<boolean> {
+  public async loadTbs(onProgress?: (finished: number, total: number) => void): Promise<boolean> {
     return new Promise((resolve) => {
       if (this.initialized) {
         LogMgr.info('[TbRoot] 配置表已加载，跳过');
+        // 已经加载过 = 这一阶段视为瞬间完成，进度条不要卡住
+        onProgress?.(1, 1);
         resolve(true);
         return;
       }
       const entries = Array.from(this.containerConfigs.entries());
       LogMgr.info(`[TbRoot] 开始加载配置表，共 ${entries.length} 个...`);
+
+      // 配表进度计数（并行加载，完成一张 +1；失败也 +1 —— 否则进度条永远走不完）
+      const total = entries.length;
+      let finished = 0;
+      const tick = () => {
+        finished++;
+        onProgress?.(finished, total);
+      };
 
       // 1. 实例化所有容器
       for (const [name, config] of entries) {
@@ -87,6 +100,8 @@ export class TbRoot {
             }
           } catch (e) {
             LogMgr.err(`[TbRoot] 加载失败 ${config.bundle}:${config.path}`, e);
+          } finally {
+            tick();
           }
         })
       ).then(() => {

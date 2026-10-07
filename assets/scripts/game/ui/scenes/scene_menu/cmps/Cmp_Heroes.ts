@@ -1,9 +1,9 @@
 import { _decorator, instantiate, Label, Node, Widget } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
-import { DataCenter, CurrencyType } from '../../../../data';
+import { DataCenter } from '../../../../data';
 import { HeroConfig } from '../../../../data/configs/HeroConfig';
 import { HeroCard } from './HeroCard';
-import { HeroScopeEvents, type HeroCardVM } from './HeroScope';
+import { buildCardVM, heroFingerprint } from './HeroVM';
 import type { UnitCfg } from '../../../../excel_table/Tb_UnitConfig';
 
 const { ccclass, property } = _decorator;
@@ -31,12 +31,17 @@ const WIDGET_VERTICAL_STRETCH = 1 | 4;
  * 与 `Cmp_Achievement` / `Cmp_OuterRelics` 同一套路：**模板节点跟随预制件**（作者摆的卡片
  * 在编辑器里看得见、改得动），运行时克隆；克隆只清 `row_` 前缀的行，模板永不删。
  *
- * ── 本类负责什么（分层：规则在数据层，界面只画 + 上报）──
+ * ── 本类负责什么（只有两件）──
  *   · 取英雄清单（`HeroConfig.getHeroes()`，units.json 里 category=hero 的条目，id 升序）；
- *   · 给每张卡算**整包数据**（`HeroCardVM`）：等级 / 是否解锁 / 这一步的价格 / **能不能点**；
- *     ⚠ 「够不够钱」这条判据**只在本类算一次**（`buildVM`），卡片只画，不重算；
- *   · 收卡片的事件（解锁 / 升级 / 详情）→ 调 `DataCenter.ins.unlockHero / levelUpHero`（金币的唯一出口）；
- *   · 详情互斥：同时只展开一张卡（谁展开由这里说了算，卡片只被动接受 `setExpanded`）。
+ *   · 给每张卡下发**整包数据**（`HeroVM.buildCardVM`）+ 数据一变就重铺
+ *     （指纹 watcher，见 `HeroVM.heroFingerprint`）。
+ *
+ * ── 本类**不**负责什么（2026-11 改，见 `HeroScope.ts` 的「谁收事件」）──
+ *   · **不处理**「解锁 / 升级」：`UIScope.emit` 只沿父链向上，卡片发的事件会一路冒到
+ *     `Scene_Menu`（英雄详情弹窗也挂在根节点上，必须由同一处处理 —— 否则弹窗点一下会被处理两次）。
+ *     花钱、写存档、开弹窗、刷新都在 `Scene_Menu`；
+ *   · **不再**管"同时只展开一张卡"的互斥：卡片的「详 情」按钮现在开的是**整屏弹窗**（一次只有一个），
+ *     卡片自己没有展开态了。
  *
  * ── 挂载方式 ──
  * 本组件挂在 `content/right/heros` 上；卡片组件 `HeroCard` **不需要**在编辑器里挂 ——
@@ -55,11 +60,8 @@ export class Cmp_Heroes extends UIWidget {
     @property({ type: Node, tooltip: '卡片模板（heros/lists/HeroItem）' })
     cardTemplate: Node = null;
 
-    /** 克隆出来的卡片（详情互斥、重刷时逐张写状态用） */
+    /** 克隆出来的卡片（重刷时逐张写状态用） */
     private items: HeroCard[] = [];
-
-    /** 当前展开详情的英雄（0 = 全收起；重刷后要恢复） */
-    private expandedHeroId = 0;
 
     /* ==================== 生命周期 ==================== */
 
@@ -69,12 +71,9 @@ export class Cmp_Heroes extends UIWidget {
         // 模板不进列表：克隆出来的行统一叫 row_<heroId>，清行时只清 row_ 前缀（见 clearGenerated）
         if (this.cardTemplate) this.cardTemplate.active = false;
 
-        this.scope.on(HeroScopeEvents.Unlock, this.onClickUnlock, this);
-        this.scope.on(HeroScopeEvents.LevelUp, this.onClickLevelUp, this);
-        this.scope.on(HeroScopeEvents.Detail, this.onClickDetail, this);
-
-        // 数据指纹：金币（够不够钱）/ 已解锁集合 / 等级，任一变化就重铺 —— 不需要手动广播
-        this.scope.watch(() => this.fingerprint(), () => this.rebuild());
+        // 数据指纹：金币（解锁价够不够）/ 通用经验池（升级够不够）/ 已解锁集合（id:等级），
+        // 任一变化就重铺 —— 不需要手动广播（解锁、升级、一局通关发经验都会命中）
+        this.scope.watch(() => heroFingerprint(), () => this.rebuild());
 
         // 常驻一行自检日志：页面"什么都没有"时，能区分是「组件没跑」还是「配表没加载」
         console.log(`[英雄页] onInit：lists=${!!this.lists} cardTemplate=${!!this.cardTemplate}`);
@@ -129,9 +128,8 @@ export class Cmp_Heroes extends UIWidget {
 
         // 模板上没挂 HeroCard（不要求作者在编辑器里挂）→ 运行时补一个
         const card = node.getComponent(HeroCard) ?? node.addComponent(HeroCard);
-        card.setInfo(this.buildVM(cfg));
-        // 重刷后恢复详情态（互斥由 expandedHeroId 决定，见 onClickDetail）
-        card.setExpanded(this.expandedHeroId === cfg.id);
+        // 判据（够不够、花什么、花多少、能不能点）只在 HeroVM 里算一次，卡片只画
+        card.setInfo(buildCardVM(cfg));
         this.items.push(card);
         return node;
     }
@@ -188,87 +186,6 @@ export class Cmp_Heroes extends UIWidget {
     }
 
     /* ===================================================================
-     * 卡片数据包（判据唯一落点）
-     * =================================================================== */
-
-    /**
-     * 一张卡的整包数据。**「够不够钱」只在这里算**（卡片与页面因此永远不会各说一套）。
-     *
-     * 价格为 0（配表把基准价配成 0）= 免费，永远可点。
-     */
-    private buildVM(cfg: UnitCfg): HeroCardVM {
-        const info = DataCenter.ins.heroData.getHeroInfo(cfg.id);
-        const unlocked = !!info;
-        const level = info?.level ?? 0;
-        const cost = unlocked ? HeroConfig.getLevelUpCost(level) : HeroConfig.getUnlockCost(cfg.id);
-        const gold = DataCenter.ins.itemData.getCurrency(CurrencyType.Gold);
-
-        return {
-            heroId: cfg.id,
-            name: cfg.name,
-            headIcon: cfg.head_icon,
-            skillIcon: HeroConfig.getSkillIcons(cfg.id)[0] ?? '',
-            unlocked,
-            level,
-            // 经验条：当前经验 / 升下一级所需（公式唯一落在 `HeroData.getExpForNextLevel`，
-            // 与结算用的同一个）。未解锁没有档案 → expMax=0，卡片据此收起进度条
-            exp: info?.exp ?? 0,
-            expMax: unlocked ? DataCenter.ins.heroData.getExpForNextLevel(level) : 0,
-            cost,
-            enabled: cost <= 0 || gold >= cost,
-            // 未解锁时按 1 级展示（卡片会把 `lv` 收起，属性行显示的仍是"他 1 级时的样子"）
-            attrs: HeroConfig.getAttrRows(cfg.id, Math.max(1, level)),
-        };
-    }
-
-    /* ===================================================================
-     * 卡片事件（花钱的地方）
-     * =================================================================== */
-
-    /** 点「解 锁」：走 `DataCenter`（查价 → 扣局外金币 → 写存档） */
-    private onClickUnlock(heroId: number): void {
-        const res = DataCenter.ins.unlockHero(heroId);
-        this.reportResult('解锁', heroId, res.ok, res.reason, res.cost);
-        this.rebuild();          // 成败都重刷（失败时可能只是状态过期）
-    }
-
-    /** 点「升 级」：同上，价格随等级上涨 */
-    private onClickLevelUp(heroId: number): void {
-        const res = DataCenter.ins.levelUpHero(heroId);
-        this.reportResult('升级', heroId, res.ok, res.reason, res.cost);
-        this.rebuild();
-    }
-
-    /** 点「详 情 / 收 起」：**互斥在这一处**（点开第二张时第一张自动收起） */
-    private onClickDetail(heroId: number, expanded: boolean): void {
-        this.expandedHeroId = expanded ? heroId : 0;
-        for (const card of this.items) {
-            if (!card || !card.isValid) continue;
-            card.setExpanded(card.getHeroId() === this.expandedHeroId);
-        }
-    }
-
-    /** 失败原因是数据层给的判据（钱不够 / 已解锁 / 未解锁），界面不自己重算一遍 */
-    private reportResult(action: string, heroId: number, ok: boolean, reason: string, cost: number): void {
-        const name = HeroConfig.getHero(heroId)?.name ?? `id=${heroId}`;
-        if (ok) {
-            ezgame.info(`[英雄] ${name} ${action}成功（消耗 ${cost} 金币）`);
-            return;
-        }
-        ezgame.warn(`[英雄] ${name} ${action}失败：${this.reasonText(reason)}`);
-    }
-
-    private reasonText(reason: string): string {
-        switch (reason) {
-            case 'no_gold': return '局外金币不足';
-            case 'already_unlocked': return '已经解锁了';
-            case 'locked': return '还没解锁';
-            case 'unknown_hero': return '配表里没有这个英雄';
-            default: return reason || '未知原因';
-        }
-    }
-
-    /* ===================================================================
      * 节点契约
      * =================================================================== */
 
@@ -299,20 +216,5 @@ export class Cmp_Heroes extends UIWidget {
         widget.alignFlags &= ~WIDGET_VERTICAL_STRETCH;
         console.log('[英雄页] lists 上的 Widget 上下拉伸会压死 Layout 的高度（列表滚不动），已摘掉上/下对齐；'
             + '建议直接在编辑器里删掉这个 Widget');
-    }
-
-    /**
-     * 数据指纹 —— watcher 的订阅源：**只要它变了就重铺界面**。
-     * 用「金币 + 已解锁集合 + 等级 + 经验」拼串而不是 deep watch：读到的字段就是真实依赖，
-     * 改动一处也只刷一次（与 `Cmp_Achievement.fingerprint` 同套路）。
-     *
-     * ⚠ `exp` 必须进指纹：一局结束发经验后只有它变（等级还是老的），漏了它经验条就一直停在旧值。
-     */
-    private fingerprint(): string {
-        const gold = DataCenter.ins.itemData.getCurrency(CurrencyType.Gold);
-        const records = DataCenter.ins.heroData.getUnlocked()
-            .map((r) => `${r.id}:${r.level}:${r.exp}`)
-            .join(',');
-        return `${gold}|${records}`;
     }
 }

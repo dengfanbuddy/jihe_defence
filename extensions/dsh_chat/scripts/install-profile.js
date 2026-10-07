@@ -115,6 +115,108 @@ function syncFile(source, dest, changes, label) {
 const REQUIRED_BUNDLES = ['dsh-base', 'dsh-sdk-app'];
 
 /**
+ * 校验 profile 声明的**第三方依赖**是不是真的装着。
+ *
+ * ## 为什么必须查（与 `REQUIRED_BUNDLES` 同一类故障，但更狠）
+ *
+ * `dsh-profile/package.json` 里的 `dependencies` 是**声明**，而 Loader 解析 bundle 名字靠的是
+ * **profile 目录下的 node_modules**（`profiles/cocos/node_modules/<名字>/`，pnpm 摆的位置）。
+ * 声明了却没装时，DSH **不是**跳过那一行 —— 它**直接抛**（`dsh-app-boot` 的 `resolveBundleDir`：
+ * `cannot resolve profile bundle …`），`loadProfile` 又是 `bundles.map(...)`，
+ * 于是**整棵插件树起不来**：`dsh --profile cocos --dump-config` 都跑不完，面板上只有一句
+ * 「agent 启动失败」。第三方 bundle 缺失的代价因此**比「少一块功能」大得多** ——
+ * 这正是 `syncProfileManifest` 要在**装出去的那份** manifest 里把它摘掉的原因。
+ *
+ * ## 为什么本脚本**不自己装**
+ *
+ * 这个脚本的契约是「**完全离线**、只做幂等的文件同步」，而装第三方包要 pnpm + registry。
+ * 所以这里只体检 + 给出**一条能直接粘的命令**（`dsh plugin --profile cocos install`
+ * 就是 DSH 自己那条报错信息里推荐的恢复路径：它转发 `pnpm install` 再按装好的状态对齐 bundles）。
+ *
+ * @param sourceDir - 工程里的 `dsh-profile/`（依赖声明的真源）。
+ * @param profileDir - 目标 profile 目录。
+ * @param dshHome - DSH home（共享依赖也在它下面）。
+ * @returns 缺的包与给用户的命令。
+ */
+function checkDeclaredDeps(sourceDir, profileDir, dshHome) {
+    const declared = declaredDependencies(sourceDir);
+    const names = Object.keys(declared);
+    const missing = names.filter((name) => !isInstalled(name, profileDir, dshHome));
+    return {
+        declared: names,
+        missing,
+        hint:
+            missing.length === 0
+                ? ''
+                : `缺 ${missing.join('、')}：profile 里跑一次 \`dsh plugin --profile ${PROFILE_NAME} install\`（` +
+                  '它转发 `pnpm install` 再按装好的状态对齐 bundles，需要网络与 pnpm；装完再重开面板）。',
+    };
+}
+
+/** 读真源里的 `dependencies`（读不到就当没有 —— 清单损坏由 `syncProfileManifest` 那一侧负责说）。 */
+function declaredDependencies(sourceDir) {
+    try {
+        return JSON.parse(readFileSync(join(sourceDir, 'package.json'), 'utf8')).dependencies ?? {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * 这个包在 profile 里解析得到吗？
+ *
+ * 两个位置（与 `dsh-app-boot` 的 `resolveBundleDir` 同一个口径，只是少了「dsh 安装目录」那一层
+ * —— 那一层只有 DSH 自己知道，而它**本来就**是本机自带的 in-box bundle 走的路）：
+ * ① `profiles/<名字>/node_modules/<包>`（`dsh plugin add` 装的那一份）；
+ * ② `$DSH_HOME/profiles/node_modules/<包>`（DSH 安装时就位好的共享依赖）。
+ */
+function isInstalled(name, profileDir, dshHome) {
+    if (existsSync(join(profileDir, 'node_modules', name, 'package.json'))) return true;
+    return existsSync(join(dshHome, 'profiles', 'node_modules', name, 'package.json'));
+}
+
+/**
+ * 算出**装出去的那份** `package.json` 该是什么内容。
+ *
+ * ## 唯一的改写：把「解析不到的第三方 bundle」从 `bundles` 里摘掉
+ *
+ * 真源（工程里的 `dsh-profile/package.json`）表达的是**意图**：`dependencies` 写着要装什么、
+ * `bundles` 写着要挂哪些层。而**装出去的那一份**要能真的跑起来 —— 这两件事在
+ * 「别人没装这个第三方插件」时是冲突的，冲突的代价上面写过：**整棵树起不来**。
+ *
+ * 所以规则是：
+ * - `dependencies` **原样保留**（意图留着，`dsh plugin --profile cocos install` 才有东西可装）；
+ * - `bundles` 里凡是在 `dependencies` 里（⇒ 我们自己要负责装）、又**解析不到**的，摘掉并报出来；
+ * - **in-box bundle（`@deepseek-ai/*`，不是我们的依赖）一律不动** —— 那些走 dsh 自己的安装目录，
+ *   真缺了说明整个 DSH 装坏了，那种情况下「悄悄改 profile」只会更难查。
+ *
+ * 自愈是双向的：装上之后 `dsh plugin add` 会把 bundles 补回来，而本函数算出来的内容也会
+ * 重新包含它 —— 谁先谁后都收敛到同一份。
+ *
+ * @param sourceDir - 工程里的 `dsh-profile/`。
+ * @param profileDir - 目标 profile 目录。
+ * @param dshHome - DSH home。
+ * @returns `{text, dropped}`：写盘用的内容（4 空格缩进 + 末尾换行，与真源同一种格式）与被摘掉的名字。
+ */
+function syncProfileManifest(sourceDir, profileDir, dshHome) {
+    const manifest = JSON.parse(readFileSync(join(sourceDir, 'package.json'), 'utf8'));
+    const declared = Object.keys(manifest.dependencies ?? {});
+    const bundles = manifest.dsh?.profile?.bundles ?? [];
+    const dropped = [];
+    const kept = bundles.filter((name) => {
+        // 只有「我们的依赖」才归我们负责解析；in-box bundle 不动（见上面那段）
+        if (!declared.includes(name)) return true;
+        if (isInstalled(name, profileDir, dshHome)) return true;
+        dropped.push(name);
+        return false;
+    });
+    if (dropped.length > 0 && manifest.dsh?.profile) manifest.dsh.profile.bundles = kept;
+    // ⚠ 与真源**逐字节**可比：同一份 JSON + 4 空格缩进 + 末尾换行。
+    // 不一样的话每次加载都会「内容不同」→ 白写一次盘（幂等性就没了）。
+    return { text: `${JSON.stringify(manifest, null, 4)}\n`, dropped };
+}
+
+/**
  * 校验运行期依赖 —— 这几个 bundle 缺任何一个，**插件的 4 个工具会整体加载失败**
  * （profile 里的 bridge 插件加载不起来），而 profile 自己看起来是"装好了"。
  *
@@ -154,6 +256,33 @@ function installProfile(options = {}) {
     for (const name of OWNED_ROOT_FILES) {
         const source = join(sourceDir, name);
         if (!existsSync(source)) continue;
+        if (name === 'package.json') {
+            /**
+             * ⚠ 清单**不是**逐字拷贝：要先把「解析不到的第三方 bundle」摘掉（见
+             * `syncProfileManifest`）。不摘的代价是 DSH 启动时直接抛异常 ——
+             * 也就是说「别人没装那个第三方插件」会变成**整个 agent 起不来**，
+             * 而不是「少一块功能」。
+             */
+            const projected = syncProfileManifest(sourceDir, profileDir, dshHome);
+            const dest = join(profileDir, name);
+            let current = null;
+            try {
+                current = readFileSync(dest, 'utf8');
+            } catch {
+                current = null;
+            }
+            if (current !== projected.text) {
+                writeFileSync(dest, projected.text);
+                changes.push(`${current === null ? '新增' : '更新'} ${name}`);
+            }
+            if (projected.dropped.length > 0) {
+                changes.push(
+                    `从 ${name} 的 bundles 里摘掉没装的 ${projected.dropped.join('、')}` +
+                        '（不摘的话 DSH 起不来：`resolveBundleDir` 解析不到 bundle 会直接抛）',
+                );
+            }
+            continue;
+        }
         syncFile(source, join(profileDir, name), changes, name);
     }
 
@@ -190,6 +319,9 @@ function installProfile(options = {}) {
     // 校验运行期依赖。缺 bundle **不改 ok**（profile 文件确实装好了），但必须显式带出去让调用方报红 ——
     // 静默的 `ok: true` 正是之前那次「工具凭空消失」的根因。
     const deps = checkRuntimeDeps(dshHome);
+    // 第三方依赖（曾经挂过的 `dsh-cost-meter` 那一类，现在真源里是**空的**）：声明了却没装
+    // → 同样必须报出来（那一路是「功能静默消失」，更狠的一路是「整棵树起不来」）。
+    const declaredDeps = checkDeclaredDeps(sourceDir, profileDir, dshHome);
     /** @type {string[]} */
     const warnings = deps.ok
         ? []
@@ -198,11 +330,39 @@ function installProfile(options = {}) {
             '缺了它，插件的 4 个 cocos_* 工具会**整体加载失败**，而 profile 自己看起来是装好的。',
             '先装好 `@deepseek-ai/dsh`（bundle 会落在 $DSH_HOME/profiles/node_modules/），再重开面板。',
         ];
+    if (declaredDeps.missing.length > 0) {
+        warnings.push(
+            `profile 声明了第三方 bundle 但**没装**：${declaredDeps.missing.join('、')}（找过：${join(profileDir, 'node_modules')}）。`,
+            '已经把它从这份 profile 的 bundles 里摘掉了 —— 不摘的话 DSH 启动时解析不到 bundle 会**直接抛**，' +
+                '整棵树起不来（面板上只有一句「agent 启动失败」）。代价是它对应的那一块功能没有。',
+            declaredDeps.hint,
+        );
+    }
 
-    return { ok: true, dshHome, profileDir, version: PROFILE_VERSION, changes, profileExisted, deps, warnings };
+    return {
+        ok: true,
+        dshHome,
+        profileDir,
+        version: PROFILE_VERSION,
+        changes,
+        profileExisted,
+        deps: { ...deps, declared: declaredDeps.declared, missingDeclared: declaredDeps.missing },
+        warnings,
+    };
 }
 
-module.exports = { installProfile, resolveDshHome, PROFILE_NAME, PROFILE_VERSION, PLUGIN_PACKAGE_NAME };
+module.exports = {
+    installProfile,
+    resolveDshHome,
+    PROFILE_NAME,
+    PROFILE_VERSION,
+    PLUGIN_PACKAGE_NAME,
+    // 导出给 `verify-stats.js` 的「分发场景」断言用：**别人没装这个第三方插件**时，
+    // 装出去的那份 manifest 必须自己把那一行摘掉（否则 DSH 起不来），而不是照抄真源。
+    syncProfileManifest,
+    isInstalled,
+    checkDeclaredDeps,
+};
 
 // 直接 `node install-profile.js` 时打印一份报告，方便手工排查。
 if (require.main === module) {
@@ -213,7 +373,8 @@ if (require.main === module) {
         for (const line of report.changes) console.log(`  - ${line}`);
         for (const line of report.warnings ?? []) console.warn(`[dsh_chat] ⚠ ${line}`);
         // 依赖不齐 → 退出码 1，这样它能当门禁用（之前无论缺什么都 exit 0）。
-        if (report.deps && !report.deps.ok) process.exitCode = 1;
+        const missingDeps = (report.deps && !report.deps.ok) || (report.deps?.missingDeclared?.length ?? 0) > 0;
+        if (missingDeps) process.exitCode = 1;
     } catch (error) {
         console.error(`[dsh_chat] 安装 profile 失败：${error instanceof Error ? error.message : error}`);
         process.exitCode = 1;

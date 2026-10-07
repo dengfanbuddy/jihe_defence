@@ -11,7 +11,10 @@
         "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
         "watch": "node ./node_modules/typescript/bin/tsc -p tsconfig.json -w",
         "verify:skill": "node ./scripts/verify-skill-facts.js",
-        "verify": "node ./scripts/verify-cocos-engine.js && node ./scripts/verify-panel.js && node ./scripts/verify-images.js && node ./scripts/verify-bridge.js && node ./scripts/verify-replay.js && node ./scripts/verify-skill-facts.js",
+        "verify:profile": "node ./scripts/verify-profile-rows.js",
+        "verify:history": "node ./scripts/verify-history.js",
+        "verify:stats": "node ./scripts/verify-stats.js",
+        "verify": "node ./scripts/verify-cocos-engine.js && node ./scripts/verify-panel.js && node ./scripts/verify-images.js && node ./scripts/verify-bridge.js && node ./scripts/verify-history.js && node ./scripts/verify-stats.js && node ./scripts/verify-replay.js && node ./scripts/verify-skill-facts.js",
         "install-profile": "node ./scripts/install-profile.js"
     },
     "devDependencies": {
@@ -90,6 +93,26 @@
                     "getEvents"
                 ]
             },
+            "interaction-answer": {
+                "methods": [
+                    "interactionAnswer"
+                ]
+            },
+            "command-list": {
+                "methods": [
+                    "commandList"
+                ]
+            },
+            "command-run": {
+                "methods": [
+                    "commandRun"
+                ]
+            },
+            "file-reference": {
+                "methods": [
+                    "fileReference"
+                ]
+            },
             "send-message": {
                 "methods": [
                     "sendMessage"
@@ -113,6 +136,36 @@
             "history-resume": {
                 "methods": [
                     "historyResume"
+                ]
+            },
+            "history-search": {
+                "methods": [
+                    "historySearch"
+                ]
+            },
+            "history-export": {
+                "methods": [
+                    "historyExport"
+                ]
+            },
+            "history-delete": {
+                "methods": [
+                    "historyDelete"
+                ]
+            },
+            "session-usage": {
+                "methods": [
+                    "sessionUsage"
+                ]
+            },
+            "panel-activity": {
+                "methods": [
+                    "panelActivity"
+                ]
+            },
+            "subagent-interrupt": {
+                "methods": [
+                    "subagentInterrupt"
                 ]
             },
             "get-settings": {
@@ -151,7 +204,9 @@
             "methods": [
                 "ping",
                 "runCode",
-                "describeApi"
+                "describeApi",
+                "viewMetrics",
+                "fitView"
             ]
         }
     }

@@ -1,13 +1,21 @@
 # dsh_chat 的 profile 层 —— 应用在**所有 bundle 层之后**（base → sdk-app → 这里）。
 # 所以这里写的东西优先级最高，也是这个 profile 唯一需要人维护的地方。
 #
-# 两件事：
+# 四件事：
 #   1. 换掉 sdk-app 的通用 persona，改成「你在 Cocos Creator 编辑器里」的口径；
-#   2. 把「编辑器原生工具」插件挂进来 —— 它走 fork IPC，不占端口、不走 MCP。
+#   2. 把「编辑器原生工具」插件挂进来 —— 它走 fork IPC，不占端口、不走 MCP；
+#   3. 把 sdk-app 关掉的 **会话标题 LLM 提供方** 打开（面板标题栏直接用）；
+#   4. 挂上**文件引用**（`@路径`）的 seam 与本地提供方 —— 面板的 `@` 补全走它，
+#      顺带给模型装一句「`@` 开头的是用户显式引用的工作区路径」的稳定指引。
 #
 # ⚠ patch 的语义是**整块替换 config**（不是深合并），所以覆盖 system-prompt 时
 #    要重述你想保留的字段；只写 persona 时，其余字段回落插件自己的 schema 默认值，
 #    那正是 dsh-base 依赖的状态。
+#
+# ⚠ 另一条更隐蔽的语义：patch 里**没写的键不会被清掉**（`applyEntryPatches` 只逐键覆盖
+#    它自己带的键，见 `dsh-app-boot` 的那个函数）。所以 sdk-app 写的 `disabled: true`
+#    **必须靠这里的 `disabled: false` 显式关掉** —— 只写 id 是没用的。
+#    验证：`dsh --profile cocos --dump-config`（离线，不开编辑器）能直接看到合成后的行。
 
 - id: system-prompt
   config:
@@ -23,6 +31,26 @@
       - 不确定编辑器现在是什么状态（哪个场景、选中了什么）时，先调 cocos_editor_state。
       - 回答简洁；需要时才解释。中文提问就用中文回答。
 
+# sdk-app 把它关了（它的 UI 是别人家的客户端，标题没人看）；本 profile 的面板要看，所以打开。
+# config 一个字都不写 = 沿用 dsh-base 那一份（targetWords 5 / targetCjkCharacters 10 / 60s 超时）。
+- id: session-title-llm
+  disabled: false
+
 - insert:
     - id: cocos-bridge
       name: dsh-cocos-bridge
+
+    # `@路径` 的**本地提供方**（`@` 补全的候选来自它）。
+    #
+    # ⚠ **只挂这一个，不要连 `@deepseek-ai/dsh-file-reference` 一起挂** —— 那个 seam 包的
+    #    默认导出**本身就是**一个注册 `fileReferences` 服务的 `Service` 子类，而本地提供方
+    #    （`LocalFileReferenceService extends FileReferenceService`）注册的**是同一个服务名**，
+    #    两个都挂的报错是「service "fileReferences" has been registered at <FileReferenceService>」，
+    #    而且它是 **apply 阶段的硬失败 ⇒ 整棵树起不来**（面板上表现为「agent 启动失败」）。
+    #    实测抓到的（`scripts/verify-profile-rows.js` 就是为此存在的）。
+    #    `dsh-web-app` 的 bundle 同样只挂提供方，可以对照。
+    #
+    #    顺带：提供方还会按 agent 装一句系统提示词（`FILE_REFERENCE_PROMPT`，
+    #    前提是那个 agent 有 `read` 工具）—— 「`@` 开头的是用户显式引用的工作区路径」。
+    - id: file-reference-local
+      name: '@deepseek-ai/dsh-file-reference-local'

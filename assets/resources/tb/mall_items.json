@@ -1,0 +1,120 @@
+[
+  {
+    "id": 1,
+    "key": "daily_free",
+    "kind": "free",
+    "name": "每日补给",
+    "amount_text": "金币 200 + 通用英雄经验 100",
+    "grants": [
+      {
+        "type": "gold",
+        "amount": 200
+      },
+      {
+        "type": "hero_exp",
+        "amount": 100
+      }
+    ],
+    "daily_limit": 1,
+    "sort": 0
+  },
+  {
+    "id": 2,
+    "key": "gold",
+    "kind": "ad",
+    "name": "金币袋",
+    "amount_text": "+300 金币",
+    "grants": [
+      {
+        "type": "gold",
+        "amount": 300
+      }
+    ],
+    "daily_limit": 3,
+    "placement": "shop_gold",
+    "sort": 10
+  },
+  {
+    "id": 3,
+    "key": "hero_exp",
+    "kind": "ad",
+    "name": "英雄经验瓶",
+    "amount_text": "+120 通用英雄经验",
+    "grants": [
+      {
+        "type": "hero_exp",
+        "amount": 120
+      }
+    ],
+    "daily_limit": 3,
+    "placement": "shop_hero_exp",
+    "sort": 20
+  },
+  {
+    "id": 4,
+    "key": "acc_exp",
+    "kind": "ad",
+    "name": "账号经验册",
+    "subtitle": "升级解锁局内加成",
+    "amount_text": "+150 账号经验",
+    "grants": [
+      {
+        "type": "acc_exp",
+        "amount": 150
+      }
+    ],
+    "daily_limit": 2,
+    "placement": "shop_acc_exp",
+    "sort": 30
+  },
+  {
+    "id": 5,
+    "key": "relic_draw",
+    "kind": "ad",
+    "name": "局外遗物抽取券",
+    "amount_text": "+1 张",
+    "grants": [
+      {
+        "type": "relic_draw",
+        "amount": 1
+      }
+    ],
+    "daily_limit": 2,
+    "placement": "shop_relic_draw",
+    "sort": 40
+  },
+  {
+    "id": 6,
+    "key": "revive_ticket",
+    "kind": "ad",
+    "name": "局内复活券",
+    "subtitle": "局内阵亡免看广告复活",
+    "amount_text": "局内死亡立即复活",
+    "grants": [
+      {
+        "type": "revive_ticket",
+        "amount": 1
+      }
+    ],
+    "daily_limit": 2,
+    "placement": "shop_revive_ticket",
+    "sort": 50
+  },
+  {
+    "id": 7,
+    "key": "ad_ticket",
+    "kind": "ad",
+    "name": "局内广告券",
+    "subtitle": "局内免看广告",
+    "amount_text": "+1 张",
+    "grants": [
+      {
+        "type": "ad_ticket",
+        "amount": 1
+      }
+    ],
+    "daily_limit": 2,
+    "placement": "shop_ad_ticket",
+    "sort": 60
+  }
+]

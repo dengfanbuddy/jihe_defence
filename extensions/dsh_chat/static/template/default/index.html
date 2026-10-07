@@ -30,7 +30,25 @@
         <div class="dsh-history-head">
             <span class="dsh-history-title">历史会话</span>
             <button class="dsh-btn" id="btn-history-refresh">刷新</button>
+            <button class="dsh-btn" id="btn-history-back" title="回到会话列表" hidden>返回列表</button>
             <button class="dsh-icon-btn" id="btn-history-close" title="关闭">✕</button>
+        </div>
+        <!--
+          两档搜索，两个控件，因为它们**成本完全不同**：
+          · 输入框 —— 只筛标题与 id，纯本地，边打字边出，零延迟；
+          · 搜全文 —— 真去读盘扫所有会话日志（有预算、可能没搜完），所以要有按钮、有进度、
+            还要有那句「扫了几个 / 一共几个」。
+          混成一个控件会让人分不清「为什么刚才秒出、这次要等两秒」。
+        -->
+        <div class="dsh-history-searchrow">
+            <input
+                class="dsh-history-search"
+                id="history-search"
+                type="text"
+                spellcheck="false"
+                placeholder="筛选标题…（Enter = 搜全文）"
+            />
+            <button class="dsh-btn" id="btn-history-search" title="在**所有**会话日志里搜（直接读盘，agent 没在跑也能搜；中文按字匹配）">搜全文</button>
         </div>
         <div class="dsh-history-note" id="history-note"></div>
         <div class="dsh-history-list" id="history-list"></div>
@@ -42,7 +60,67 @@
         <button class="dsh-btn" id="btn-resume" title="用 DSH 的 agents.resume 接上这条会话，之后的消息带着它的上下文">继续此会话</button>
     </div>
 
+    <!--
+      用量抽屉（点状态行那颗「上下文 xx%」打开）。
+      与历史抽屉/选择器同一个摆法：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 —— 不做浮层。
+      内容是面板脚本按主进程读回来的数字现建的（见 source/panels/default/index.ts 的 renderUsage）：
+      「有就画、没有就写没有」，一个 0 都不许凭空补出来。
+    -->
+    <div class="dsh-usage" id="usage" hidden>
+        <div class="dsh-usage-head">
+            <span class="dsh-usage-title">会话用量</span>
+            <button class="dsh-btn" id="btn-usage-refresh" title="重新读一遍（数据来自 DSH 的会话投影缓存，不是实时流）">刷新</button>
+            <button class="dsh-icon-btn" id="btn-usage-close" title="关闭">✕</button>
+        </div>
+        <div class="dsh-usage-note" id="usage-note"></div>
+        <div class="dsh-usage-body" id="usage-body"></div>
+    </div>
+
     <div class="dsh-body" id="body"></div>
+
+    <!--
+      进度抽屉（点状态行那颗「待办 x/y」打开）：**待办清单 / 目标 / 回合目录**。
+      与用量抽屉同一个摆法：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 —— 不做浮层。
+      内容是面板脚本按宿主合并好的那一份现建的（见 source/panels/default/index.ts 的 renderProgress）：
+      清单是**实时事件**给的（agent 每写一次就到），目标与回合目录是**检查点**给的（整个日志）。
+    -->
+    <div class="dsh-progress" id="progress" hidden>
+        <div class="dsh-progress-head">
+            <span class="dsh-progress-title">进度</span>
+            <button class="dsh-btn" id="btn-progress-refresh" title="重新读一遍缓存（清单是实时的，目标和回合目录来自会话投影缓存）">刷新</button>
+            <button class="dsh-icon-btn" id="btn-progress-close" title="关闭">✕</button>
+        </div>
+        <div class="dsh-progress-note" id="progress-note"></div>
+        <div class="dsh-progress-body" id="progress-body"></div>
+    </div>
+
+    <!--
+      活动抽屉（点状态行那颗「后台 1 · 子 2」打开）：**后台任务（jobs）+ 子 agent**。
+      与用量/进度抽屉同一个摆法：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 —— 不做浮层。
+      内容是面板脚本按插件控制帧读回来的那一份现建的（见 source/panels/default/index.ts 的 renderActivity）。
+
+      ⚠ 与另外两个抽屉**最要紧的区别**：这两块**只活在运行时进程的内存里**
+      （jobs 的注册表是个 Map，子 agent 的描述符写在子会话自己的日志里），
+      所以 agent 没在跑时是**真的看不到**（不是"读失败"）—— 面板要如实说这一条。
+      另一条：**job 的输出一个字都画不出来**，见 source/constants.ts 的 JobView（消费游标）。
+    -->
+    <div class="dsh-activity" id="activity" hidden>
+        <div class="dsh-activity-head">
+            <span class="dsh-activity-title">活动</span>
+            <button class="dsh-btn" id="btn-activity-refresh" title="重新读一遍（后台任务与子 agent 只活在运行时内存里，没有变化通知可订阅）">刷新</button>
+            <button class="dsh-icon-btn" id="btn-activity-close" title="关闭">✕</button>
+        </div>
+        <div class="dsh-activity-note" id="activity-note"></div>
+        <div class="dsh-activity-body" id="activity-body"></div>
+    </div>
+
+    <!--
+      需要人拍板的一次交互（模型的提问 / 授权请求 / 计划评审）。
+      内容是面板脚本按交互种类建的（见 source/panels/default/index.ts 的 renderInteractions）；
+      这里只留一个空壳，与历史抽屉/图片选择器同一个摆法：`.dsh-root` 的直接子元素、
+      夹在对话区与输入区之间 —— 不做浮层（窄面板里浮层会盖住对话）。
+    -->
+    <div class="dsh-interaction" id="interaction" hidden></div>
 
     <!--
       图片选择器（点输入框左边的 🖼 打开）。
@@ -68,6 +146,13 @@
         <div class="dsh-picker-list" id="picker-list"></div>
     </div>
 
+    <!--
+      输入触发器弹出块：`/` 斜杠命令表 与 `@` 路径候选共用这一块（同一时刻只会有一种）。
+      内容是面板脚本现建的（见 source/panels/default/index.ts 的 renderPopup）；
+      与历史抽屉/选择器同一个摆法：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 —— 不做浮层。
+    -->
+    <div class="dsh-popup" id="popup" hidden></div>
+
     <footer class="dsh-foot">
         <!-- 待发送的图片碎片（粘贴/选图/拖拽三条路都落到这里；点 ✕ 移除） -->
         <div class="dsh-attachments" id="attachments" hidden></div>
@@ -85,6 +170,24 @@
         </div>
         <div class="dsh-statusline">
             <span class="dsh-live" id="live">未启动</span>
+            <!--
+              用量 chip：只放「一眼能比大小」的那一个数（上下文占用率）。
+              没有数据时**整个藏起来**，不显示 0% —— 0% 和「不知道」是两件事。
+            -->
+            <button class="dsh-usage-chip" id="btn-usage" hidden></button>
+            <!--
+              待办 chip：只放「做完几条 / 一共几条」这一个比例。
+              同样没有清单时**整个藏起来** —— 而且它比用量那颗更容易撒谎：
+              agent 每一轮开始时 DSH 的投影就把清单归零了，这一轮还没写新表时
+              面板上那颗 chip 会变成「上一轮」的（文案与颜色都会说明，见 renderProgressChip）。
+            -->
+            <button class="dsh-usage-chip dsh-progress-chip" id="btn-progress" hidden></button>
+            <!--
+              活动 chip：只放「后台几个 · 子 agent 几个」。
+              与前两颗同一条纪律：**没事就整个藏起来**（0 后台任务不该占地方，也不该写成「0」）——
+              这个 chip 存在的意义就是「你按了停止本轮、但有东西还在后台跑」这种时刻。
+            -->
+            <button class="dsh-usage-chip dsh-activity-chip" id="btn-activity" hidden></button>
             <span class="dsh-meta" id="meta"></span>
         </div>
     </footer>

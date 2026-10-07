@@ -27,7 +27,7 @@
 import { TbRoot } from "../../../platform/excel_table/TbRoot";
 import { AttributeType, EquipmentConfig, OuterBonusGroup } from "../../battle/core/Types";
 import { AttributeCfgContainer } from "../../excel_table/Tb_AttributeConfig";
-import { RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers } from "../../excel_table/Tb_RelicConfig";
+import { RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers, getOuterRelicCfgs } from "../../excel_table/Tb_RelicConfig";
 import { DataCenter } from "../DataCenter";
 
 /** 遗物 rarity → 品质档位序号（1 白 / 2 蓝 / 3 黄 / 4 红） */
@@ -44,10 +44,9 @@ function toRuntime(attrId: number, configValue: number): number {
     return PERCENT_ATTR_IDS.indexOf(attrId) >= 0 ? configValue / 100 : configValue;
 }
 
-/** 取 relics 表里所有**有局外版**的遗物（scope = outer / both） */
+/** 取 relics 表里所有**有局外版**的遗物（scope = outer / both）—— 过滤口径在表文件里，只有一份 */
 export function getOuterRelics(): RelicCfg[] {
-    const container = TbRoot.ins.getTbContainer(RelicCfgContainer);
-    return container.cfgs.filter((r) => relicHasOuter(r));
+    return getOuterRelicCfgs();
 }
 
 /** 按 id 取局外版遗物（没有局外版的遗物返回 undefined） */

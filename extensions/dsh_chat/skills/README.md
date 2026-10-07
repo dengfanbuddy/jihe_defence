@@ -35,7 +35,7 @@ DSH_BUNDLED_SKILL_DIR = <扩展根>/skills
 skill "cocos-editor-ops" from <source> ignored because a higher-priority skill already exists
 ```
 
-**所以工程里不要再放一个同名的 `cocos-editor-ops`** —— 那会把本目录这份的 9 条坑
+**所以工程里不要再放一个同名的 `cocos-editor-ops`** —— 那会把本目录这份的 11 条坑
 **整个吃掉**（既不合并也不追加）。要写项目专有约定，**另起一个名字**（如 `mygame-ui-conventions`）。
 这条已经写进 `cocos-editor-ops/SKILL.md` 的抬头，防止下一个人踩。
 
@@ -57,5 +57,6 @@ skill "cocos-editor-ops" from <source> ignored because a higher-priority skill a
 - 能算的 → `verify: script:<锚点名>`（锚点必须真跑通过）
 - 只能人验的 → `verify: manual | <一句「人在哪、看什么」>`
 
-**新增一条坑却没声明怎么验 = 门禁直接红。** 数字也要如实看：现在 11 条里
-7 条有可执行锚点、4 条是 `manual` —— **manual 应该降，但不该假装是 0。**
+**新增一条坑却没声明怎么验 = 门禁直接红。** 数字以门禁输出为准，别手抄
+（`node scripts/verify-skill-facts.js` 现在报 **18 条声明：10 条可执行锚点 / 8 条 `manual`**）——
+**manual 应该降，但不该假装是 0。**

@@ -1,0 +1,98 @@
+/*
+ * 配色层：`palette = editor`（跟随 Cocos Creator 编辑器）时的 token 覆盖。
+ *
+ * ## 为什么单独一个文件
+ *
+ * - `dsw-tokens.css` 是**脚本生成的**（`scripts/extract-dsw-tokens.js` 从已安装的 DSH 里抽），
+ *   手写内容写进去，下次重跑生成器会被**整份覆盖**掉。
+ * - `index.css` 是**手写组件层**：只消费 token，零硬编码色。它的口径不能被主题色稀释。
+ * - 于是覆盖落在第三份：只写「变量重定义」，不写任何组件选择器。
+ *
+ * ## 两条口径
+ *
+ * 1. **只覆盖语义别名层 `--dsw-alias-*`**（含 `--dsw-specific-*` 里将来可能接上的那几个）——
+ *    色板层 `--dsw-static-*` 一律不动：动色板会波及所有用到它的组件，而且那是生成物的地盘。
+ * 2. **只换配色，不动明暗**：明暗仍然由 `data-theme` 决定（`resolveTheme`），
+ *    本层挂在 `[data-palette="editor"][data-theme="dark"]` 上 —— 特异度 (0,3,0) 高于深色块 (0,2,0)，
+ *    所以**不依赖样式注入顺序**。
+ *
+ * ⚠ 这里用的色是**编辑器深色系的中性灰 + 一个强调色**，与任何具体游戏/品牌无关；
+ * 换一个工程（哪怕不是游戏）照样成立。
+ *
+ * 判据在 `scripts/verify-panel.js`（覆盖层在不在、是否只碰 token、是否落在正确的选择器上）。
+ */
+
+.dsh-root[data-palette='editor'][data-theme='dark'] {
+    /* —— 底色：主区 / 面板 / 卡片 —— */
+    --dsw-alias-bg-base: #2b2b2b;
+    --dsw-alias-bg-layer-1: #333333;
+    --dsw-alias-bg-layer-2: #3a3a3a;
+    --dsw-alias-bg-layer-3: #424242;
+
+    /* —— 交互底色（悬停 / 按下 / 实底气泡 / 强调悬停）—— */
+    --dsw-alias-interactive-bg-hover: #ffffff12;
+    --dsw-alias-interactive-bg-active: #ffffff1f;
+    --dsw-alias-interactive-bg-hover-solid: #3f3f3f;
+    --dsw-alias-interactive-bg-hover-accent: #ffffff29;
+
+    /* —— 文字四级 —— */
+    --dsw-alias-label-primary: #e0e0e0;
+    --dsw-alias-label-secondary: #b8b8b8;
+    --dsw-alias-label-tertiary: #9a9a9a;
+    --dsw-alias-label-caption: #808080;
+    --dsw-alias-label-primary-foreground: #1e1e1e;
+
+    /* —— 描边四级（分隔线就是 l1）—— */
+    --dsw-alias-border-l1: #ffffff14;
+    --dsw-alias-border-l2: #ffffff1f;
+    --dsw-alias-border-l3: #ffffff29;
+    --dsw-alias-border-l4: #ffffff3d;
+
+    /* —— 强调色（本层唯一的彩色）—— */
+    --dsw-alias-brand-primary: #4a90d9;
+    --dsw-alias-button-primary-fill: #4a90d9;
+    --dsw-alias-button-primary-hover: #5c9fe4;
+    --dsw-alias-state-business-primary: #4a90d9;
+    --dsw-alias-state-business-tertiary: #333333;
+
+    /* —— 危险 / 成功 / 警告 —— */
+    --dsw-alias-state-error-primary: #e05a5a;
+    --dsw-alias-state-error-secondary: #e05a5a;
+    --dsw-alias-interactive-bg-hover-danger: #e05a5a26;
+    --dsw-alias-state-success-primary: #5cb85c;
+    --dsw-alias-state-success-secondary: #6ec96e;
+    --dsw-alias-state-success-tertiary: #2c3a2c;
+    --dsw-alias-state-warn-primary: #d9a13b;
+    --dsw-alias-state-warn-secondary: #e0b05a;
+    --dsw-alias-state-warn-label: #d9a13b;
+    --dsw-alias-state-warn-tertiary: #3a3324;
+
+    /* —— 代码块（块 / banner / 行内）—— */
+    --dsw-alias-markdown-code-block: #262626;
+    --dsw-alias-markdown-code-block-banner: #2f2f2f;
+    --dsw-alias-markdown-inline-code: #3a3a3a;
+    --dsw-alias-markdown-citation: #3a3a3a;
+    --dsw-alias-markdown-placeholder: #333333;
+
+    /* —— 滚动条 —— */
+    --dsw-alias-scrollbar-bg-l1: #4a4a4a;
+    --dsw-alias-scrollbar-bg-l2: #4a4a4a;
+    --dsw-alias-scrollbar-hover-l1: #5c5c5c;
+    --dsw-alias-scrollbar-hover-l2: #5c5c5c;
+
+    /* —— 浮层 —— */
+    --dsw-alias-toast-bg: #424242;
+    --dsw-alias-tooltip-bg: #424242;
+
+    /*
+     * `--dsw-specific-*`：面板当前**没有消费**（`index.css` 里零命中）。
+     * 备着是为了将来组件层接上时不会漏色；现在它们对界面**没有可见效果**。
+     */
+    --dsw-specific-bubble: #3f3f3f;
+    --dsw-specific-bubble-highlight: #4a4a4a;
+    --dsw-specific-input-major: #3a3a3a;
+    --dsw-specific-login-input: #333333;
+    --dsw-specific-selector: #3f3f3f;
+    --dsw-specific-menu: #424242;
+    --dsw-specific-tip: #3a3a3a;
+}

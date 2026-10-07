@@ -16,7 +16,7 @@
  * 编辑器在**打开场景**时把它加载进引擎进程 —— 所以「没打开场景」是唯一一个
  * 需要向模型解释清楚的失败模式（见 `SCENE_SCRIPT_HINT`）。
  *
- * ## 四个方法，其中两个是「别猜」的护栏
+ * ## 五个方法，其中两个是「别猜」的护栏
  *
  * IPC 协议要窄。语义方法越少，DSH 侧插件的参数校验与这里的实现越不容易错位。
  * 需要新能力时优先扩 `execute_code` 的用法（它就是通用逃生口），而不是加新方法。
@@ -26,7 +26,15 @@
  * | `execute_code` | 通用逃生口。写代码，一次执行里完成「取数据 → 改状态 → 返回结论」 |
  * | `describe_api` | **渐进式披露** —— 别猜引擎/编辑器 API，按需查一个命名空间或一个类 |
  * | `editor_state` | 按需自检：我在哪个工程/场景、选中了什么、沙箱能不能动 |
- * | `capture_view` | **唯一例外**：把场景视图存成图片文件、回路径。像素塞不进返回值上限，只能单独开一条通道 |
+ * | `capture_view` | **例外一**：把场景视图（或某个节点）存成图片文件、回路径。像素塞不进返回值上限，只能单独开一条通道。默认会**先取景再截**（`fit`），因为屏幕上那一帧未必是全景 |
+ * | `read_logs` | **例外二**：读工程里的日志文件。控制台/日志文件里的字**代码拿不到**（那是另一个进程的输出），只能单独开一条通道。实现在 `logs.ts` |
+ *
+ * ## 出口统一补 `refs`
+ *
+ * 每个方法的回执都会经 `withRefs` 过一道：把结果里出现过的**全形 uuid / `db://` 路径**
+ * 去重后排进文案结尾（结构化版本在 `data.refs`）。理由是它直接省掉一轮往返 ——
+ * 不然模型要么重查一次，要么凭记忆编一个（`SKILL.md` 里专门写过「别猜 uuid」）。
+ * 这一层**只做搬运，不做判断**：不认识"哪个 uuid 更重要"，也从不改写原有文案。
  *
  * ## describe_api 的两侧走了两条不同的路
  *
@@ -42,6 +50,8 @@
 
 import { EXTENSION_NAME, type ToolReply } from './constants';
 import { captureView, describeSceneApi, executeCode, pingSceneScript as pingScene } from './core/engine';
+import { collectRefs, formatRefs } from './core/serialize';
+import { readLogs } from './logs';
 
 export type { ToolReply };
 
@@ -82,12 +92,21 @@ export async function runExecuteCode(params: Record<string, unknown>): Promise<T
 }
 
 /**
- * 截一张**场景视图**并存成图片文件（实现在 `core/engine.ts` + `source/scene.ts`）。
+ * 截一张**场景视图**（或其中一个节点）并存成图片文件（实现在 `core/engine.ts` +
+ * `source/capture.ts` + `source/scene.ts`）。
  *
  * 为什么单独一个方法：图片是二进制/大字符串，塞不进 `execute_code` 的返回值上限
  * （单字符串 4000 字）—— 所以它必须是「工具 → 落盘 → 回路径」这一条独立通道。
  *
- * @param params - `{savePath?, maxWidth?, format?, quality?, waitMs?, timeoutMs?}`。
+ * 两条通道（回执里的 `method` 会写明是哪条）：**主进程 Electron**（`webContents.capturePage()`
+ * 读合成后的画面，空图时 `invalidate()` 逼一次重绘）优先；场景进程读 GL 后备缓冲只作兜底。
+ *
+ * `fit` 是「用户缩放过之后，屏幕上那一帧未必是全景」的解法：截图前先把相机摆到框住目标的位置、
+ * 截完立刻还原（`auto` 只在需要时才动相机；`none` 完全不动）。账本在回执的 `framing` 里。
+ *
+ * @param params - `{savePath?, node?, padding?, fit?, maxWidth?, format?, quality?, waitMs?, timeoutMs?}`。
+ *   `node` 给 uuid 或路径（`Canvas/skill_details`）时只截那一个节点；
+ *   `fit` = `auto`（默认）/ `scene` / `node` / `none`（详见 `core/engine.ts` 的 `captureView`）。
  * @returns `data.path` 是图片绝对路径，可直接喂给图片读取工具。
  */
 export async function runCaptureView(params: Record<string, unknown>): Promise<ToolReply> {
@@ -387,14 +406,52 @@ export async function readEditorState(_params: Record<string, unknown>): Promise
 }
 
 /**
+ * 给回执补一段 `refs`（可复用的标识）—— 每个方法都过这一道。
+ *
+ * 两条口径：
+ *
+ * 1. **只在抽到东西时动回执**：一条都没有就原样返回，绝不留下空壳字段。
+ * 2. **抽取失败不算失败**：`refs` 是附加信息，它自己抛错绝不能把一次成功的调用变成失败
+ *    （所以包在 try 里，静默放过）。
+ *
+ * 文案追加在 `text` 结尾（模型只读 `text` —— 桥接侧 `OUTPUT.render` 只渲染它）；
+ * 结构化版本放 `data.refs`（面板与留档用）。
+ *
+ * @param handler - 原来的方法实现。
+ * @returns 包了一层的方法实现。
+ */
+function withRefs(
+    handler: (params: Record<string, unknown>) => Promise<ToolReply>,
+): (params: Record<string, unknown>) => Promise<ToolReply> {
+    return async (params: Record<string, unknown>): Promise<ToolReply> => {
+        const reply = await handler(params);
+        try {
+            const collection = collectRefs(reply.data ?? reply.text);
+            const block = formatRefs(collection);
+            if (!block) return reply;
+            const data = reply.data;
+            reply.data =
+                data && typeof data === 'object' && !Array.isArray(data)
+                    ? { ...(data as Record<string, unknown>), refs: collection.refs }
+                    : { result: data, refs: collection.refs };
+            reply.text = `${reply.text}${block}`;
+        } catch {
+            /* refs 是附加信息：抽不出来就不加，不影响这次调用 */
+        }
+        return reply;
+    };
+}
+
+/**
  * IPC 方法分发表。
  *
  * ⚠ 键名必须与 DSH 侧插件里 `ipcCall('...')` 的字符串一致
  * （见 `dsh-profile/plugin/dsh-cocos-bridge/index.js`）。
  */
 export const COCOS_IPC_METHODS: Record<string, (params: Record<string, unknown>) => Promise<ToolReply>> = {
-    execute_code: runExecuteCode,
-    describe_api: describeApi,
-    editor_state: readEditorState,
-    capture_view: runCaptureView,
+    execute_code: withRefs(runExecuteCode),
+    describe_api: withRefs(describeApi),
+    editor_state: withRefs(readEditorState),
+    capture_view: withRefs(runCaptureView),
+    read_logs: withRefs(readLogs),
 };

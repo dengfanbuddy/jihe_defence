@@ -1,6 +1,6 @@
 ---
 name: cocos-editor-ops
-description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表——时使用。含 9 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段、Widget 单边对齐回写漂移）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实）。
+description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表——时使用。含 13 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图仍可能整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段、Widget 单边对齐回写漂移、预制件编辑模式下「改完立刻存」会存到改动前、`query-dirty` 不是护栏、**截图里的东西不一定是场景节点**、**Label 会不会裁字是能算的**）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实），另含 4 条铁律（先查 API / 只 return 结论 / 改场景登记撤销 / 别手调生命周期钩子）。插件已封好 6 个「别再手搓」的助手：loadFrame / worldRect / pick（这个点是哪个节点）/ labelFit（框放不放得下字，可问反事实）/ snapshotTree+diffTree（我到底改了什么）/ probe（图片像素与「能不能染色」）。
 ---
 
 # Cocos Creator 编辑器操作（dsh_chat 的 cocos_* 工具 / Code Mode）
@@ -17,7 +17,7 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 > ⚠ **同名会被「整体覆盖」而不是「合并」**：DSH 的 skill 按名字去重，**rank 小的赢**
 > （`dsh-skill-filesystem`：工程 `.agents/skills` = 200 → 用户 `~/.agents/skills` = 500 →
 > 本 skill 的 bundled 根 = 600）。所以**工程里不要再放一个同名的 `cocos-editor-ops`** ——
-> 那会把这里全部 9 条坑一起吃掉。要写项目专有约定，**另起一个名字**（如 `mygame-ui-conventions`）。
+> 那会把这里全部 11 条坑一起吃掉。要写项目专有约定，**另起一个名字**（如 `mygame-ui-conventions`）。
 
 ## 何时使用
 
@@ -27,8 +27,8 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 
 **不适用**：纯 TS 代码改动（那直接改源码）。
 
-## 工具面：只有 4 个 tool
-<!-- fact: tool-count | verify: script:tool-count-is-4 | 断言 bridge 里 ctx.tools.register 正好 4 次 -->
+## 工具面：只有 5 个 tool
+<!-- fact: tool-count | verify: script:tool-count-is-5 | 断言 bridge 里 ctx.tools.register 正好 5 次 -->
 
 编辑器执行能力由 **`dsh_chat` 扩展自带**（沙箱与场景脚本都在它里面，见
 `extensions/dsh_chat/source/core/engine.ts` + `source/scene.ts`）。
@@ -38,7 +38,38 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 | `cocos_execute_code` | 主工具。写 JS，跑在指定上下文，返回它 `return` 的值 |
 | `cocos_describe_api` | 按需查编辑器/引擎 API，**不要猜** |
 | `cocos_editor_state` | 会话开头/卡住时探一次：在哪个工程、选中什么、能不能动场景 |
-| `cocos_capture_view` | 把**编辑器场景视图**截成图片文件、回路径（改完布局想看一眼画面时用） |
+| `cocos_capture_view` | 把**编辑器场景视图**（或**指定的某一个节点**）截成图片文件、回路径。默认会**先取景再截**（`fit`）—— 屏幕上那一帧未必是全景（见「取景」一节） |
+| `cocos_logs` | 读**工程里的日志文件**（路径 + 行号 + 原文）。控制台里的字代码拿不到，只能另开一条通道（见「日志」一节） |
+
+**每个回执的结尾可能带一段 `refs`**（结果里出现过的全形 uuid / `db://` 路径，去重后列出）。
+这是省往返用的：下一步要「用刚才那个节点/那张图」时，**直接抄 `refs` 里的值**，
+不要重查一遍、更不要凭记忆编 —— 本文多条坑（尤其 uuid）都出在「猜」上。
+它只搬运事实：抽的是压缩型 uuid 的话会误报，所以**只有全形 uuid 与 `db://` 会被列出来**。
+
+### 日志：控制台里的字怎么拿到
+<!-- fact: logs-tool-wired | verify: script:logs-tool-wired | 断言 bridge 注册了 cocos_logs、真发 read_logs 帧、cocos-tools 分发表有条目、logs.ts 有通用候选目录表与 clear 确认口令 -->
+
+`cocos_execute_code` 只回你那段代码 `return` 的东西。而**引擎抛的异常、场景加载失败、资源导入被拒，
+是别的进程打到日志里的** —— 代码拿不到。这类现场一律用 `cocos_logs` 看**原文**：
+
+| 想看什么 | 怎么调 |
+|---|---|
+| 日志在哪、有几个、最后写入是什么时候 | `cocos_logs({ list: true })` |
+| 最新发生了什么 | `cocos_logs({ tail: 50 })` |
+| 找关键字（子串） | `cocos_logs({ grep: 'Error', tail: 30 })` |
+| 找关键字（正则 / 区分大小写） | 同上，再加 `regex: true` / `caseSensitive: true` |
+| 只要某个时刻之后的 | 加 `since: '2026-10-06 06:04'`（ISO 时间或毫秒时间戳） |
+| 日志不在默认目录 | `dir: '<绝对目录>'` 或 `files: ['<绝对路径>', …]` |
+| 清空（截断成 0 字节，不删文件） | `clear: true, confirm: 'clear'` —— 少了 `confirm` 会被拒，**且不会动任何文件** |
+
+- 默认目录是一张**通用候选表**（`temp/logs` / `logs` / `local/logs` / `temp/asset-db/log` / `local` / `temp`），
+  **全都扫**；回执会逐个列「✓ 存在（N 个日志文件）/ ✗ 不存在」，所以「没找到」也能看出是没扫到还是真没有。
+- 回执给的是 `F1:120 <原文>` 这样的行。**引用时把原文一起说出来**，别只给自己的转述 ——
+  转述丢掉的细节往往正是排查入口。
+- 超过 2MB 的文件只读**尾部**（此时行号是尾读窗口内的行号，回执里写「已尾读」）。
+- `temp/logs/project.log` 是 **0 字节很正常**（编辑器还没往那份日志里写过东西）—— 这时用 `list: true` 看还有哪些文件。
+- 它**不是** `cocos_execute_code` 回执里的 `logs`（那是你自己代码的 `console.*` 输出）。
+
 
 ### 两个上下文先选对
 
@@ -53,12 +84,16 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 > **`context` 永远显式写。** 漏给时插件会按代码里的标识符猜（含 `cc`/`nodeByPath` → `scene`）
 > 并在回执里注明 `contextInferred`，但那是兜底、不是许可 —— 猜错的症状见坑 6。
 
-### 场景侧的两个「别再手搓」助手（插件已封好）
+### 五个「别再手搓」的助手（插件已封好）
 
 | 助手 | 取代什么 |
 |---|---|
 | `await loadFrame('db://assets/…/x.png')` | 取代「editor 查 `query-asset-info` 拿 `@f9941` → scene `loadAny({uuid})`」两步走；`cc.resources.load('…/spriteFrame')` 在编辑器场景里**必失败**（坑 8） |
 | `worldRect(node, { root })` | 取代 `getBoundingBoxToWorld()`（编辑态不可信）与自己手写锚点累加（坑 8） |
+| `pick(x, y, { space })` | 取代「看图 → 枚举节点树 → 反算坐标 → 猜」：**一次问清这个点上是谁**，并区分「内容」/「编辑器叠加层」（坑 12） |
+| `labelFit(node, override?)` | 取代「改真 Label + 建探针卡截图」试某个框放不放得下字；第二参还能**问反事实**（坑 13） |
+| `snapshotTree` / `diffTree` | 取代「动手前后手工 dump 字段再人肉比对」（坑 11 的正路 ② 现在有工具了） |
+| `probe(ref)` *(editor 侧)* | 取代「打开图片看」：读某个像素/中心/四角，还直接回答**这图能不能用 `Sprite.color` 染色**、是不是引擎内置贴图 |
 
 ## 铁律
 
@@ -100,6 +135,31 @@ return { ok: true };
 ```
 
 也可以给 `cocos_execute_code` 传 `{ snapshot: true }` 无条件登记。
+
+### 4. 别手调生命周期钩子（`onLoad()` / `onInit()` / `onEnable()`）
+
+<!-- fact: no-manual-lifecycle | verify: manual | 人在哪看什么：刚 `addComponent` 的组件（节点此刻 `active=false`）手调一次 `comp.onLoad()`，再把 `node.active = true`，看它的 `onInit` 是不是跑了第二遍（在里面打一行 console 最直观）；引擎侧的判重位见 `node-activator.ts` 的 `activateComp` —— `IsOnLoadStarted` 只在那一处置位 -->
+
+编辑器沙箱里常见的诱因：组件刚 `addComponent`、或它的节点此刻是 `active=false`，`onLoad` 还没跑，
+于是很自然地想"我自己调一下"：
+
+```js
+// ❌ 手调：引擎的"已经跑过"标记不会因此置位
+if (!comp.panelNode) comp.onLoad();
+```
+
+**为什么不行**：引擎的判重位是 `IsOnLoadStarted`，**只在 `NodeActivator.activateComp` 里置位**
+（`node-activator.ts` 的 `activateComp` → `internalOnLoad` 那条链）。手调**不置位** →
+随后你把 `node.active = true`，引擎**会再调一次** `onLoad` / `onInit` —— 初始化跑两遍。
+`?? ` 式的幂等赋值、`CallbacksInvoker.on` 的 `hasEventListener` 去重能兜住一部分，
+但换个组件就可能重复挂事件、重复建节点、重复申请资源，而且**症状离原因很远**。
+
+**正解**：`node.active = true` → `await sleep(300~500)` 等一帧 → 再读它初始化后的字段；
+初始化里确实要"按需解析"的，让**它自己的公开入口**懒执行（例如在 `setData()` 开头
+`if (!this.panelNode) this.resolveRefs();`），别从外面代跑生命周期。
+
+**顺带一条更隐蔽的后果**：初始化里"把解析结果写回 `@property` 字段"的写法，
+会被紧接着的 `save-scene` **序列化进资产** —— 一次"只是看看"的测试运行，等于改了一次资产。
 
 ---
 
@@ -228,25 +288,61 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 
 ---
 
-## 坑 5：`cocos_capture_view` 可能整帧空白 —— 先量，别硬试，别自建渲染器
+## 坑 5：截图仍然可能是整帧空白 —— 先量，别硬试，别自建渲染器
 <!-- fact: pit-5-blank-capture | verify: script:capture-reports-viewstate | 断言回执仍带 view.visibleMatchesDesign -->
 
 **症状**：回执里 `blankRatio` 接近 `1`，像素全 0。
 
-**它不是"环境不支持"** —— 实测的真相是：有人为了「模拟设备高度验适配」调过
-`cc.view.setDesignResolutionSize(...)`，把**编辑器场景视图的设备模拟打掉了**
-（`visible` 从 `750×1334` 变成 `750×559.35`），此后每次截图都是白纸。
+**先说 2026-11 的改动**：截图的正路已经换成**主进程的 Electron** ——
+`cocos_capture_view` 现在由扩展主进程 `webContents.capturePage()` 抓**编辑器合成后的画面**
+（老路读的是场景进程里的 GL 后备缓冲，合成后即失效、且**没法让编辑器重画**，
+所以那时实测恒回 `blankRatio: 1`）。空图时主通道会自己 `invalidate()` **逼一次重绘**再抓。
+回执里的 `method` 会告诉你是谁抓的：`electron`（正路）/ `scene-gl`（兜底老路）。
 
-**现在的回执里带了视图状态**：`view.visibleSize` / `view.designResolution` / `view.visibleMatchesDesign` /
-`view.canvas`。**先看这几个数**：
+**所以现在 `blankRatio ≈ 1` 的含义变了**：不是"读缓冲读晚了"，而是
+**连合成后的画面都是空的**（场景视图面板被折叠 / 从没渲染过 / 编辑器最小化）。
+**先看 `view` 这几个数**：
 
-- `visibleMatchesDesign: false` → 大概率就是设备模拟被改过。**恢复入口在编辑器 UI**：
-  场景视图工具栏重新选一次设备分辨率（或拖一下场景面板）—— 纯视图设置，不影响场景与预制件数据。
-- 与设计分辨率一致却仍然空 → 才去怀疑"这个环境下确实拿不到帧"。
+- `view.visibleMatchesDesign: false` → 大概率是**场景视图的设备模拟被改过**
+  （历史事故：有人为「模拟设备高度验适配」调了 `cc.view.setDesignResolutionSize`，
+  `visible` 从 `750×1334` 变成 `750×559.35`，此后每次截图都是白纸）。
+  **恢复入口在编辑器 UI**：场景视图工具栏重新选一次设备分辨率（或拖一下场景面板）——
+  纯视图设置，不影响场景与预制件数据。
+- `visibleMatchesDesign: true` 却仍然空 → 这个环境当下确实取不到画面。
 
-**三条纪律**：① **不要反复重试截图**（换 `waitMs`、`select`、`focus-camera` 都不会变）；
-② **不要动 `cc.view.setDesignResolutionSize` / `setFrameSize`**（见纪律 3）；
+**三条纪律**：① **不要反复重试截图**（换 `waitMs`、`maxWidth`、`select`、`focus-camera` 都不会变，
+主通道已经替你逼过一次重绘了）；② **不要动 `cc.view.setDesignResolutionSize` / `setFrameSize`**（见纪律 3）；
 ③ 需要肉眼确认时，按**节点真实数据**出一张布局对照图，并在交付里**如实声明「真实渲染截图未完成」**。
+
+**另外两条只在"截图不对"时才有用的线索**：回执里 `contents` / `matchedBy` 是**抓的是哪个 webContents**
+（编辑器里可能同时有场景视图与游戏预览，抓错窗口时一眼看得出）；`camera` / `canvas` / `page`
+是节点矩形是怎么换算出来的（节点截图裁歪了先看这三个）。
+
+## 取景：图拍歪了 / 没拍全时用 `fit`，别自己按 F 再截
+<!-- fact: fit-framing | verify: script:framing-chain | 断言取景链与 framing 回执仍在 -->
+
+（坑 5 的另一半：**空白**之外，截图还有一种更隐蔽的坏法 —— 图看着很正常，只是**少了半张场景**。）
+
+截图抓的是**屏幕上现在这一帧**。用户把场景视图缩放/平移过之后，直接截就只是他当时看的那块地方
+（真要命的是：图看着"很正常"，只是少了半张场景 —— 不看 `framing` 根本发现不了）。
+
+回执里的 **`framing`** 是这件事的账本：
+
+- `before` / `after`：各一次**实测**——`covered`（目标是否整个落在画布里）、`areaRatio`（占画布面积比）、
+  `edges`（四边的内侧余量，负数 = 超出多少像素）；`target` 写明量的到底是哪块矩形（`contentBounds` / 节点）。
+- `method`：哪一级取景生效（`focus` 编辑器自己的聚焦 / `adjust` 2D 控制器适配 / `manual` 手工摆相机），
+  `step` 是级别；`restored` + `restoreMethod` 是**视角还回去了没有**。
+- `framing.note` 会明说「这张图可能仍然不是全景」或「视角没还原」——**看到就得如实转告用户**。
+
+`fit` 怎么选：**默认 `auto` 就够了**（截整张视图：没拍全 或 内容小得看不清 才动相机；
+截节点：只在节点没被拍全时才动相机，节点本来就在画里就按原样裁）。要明确要全景就 `fit:"scene"`，
+要"就按我现在这个视角"就 `fit:"none"`（此时 `framing.before.covered:false` 就是在告诉你没拍全）。
+
+**取景会临时动一下用户的编辑器视角**（截完自动还原，`restored:true`）——这是刻意的：
+不摆相机就拍不到视口外的东西。所以别为了"拍全"自己去调 `cc.view` / 相机（见纪律 3）。
+
+**已知边界**：兜底通道（`method: "scene-gl"`）**不取景**（回执里 `fitIgnored` 会说明）；
+3D 视图只有 `focus` 一级（手工那级只实现了 2D 正交）。
 
 ---
 
@@ -352,11 +448,186 @@ w.updateAlignment();
 
 ---
 
+## 坑 10：预制件编辑模式里「改完立刻存」可能存到**改动前**的状态，而返回值不会告诉你
+
+<!-- fact: pit-10-prefab-edit-save-scene | verify: manual | 在预制件编辑模式里改一个坐标就立刻 save-scene，看落盘 JSON 里有没有那个值 -->
+
+**症状**：在 `context:'scene'` 里改完节点（`setPosition` / `setContentSize` / `fontSize`…），
+紧接着 `Editor.Message.request('scene','save-scene')`，**返回 `true` 或一个 uuid，控制台一片安静** ——
+但把 `.prefab` 从盘上读回来，改的是**上一批**、这批坐标根本没进去。
+实测一次任务里连改 3 批：前两批落了盘、第 3 批没落，而三次调用的写法**完全一样**。
+
+**三个必须知道的判据**：
+
+- **`save-scene` 的返回值是"哪个 scene 资产被存了"**，不是"你的预制件存了"。在预制件编辑模式下它可能回
+  **宿主场景**的 uuid（实测：回的是**场景资产**，而你正在编辑的是挂在这个场景里的某个**预制件**）——
+  **`uuid ≠ 你正在编辑的资产` 不代表失败，`true` 也不代表成功**。唯一可信的核验是**把文件读回来**。
+- **落盘是异步同步的**：场景树 → 预制件数据模型的同步不在你这次调用的栈里完成。
+  可靠写法 = **改完 `await sleep(300~500)` → `save-scene` → 再 `sleep` → 读文件核验**。
+  实测加了这一拍之后连续几次都稳。
+- **先搞清"我现在编辑的是哪个资产"**：`query-current-scene` 在预制件编辑模式下回的是
+  **被编辑的那个预制件**；`save-scene` 回的是**宿主场景**。两者不一致是正常现象，不是 bug。
+  若目标预制件是**别的预制件里的嵌套实例**（父预制件编辑模式下点进子实例），
+  改的是"实例"、你可能以为改的是"子资产" —— 这时**显式走正规流程**：
+  `asset-db open-asset` 打开**目标子预制件**自己 → 改 → `sleep` → `save-scene` → 读文件核验 →
+  最后 `open-asset` **回到用户原来那个资产**（别把用户的编辑器状态留在别处）。
+
+```js
+// context: 'scene' —— 预制件编辑模式下的可靠落盘三步
+root.getChildByName('btn').setPosition(162.4, 62.04, 0);
+await sleep(400);                                            // ① 等编辑器同步进预制件数据
+const saved = await Editor.Message.request('scene', 'save-scene');
+await sleep(400);                                            // ② 等真正写盘
+// ③ 核验只能按文件做（editor 上下文读 <工程>/assets/.../*.prefab，数节点/读 _lpos/_color/_fontSize）
+```
+
+**顺带两条同源事实**（都实测过）：① **内存在"用户手上"，不在你手上** —— 你动的是**用户正开着的编辑器**，
+他可能**拖着调过东西还没保存**（这次真踩到：我以为有两个子节点坐标"自己变了 ~6px"，
+其实是用户手动拖的、被我的 `save-scene` 一起刷进了文件）。所以：**改之前先把文件读一遍当基线**
+（或先存一次），改完按文件核验；**别把"内存 ≠ 文件"当成 bug 或当成自己改的**，也不能当作"文件是脏的"就去覆盖 —— 那是用户的作品。
+② `Label` 的 overflow=NONE 时**节点高 = `lineHeight × 1.26`**（不是 `fontSize`），所以"改字号后手写
+`setContentSize` / `updateRenderData(true)`"下一帧就被弹回去 —— 要改的是 **`lineHeight`**。
+
+---
+
+## 坑 11：`query-dirty` **不是护栏** —— 状态验收别在"待保存的那份资产"上做
+
+<!-- fact: pit-11-dirty-flag-not-a-guard | verify: manual | 人在哪看什么：① 先往**真场景节点**里写一批假数据（改 Label 文案、改底图色、临时置灰、改 `contentSize`），再问 `Editor.Message.request('scene','query-dirty')` —— 实测**照样回 `false`**（那一刻树里全是假数据，且任何一次 `save-scene` 都会把它写进文件）；② 事后用手写白名单还原，再把文件读回来逐字段 diff，看还剩几处没还原 -->
+
+**症状**：为了截"另一个状态"的图，直接把假数据写进**正在编辑、稍后要保存**的真节点 ——
+
+- **`query-dirty` 照样回 `false`**。它反映的是编辑器自己的脏标记，**不是"树里有没有你的测试数据"**。
+  把它当护栏 ≈ 认为"没脏"就等于"没改"，于是**任何一次 `save-scene` 都会把测试值烘进资产**。
+- 事后想还原，就得**逐个字段背下来**。这条路实测必漏：一次任务里手写白名单回填了
+  13 处文字 / 2 处颜色 / 5 处 `active` / 54 个材质，**仍然漏了 1 处 Label 颜色 +
+  5 处"按错的文案量出来的" `contentSize`**，只好再补一轮 —— 而且漏掉的那几处，
+  **只有把文件读回来逐字段 diff 才看得见**。
+
+**三条正路（按代价从低到高，任选一条；共同点是判据由程序算，不是"我记得改过哪几处"）**：
+
+| 做法 | 怎么干 | 适用 |
+|---|---|---|
+| ① 挪到临时宿主 | 要验的子树 `instantiate` 一份挂到带统一前缀的临时节点下（或直接改副本），截完**当场删** | 只要截图，不要求它是"真那个节点" |
+| ② 程序化深快照 | `snapshotTree(null, {label:'before'})` → 改 → `snapshotTree(null, {label:'after'})` → `diffTree('before','after')`。**别再手工 dump + 人肉比对**：键按**节点路径**（存盘换 uuid 也不影响比对）、字段走白名单、只回真正变了的那几条；`suspectLeaks` 还会点名"名字像临时探针的新增节点" | 必须在真节点上验（例如要和旁边的兄弟节点比对齐） |
+| ③ 存盘前全量 diff | `save-scene` **之前** `diffTree` 一次，**非空就不许存** | 任何一次会保存的会话收尾 |
+
+---
+
+## 坑 12：截图里看到的东西，**不一定是场景里的节点** —— 别用枚举去证伪
+
+<!-- fact: pit-12-screenshot-not-a-node | verify: script:pick-editor-overlay | 断言 scene.ts 仍有 editor-overlay 判词，且 verify-cocos-engine.js 仍钉着「内容没有、编辑器装饰有」那条断言 -->
+
+**症状**：截图里有个显眼的色块 → 于是枚举子树所有 `Sprite`/`Graphics`/`Label` → 按颜色做直方图 →
+反算像素包围盒 → 回预制件里 grep 色值 → **全都对不上**，于是换个角度再枚举一遍。
+实测**烧了 16 轮**，结论是那玩意儿是**编辑器移动 gizmo 的 XY 平面手柄**（紫色）。
+
+**根因不是"算不出"，是不敢信一个空列表**：手工枚举返回空时，你无法区分
+「真的没有」和「我枚举漏了」，所以只能再枚举一次。**这个歧义要靠工具消掉，不靠更细心。**
+
+```js
+pick(700, 350);                      // 页面 CSS 像素（与 captureView 同一口径，含取景后的坐标）
+pick(0.78, 0.22, { space: 'uv' });   // 截图被 maxWidth 缩过时用它 —— 不用自己反算
+// → { verdict, hits, hit, invisible, editorHits, world, pageCss }
+```
+
+三个桶就是答案本身：
+
+- `hits` —— 命中的**内容**节点（按画序从上到下）
+- `invisible` —— 盖住了这点却**看不见**的节点 + **原因**（`active=false` / `color.a=0` / 空 Label / 父链 `UIOpacity=0`）
+  → 「这里怎么什么都没画出来」的答案通常在这
+- `editorHits` —— 盖住这点的**编辑器装饰**（gizmo / 网格 / 参考图）
+
+`verdict` 把三桶揉成一句话：
+
+| verdict | 含义 | 你该做什么 |
+|---|---|---|
+| `content` | 命中内容节点，`hit` 是最上面那个 | 正常按 `hit.path` 干活 |
+| `editor-overlay` | **内容为空、编辑器装饰非空** | **别再找**。它不在场景数据里，改预制件也改不掉它 |
+| `empty` | 两边都空 | 那是清屏色/面板底色，同样不在你的数据里 |
+
+**诚实的边界**：画序按「同级先 `UITransform.priority`、再子节点顺序，父在自己子节点之前」算，
+**跨 Canvas / 跨相机**管不着；祖先有 `Mask` 时只报 `maskedBy`（名字），
+**不判断那个点在不在模板里**；`Graphics` 只按"有组件"算。取不到编辑器相机时它会**抛错**而不是回空 ——
+空列表可信这件事，正是这个助手存在的理由。
+
+---
+
+## 坑 13：`Label` 会不会被裁字，**是能算的** —— 别靠改真节点 + 截图试
+
+<!-- fact: pit-13-label-fit | verify: script:label-fit-formula | 断言 scene.ts 仍有 LABEL_LAST_LINE_FACTOR 那条公式，且 verify-cocos-engine.js 仍钉着「原始框裁掉第 2 行 / 加高后放得下」这条回归 -->
+
+**症状**：一条两行的描述，第二行（比如进度 `20/20`）**整行被裁掉，界面上一个字都看不见**；
+另一个 56px 宽的框放 6 个汉字的名字，被截。发现方式都是「另建探针卡 + 截图」，
+过程中还**先改了真节点的 `active`**（违反纪律 2）。
+
+**这条完全不需要看图**：
+
+```js
+const n = nodeByPath('…/detail/Label');
+labelFit(n);                       // 现在裁不裁？clippedText 就是你看不见的那几个字
+labelFit(n, { height: 72 });       // 反事实：框加高到 72 呢 —— 零副作用，不动场景
+labelFit({ text: '…', fontSize: 16, width: 210, height: 72, lineHeight: 24 });  // 纯 spec 也能问
+```
+
+**引擎真实口径**（Cocos 3.8.6，用游离 Label 实测出来的，不是抄文档）：
+
+```
+行进给 = lineHeight > 0 ? lineHeight : fontSize        ← 注意 lineHeight=0 时回落到 fontSize
+内容高 = (行数 − 1) × 行进给 + 行进给 × 1.26            ← 最后一行比别的行多 0.26 倍
+最多行数 = floor(框高 / 行进给 − 0.26)                  ← 上面那条的逆，就是 CLAMP 的截断阈值
+字符宽 = CJK/全角 1.000em · 大写 0.667 · 小写/数字 0.556 · 空格 0.278
+```
+
+**两个必须知道的陷阱**：
+
+1. **`label.lineHeight` 这个 getter 在 `_lineHeight = 0` 时原样回 `0`** —— 它**不是**有效行进给。
+   拿它当度量会算出"能放 3 行"而实际只放得下 2 行（这条实测踩过）。
+2. **`lineHeight = 0` 时引擎回落到 `fontSize`，不是 `fontSize × 1.26`**（后者是内容高那一侧的系数）。
+   所以「把 `lineHeight` 设成 0 让它自动」在**要算行数**时反而是最不该做的选择。
+
+回执里带 `formula` / `advanceSource` / `method`（`canvas` = 真量、`estimate` = 估的）/
+`confidence`（含空格的长拉丁串引擎按**词**折行，比这里的**字符**折行**多占行**，
+所以这种情况它会把话说软，而不是给一个看着很确定的 `fits`）。
+
+**判据**：改任何 `Label` 的 `fontSize`/`lineHeight`/`contentSize`/文案之前先 `labelFit` 一次；
+`fits: false` 或 `clippedText` 非空就是**现在就有看不见的字**。
+
+---
+
+## 坑 14：给 ScrollView 加 Mask 时，**Mask 不要和 ScrollView 挂在同一个节点上**
+<!-- fact: pit-14-mask-not-with-scrollview | verify: manual | 人在哪看什么：在预制件里给一个 ScrollView 节点 `addComponent(cc.Mask)`，让它的子树里有真渲染物（Sprite/Label），看场景视图里子树还在不在；再把同一个 Mask 挪到 ScrollView 认的那个 `view` 子节点上，看是不是就正常了（2026-11 实测：同节点 → 整棵子树在**编辑态**里被裁没；挪到 `view` 上 → 正常。单变量对照过 `layer`，把 `view.layer` 改回 `DEFAULT` 也照样显示，所以不是 layer 的锅） -->
+
+**症状**：按"给滚动区域加剪裁"的直觉，把 `cc.Mask` 加在**挂着 `cc.ScrollView` 的那个节点**上
+（照抄了工程里某个已有的、运行期看着没问题的 ScrollView），结果**整棵子树在编辑器里消失** ——
+`pick` 照样能命中里面的节点（`verdict: content`、`invisible` 是空的），
+说明**数据没问题、是渲染被裁没了**；`mask._updateGraphics()`、`mask.enabled` 抖一下都救不回来。
+
+**正解**：Mask 挂在 **ScrollView 认的那个 `view` 子节点**上 —— 也就是编辑器「创建 → UI → ScrollView」
+自己生成的那套形态（`ScrollView 节点` → `view`（Mask）→ `content`（Layout））。
+`sv.view.node` 就是它（`sv.content.parent`），所以语义上也更对：
+**剪裁范围 = 滚动视区**。
+
+**定位这个病的两条手法**（都比"再试一次"快）：
+1. **单变量对照**：把 `mask.enabled = false` 截一张 —— 子树回来了 ⇒ 就是 Mask 干的，不用再怀疑 layer / Layout / 父链。
+2. **`pick()` 与截图分家看**：`pick` 判"这里有没有内容节点"，**它不判遮挡/剪裁** ——
+   所以「`pick` 说命中、截图说空」这个组合，一看到就指向**渲染/剪裁**，别再回头翻节点树。
+
+**顺带一条同源事实**：`new cc.Node()` 出来的节点 **`layer` 是 `DEFAULT`（1073741824）**，
+不是 UI 层（`UI_2D` = 33554432）—— 往 UI 预制件里插新容器节点时要显式
+`node.layer = cc.Layers.Enum.UI_2D`，否则它和整棵树不同层（实测**渲染看着没事**，
+但没必要在 UI 预制件里留 DEFAULT 层的容器；`_layer` 是要存进 `.prefab` 的）。
+
+---
+
 ## 纪律（比技巧更省时间；每条都对应一次真实事故）
 
 1. **增量改，别全量重建。** 改一个属性不要重灌整棵树的构建脚本 —— 实测一次任务里
    整树重建 **7 次 / 重复发送 54.7 KB 代码**。建树脚本要**幂等**（先删同名节点再建），
    改动用小段代码按名字取节点改属性。
+   · **同一段整树脚本要发第二次之前，先 `saveRecipe` 参数化**：实测另一次任务里，
+   同一段 ≈9 KB 的建树脚本被全量重发 3 次（≈27 KB 白发），而每次回执里那条
+   「把这段代码 `saveRecipe` 存下来」的提示**一次都没被采纳**。参数化就是把
+   尺寸 / 文案 / 图标路径 / 行数抽成 `args.*`，让下一次"换个界面"能直接跑。
 2. **别在用户的真实场景里做实验。** 探针节点要有**统一前缀**（如 `__probe_`）、跑完**当场删掉**；
    实验尽量放临时宿主节点下。实测有人往用户场景塞了 8 轮 `__T1..4`/`__P`/`__IT` 之类的节点。
 3. **绝不动全局视图状态。** `cc.view.setDesignResolutionSize` / `setFrameSize` / `setCanvasSize`
@@ -467,9 +738,15 @@ vs `archive/build-login-ui-tree`（结构写死 + 按用途命名，❌ 已退�
    缺一个就报出来，别假定它在。
 4. **画面对不对**（改布局/UI 时）：
    - 先 `cocos_capture_view` 截一张，用图片读取能力**看一眼** —— 坐标数字看不出叠字、错位、空白图；
+   - **只想确认某一个控件**（一个按钮、一张卡、一段文字）就传 `node`（uuid 或 `Canvas/skill_details`），
+     必要时配 `padding` —— 比截整张视图再自己数像素准，也省得图太大看不清；
+   - **先看回执里的 `framing`**：`before.covered:false` / `after.covered:false` 说明**没拍全**，
+     `restored:false` 说明**用户视角没还原**（要如实告诉用户）——别只看图就下结论（见「取景」一节）；
    - **截图是空图时不要重试**（见坑 5 的三条纪律），改用**数值判据**：`worldRect(node, {root: canvas})`
      拿真实矩形 → 自己算重叠/越界/对齐（"左右边距是不是相等"这种，一次就能查出来）。
 5. **场景脏了没**：`Editor.Message.request('scene','query-dirty')`（editor 上下文）。
+   ⚠ 它只反映编辑器的脏标记，**不是"树里有没有你的测试数据"的护栏** —— 往真节点写过假数据时它照样回 `false`
+   （见坑 11）。要判"资产有没有被我的实验改过"，唯一可信的是**动手前快照 vs 现在序列化的逐字段 diff**。
 6. **撤销登记了没**：改过场景就必须登记撤销 —— **在代码里调 `snapshot()`**，或传工具参数 `snapshot: true`
    （两者等价，参数那条由主进程在跑完后发起）。成功的回执里会带 `undoSnapshot: true`。
    ⚠ 它与「代码跑在哪个上下文」**毫无关系** —— 曾经把它当成 `cc is not defined` 的元凶，那是误判（见坑 6）。
@@ -496,8 +773,14 @@ vs `archive/build-login-ui-tree`（结构写死 + 按用途命名，❌ 已退�
   **再加上事实门禁**：`node scripts/verify-skill-facts.js`（或 `npm run verify:skill`）——
   **本文件里每条事实都挂了一条 `<!-- fact: … | verify: … -->` 声明**，改错了它会当场红。
   新写一条坑时必须同时声明它怎么被验证（能算的写 `script:<锚点名>`，只能人验的写 `manual` + 一句「人在哪看什么」）。
-- **`cocos_capture_view` 可能整帧空白**（`blankRatio ≈ 1`）：先按坑 5 量视图状态，
-  **不要反复重试、不要自建离屏渲染器**；这一项没做成要如实说。
+- **`cocos_capture_view` 仍可能整帧空白**（`blankRatio ≈ 1`）：截图正路已经换成主进程的
+  Electron（读合成后的画面 + 空图时逼一次重绘），所以到这个地步就是**真的没画面可抓**。
+  先按坑 5 量视图状态，**不要反复重试、不要自建离屏渲染器**；这一项没做成要如实说。
+- **取景（`fit`）的边界**：它靠 `cce.Camera.focus` / `controller2D._adjustToCenter` / 手工摆相机
+  三级里**能覆盖的那一级**，逐级都是**量着验**的；三级都不行时会**照常给图但如实标「可能不是全景」**。
+  兜底通道（`method:"scene-gl"`）不取景；3D 视图只有 `focus` 一级。
+  **取景会临时动用户的编辑器视角**（截完自动还原，`restored:false` 时会写进回执）——
+  真机上「哪一级生效、还原成不成功」还没实测过，第一次用**先看 `framing.method` / `restored`**。
 - **超时掐不断已在跑的异步代码**：`vm` 的 `timeout` 只管同步段，Node 没有抢占式取消。
   超时后那段代码可能还在跑（所以别写 `await new Promise(()=>{})` 这种不可结束的等待）。
   默认超时 **15 秒** —— 别把一整棵 UI 树塞进一次调用，超时后你不知道它死在哪。

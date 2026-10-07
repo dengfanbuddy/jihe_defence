@@ -333,6 +333,93 @@ export const TABLES: TableSchema[] = [
         },
     },
 
+    // ==================== mall_items：局外商城商品表 ====================
+    //  ⚠ 与 shop_constants / shop_draw / kill_buffs（**局内**肉鸽商店）不是一回事：
+    //   这一张是**局外全屏商城**的商品（入口 = 主界面底部「商城」页签 + 顶栏三格的「+」），
+    //   卖的全是**既有资源的加速**（金币 / 通用英雄经验 / 账号经验 / 抽取次数 / 券），
+    //   一律靠**激励视频**获得，外加每天 1 次不看广告的「每日补给」（kind = free）。
+    //   口径真源：docs/shop/README.md §2（卖什么 / 给多少 / 为什么）；数值依据在同文件 §2.0。
+    //  ⚠ 局内那套经济（金币只给选英雄刷新 + 遗物抽取、击杀数只给击杀商店）与本表**互不相干**，
+    //   本表发的金币进 `ItemData.currencies.gold`（局外金币），不是 `hero.gold`。
+    {
+        name: 'mall_items',
+        label: '局外商城商品表',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/mall_items.json`,
+        excelFile: 'mall_items.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '商品ID', required: true },
+            { key: 'key', type: 'string', desc: '商品标识（= 代码里的 ShopItemKey：gold/hero_exp/acc_exp/relic_draw/boost/ad_ticket，每日补给是 daily_free）；界面按它回推是哪一个格子', required: true },
+            {
+                key: 'kind', type: 'enum', required: true,
+                desc: '获取方式：free = 每日免费（不看广告，每天 1 次）/ ad = 看一次激励视频领一份',
+                enumValues: ['free', 'ad'],
+            },
+            { key: 'name', type: 'string', desc: '商品名（写入格子的 name 标签）', required: true },
+            { key: 'subtitle', type: 'string', desc: '副标题（写入格子的 sub 标签；留空 = 该格不写 sub）' },
+            { key: 'amount_text', type: 'string', desc: '数量文案（写入格子的 amount 标签，如「+300 金币」）' },
+            { key: 'grants', type: 'json', desc: '发放内容（**一项一件**）：[{"type":"gold","amount":300}]；type = gold|hero_exp|acc_exp|relic_draw|boost|ad_ticket', required: true },
+            { key: 'daily_limit', type: 'int', desc: '每日次数上限（每日补给填 1；0 = 不限）', required: true },
+            { key: 'placement', type: 'string', desc: '广告位标识（kind=ad 必填，原样传给 AdMgr.showRewardVideo 做埋点；free 商品留空）' },
+            { key: 'sort', type: 'int', desc: '排序（升序；决定界面上格子的先后）' },
+        ],
+    },
+
+    // ==================== bag_items：通用道具表（局外背包） ====================
+    //  一行一件「玩家可能持有的道具」—— 背包（`prefabs/ui/views/bag/View_Bag`）照着它铺格子：
+    //  格子的图标 / 名字 / 描述 / 品质底框色 / 堆叠上限**全部来自本表**，代码里不写死任何一件道具。
+    //  ⚠ 本表是**道具字典**（长什么样、叫什么），**不是存量**：存量在存档模块 `data/funcs/BagData.ts`
+    //    （按 `key` 记数量）。两者靠 `key` 对上 —— 表里删一行 = 背包里那一格立刻消失（存量还在存档里）。
+    //  ⚠ 与 `relics` 表（遗物，id 1001~1302）**不是一回事**：遗物有自己的表与页面（左侧「遗物」页），
+    //    不进背包；背包装的是券 / 次数这类**可堆叠的持有物**。
+    //  口径真源：`docs/bag/README.md`。
+    {
+        name: 'bag_items',
+        label: '通用道具表（局外背包）',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/bag_items.json`,
+        excelFile: 'bag_items.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '道具ID（1001 起，一件一行）', required: true },
+            {
+                key: 'key', type: 'string', required: true,
+                desc: '唯一标识（**代码与存档按它记账**）：ad_ticket / outer_draw_ticket / boost_<成就效果code>',
+            },
+            { key: 'name', type: 'string', desc: '道具名（详情面板第一行；**≤ 8 个汉字**，详情面板的 name 框 200×38 / fs24 是 CLAMP，长了会被裁字）', required: true },
+            {
+                key: 'desc', type: 'string',
+                desc: '一句话说明（详情面板正文第一行；**≤ 12 个汉字** —— 正文框 200×64 / fs16 只放得下两行、每行约 12 字）',
+            },
+            {
+                key: 'use_hint', type: 'string',
+                desc: '「为什么不能手动用 / 怎么生效」那一行（详情面板正文第二行，**≤ 12 个汉字**；'
+                    + '`effect_code` 非空的行这一行会被效果文案顶掉）',
+            },
+            { key: 'icon', type: 'string', desc: '图标资源路径（resources 相对、**不带扩展名**；留空 = 保留预制件占位图，别填不存在的路径）' },
+            {
+                key: 'rarity', type: 'enum', required: true,
+                desc: '品质（决定格子底框色；色值唯一真源 `game/common/RelicRarityColor.ts`）',
+                enumValues: ['common', 'rare', 'epic', 'legendary'],
+            },
+            { key: 'stack_max', type: 'int', desc: '单格堆叠上限（**0 = 不限**；超上限时 `BagData.addItem` 拒绝，不会静默吞掉）', required: true },
+            { key: 'usable', type: 'bool', desc: '能不能手动点「使用」（0 = 按钮置灰；本期全部 0 —— 这些道具都是入局/抽取时自动抵扣）', required: true },
+            { key: 'sellable', type: 'bool', desc: '能不能「出售」（0 = 按钮置灰；本期全部 0 —— 本项目金币是抽取燃料，不开回收口）', required: true },
+            { key: 'sell_price', type: 'int', desc: '出售单价（局外金币；`sellable=0` 时无意义，填 0）' },
+            { key: 'expire_hours', type: 'number', desc: '有效期（小时；**0/留空 = 永久** → 格子不显示倒计时。当前全部永久，倒计时那条路径见 BagItem）' },
+            {
+                key: 'effect_code', type: 'enum',
+                desc: '**增益券专用**：这张券对应哪条成就效果（`boost_*` 行必填，其它行留空）',
+                enumValues: [
+                    'run_start_gold', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw', 'kill_buff_discount',
+                    'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free', 'relic_start_gift',
+                ],
+            },
+            { key: 'sort', type: 'int', desc: '排序（升序；决定背包里格子的先后）', required: true },
+        ],
+    },
+
     // ==================== tasks：任务表（日/周任务，完成后发账号经验 + 金币） ====================
     //  奖励口径（2026-09 改）：**不再由对局结束统一发放**，而是「完成任务 → 领奖」时发
     //  （账号经验进 DataCenter.playerInfo / 金币进 DataCenter.itemData.Gold）。
@@ -519,6 +606,17 @@ export const TABLES: TableSchema[] = [
             skillSlotCount: '技能槽数量',
             skillSlotUnlockLevels: '技能槽解锁等级（数组）',
             pxPerMeter: '1 米 = 多少像素（距离换算口径：设计稿/文案里的 m × 本值 = 配表像素，用于击退/牵引等位移）',
+            outerDrawCostBase: '局外遗物抽取·当天第一次抽取的价格（金币；每天 0 点重置回本值）',
+            outerDrawCostStep: '局外遗物抽取·每付费抽一次涨多少（当天第 N 抽 = 基数 + 步长 × (N-1)，付费才涨；抽券不涨）',
+            outerDrawCostCap: '局外遗物抽取·当天单抽价格封顶（0 = 不封顶；十连 = 接下来 10 抽价格逐个累加）',
+            shopAdDailyTotalLimit: '局外商城·每日广告总次数上限（跨商品共用一本账，界面底部「今日广告 N/14」）',
+            reviveAdPerRun: '局内·**每局**「看广告复活」的次数上限（0 = 关掉这一条：英雄阵亡时只认背包里的局内复活券；复活券本身能用几次由背包存量决定，不受本键约束）',
+            shopAdCardNeedWatches: '局外商城·免广告卡需要累计观看的广告次数（攒满即可领；= 每日上限 × 期望天数）',
+            shopAdCardHours: '局外商城·免广告卡生效时长（小时；生效期间局内那两个广告位不再拉起广告）',
+            shopStreakMuls: '局外商城·每日补给的连续登录加成（**下标 = 连续天数 - 1**：`[1,1,1.5,1.5,1.5,1.5,2]` = 1~2 天 ×1 / 3~6 天 ×1.5 / ≥7 天 ×2；超出长度按最后一项）',
+            shopStreakGiftDay: '局外商城·每日补给在连续登录达到该天数时额外送券（0 = 不送）',
+            shopStreakGiftTickets: '局外商城·上面那条额外送的本局增益券张数',
+            shopBoostTicketValues: '局外商城·**本局增益券**（A5）每种效果一张券给多少：`{"run_start_gold":50,…}`，键 = `achievements.effect_code` 的 10 个候选取值之一，值 = **一张券折算的效果数值**（百分比类填百分数，如 10 = 10%）；券的合计仍受 `AchievementEffectMeta` 的 `cap` 约束（已达 cap 的效果不再发券）',
         },
     },
 ];

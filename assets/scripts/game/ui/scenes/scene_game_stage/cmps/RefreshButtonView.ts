@@ -12,14 +12,16 @@ import type { RefreshGate } from '../../../../battle/RefreshGate';
  *   功能类（`HeroSelect` / `RelicShop` / `BuffShop`）→ `refreshGate()` 算出 enabled / canPay / viaAd
  *   本函数 → 按判据写 interactable、灰化、按钮文案、费用数字与**费用图标**
  *
- * ── 费用图标（三态，只换图不改布局）──
+ * ── 费用图标（四态，只换图不改布局）──
  *   ① 货币够 → 货币图标（金币 / 击杀数；由面板通过 `costIconPath` 指定，不传 = 保持预制件原样）
- *   ② 货币不够但能看广告（`viaAd`）→ **广告图标**（`textures/common/ad`）
+ *   ② 货币不够但背包里有**局内广告券**（`viaTicket`）→ **券图标**（`textures/common/ad_ticket`）＋ 文案「用 券」
+ *   ③ 货币不够、没券但能看广告（`viaAd`）→ **广告图标**（`textures/common/ad`）
  *      —— 玩家口径：「金币不足时要显示看广告的图标，不然以为是花金币」。
  *      图标与货币图标同尺寸（都是 200×200），所以直接换 `spriteFrame` 不会让布局跳。
- *   ③ 都不行（置灰）→ 货币图标（价格仍然是有意义的信息）
+ *   ④ 都不行（置灰）→ 货币图标（价格仍然是有意义的信息）
  *
- * ⚠ 面板的 watcher 一定要 watch `refreshButtonKey(gate, cost)`（含 cost），否则费用变了不会重画 —— 见 `RefreshGate.ts`。
+ * ⚠ 面板的 watcher 一定要 watch `refreshButtonKey(gate, cost)`（含 cost 与 `viaTicket`），
+ *   否则费用变了 / 有券了都不会重画 —— 见 `RefreshGate.ts`。
  */
 
 /** 刷新按钮可点 / 置灰时的配色（按钮底图是深色 Sprite，置灰就调亮它） */
@@ -31,6 +33,11 @@ const COST_LACK_COLOR = new Color(255, 60, 60, 255);
 
 /** 广告图标（`resources` 相对路径，不带扩展名）——`viaAd` 时顶替货币图标 */
 export const AD_ICON_PATH = 'textures/common/ad';
+/**
+ * **局内广告券**图标 —— `viaTicket` 时顶替货币图标（第三态「用 券」）。
+ * 与商城 A6 发的那张券是同一张图（背包里也用它），语义一眼能连上。
+ */
+export const TICKET_ICON_PATH = 'textures/common/ad_ticket';
 /** 金币图标（预制件里 `refresh/icon` 的默认图；面板不传 `costIconPath` 时按它还原） */
 export const GOLD_ICON_PATH = 'textures/common/gold';
 /**
@@ -110,8 +117,13 @@ function loadFrame(path: string, cb: (sf: SpriteFrame | null) => void): void {
     });
 }
 
+/** 取一张 `resources` 图标帧（带缓存 + 并发合并；失败只打日志，不动节点上已有的图） */
+export function loadIconFrame(path: string, cb: (sf: SpriteFrame | null) => void): void {
+    loadFrame(path, cb);
+}
+
 /**
- * 把费用图标刷成「想要的那张」（货币图标 / 广告图标）。
+ * 把费用图标刷成「想要的那张」（货币图标 / 券图标 / 广告图标）。
  * 异步加载回来时若已经被改成别的图标（`wantPath` 变了）就丢弃这次结果，避免闪烁。
  */
 function applyCostIcon(sprite: Sprite | null | undefined, path: string | null): void {
@@ -141,6 +153,8 @@ function applyCostIcon(sprite: Sprite | null | undefined, path: string | null): 
 export function applyRefreshButton(nodes: RefreshButtonNodes, gate: RefreshGate | null, cost: number): void {
     const enabled = !!gate && gate.enabled;
     const canPay = !!gate && gate.canPay;
+    // 券优先于广告（与 `evaluateRefreshGate` 的优先级同一份口径：花货币 ＞ 用券 ＞ 看广告）
+    const viaTicket = !!gate && gate.viaTicket;
     const viaAd = !!gate && gate.viaAd;
 
     if (nodes.btnNode) {
@@ -150,15 +164,16 @@ export function applyRefreshButton(nodes: RefreshButtonNodes, gate: RefreshGate 
         if (sprite) sprite.color = (enabled ? BTN_ENABLED_COLOR : BTN_DISABLED_COLOR).clone();
     }
     if (nodes.btnLabel) {
-        // 货币够 → 「刷新」；不够但有广告次数 → 「看广告」；都不行 → 保持「刷新」（配合置灰）
-        nodes.btnLabel.string = canPay ? '刷新' : (viaAd ? '看广告' : '刷新');
+        // 货币够 → 「刷新」；不够但有券 → 「用 券」；不够也没券但有广告次数 → 「看广告」；都不行 → 保持「刷新」
+        nodes.btnLabel.string = canPay ? '刷新' : (viaTicket ? '用 券' : (viaAd ? '看广告' : '刷新'));
         nodes.btnLabel.color = (enabled ? BTN_ENABLED_COLOR : BTN_DISABLED_COLOR).clone();
     }
     if (nodes.costLabel) {
         nodes.costLabel.string = `${cost}`;
         nodes.costLabel.color = (canPay ? COST_ENOUGH_COLOR : COST_LACK_COLOR).clone();
     }
-    // 费用图标：货币不够但能看广告 → 广告图标（否则玩家会以为这一下要花金币）
+    // 费用图标：不够但有券 → 券图标；不够且没券、能看广告 → 广告图标（否则玩家会以为这一下要花金币）
     const icon = nodes.costIcon ?? resolveCostIcon(nodes.costLabel);
-    applyCostIcon(icon, viaAd ? AD_ICON_PATH : (nodes.costIconPath ?? null));
+    const iconPath = viaTicket ? TICKET_ICON_PATH : (viaAd ? AD_ICON_PATH : (nodes.costIconPath ?? null));
+    applyCostIcon(icon, iconPath);
 }

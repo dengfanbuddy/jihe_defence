@@ -2,6 +2,7 @@ import { _decorator, Color, Label, Node, Sprite, SpriteFrame, Button } from 'cc'
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { ShopConfig } from '../../../../../data/configs/ShopConfig';
 import { StageScopeEvents } from '../StageScope';
+import { loadIconFrame, TICKET_ICON_PATH } from '../RefreshButtonView';
 import { AtlasIcon } from '../../../../../common/AtlasIcon';
 import { rarityColor } from '../../../../../common/RelicRarityColor';
 import type { ShopSlotVM } from '../../../../../battle/RelicShop';
@@ -69,7 +70,7 @@ export class ShopRiItem extends UIWidget {
     /** 点击区（挂在槽位节点上的 Button）：点击 = 选这一格；不可选时置灰 + interactable=false */
     @property(Button)
     selectBtn: Button = null;
-    /** 「看广告」角标（可空；selectType=1 时显示） */
+    /** 「看广告 / 用券」角标（可空；`selectType > 0` 时显示） */
     @property(Node)
     selectAdNode: Node = null;
 
@@ -77,13 +78,19 @@ export class ShopRiItem extends UIWidget {
     relicId: number = 0;
     /** 当前格子的种类（'relic' | 'skill'） */
     kind: string = 'relic';
-    /** 选取方式：0 普通（花金币 / 已在本次抽取里选中） · 1 广告（需要看激励视频） */
+    /**
+     * 选取方式：0 普通（花金币 / 已在本次抽取里选中）
+     *          1 广告（需要看激励视频）
+     *          2 **广告券**（背包里有券 → 扣券、不弹广告；角标换券图标）
+     */
     selectType: number = 0;
 
     /** 是否可点（面板根据「本次是否已选过 / 是否需要广告 / 本轮是否被拒发」下发） */
     private selectable = false;
     /** 预制件里的原始颜色（首次使用时缓存，用于从灰化状态恢复） */
     private baseColors = new Map<string, Color>();
+    /** 「广告 / 用券」角标在预制件里的原图（第一次切成券图之前记下来，切回广告态要还原） */
+    private selectAdBaseFrame: SpriteFrame | null = null;
     /** 已加载的图标（按 url 缓存，避免每次刷新面板都重新下载远程图） */
     private static iconCache: Map<string, SpriteFrame> = new Map<string, SpriteFrame>();
 
@@ -109,7 +116,7 @@ export class ShopRiItem extends UIWidget {
     /**
      * 设置格子展示的候选。
      * @param vm 宿主给的格子状态（**id ≤ 0 = 空槽** → 收起内容）
-     * @param selectType 0 普通选取 · 1 需要广告才能选取（显示广告角标）
+     * @param selectType 0 普通选取 · 1 需要广告才能选取（显示广告角标）· 2 用广告券选取（显示券角标）
      */
     setItemInfo(vm: ShopSlotVM | null, selectType: number): void {
         this.kind = vm?.kind ?? 'relic';
@@ -125,9 +132,32 @@ export class ShopRiItem extends UIWidget {
         if (this.kind === 'skill') this.applySkillInfo(this.relicId, vm.level, vm.maxLevel);
         else this.applyRelicInfo(this.relicId);
 
-        if (this.selectAdNode) this.selectAdNode.active = selectType === 1;
+        this.applySelectBadge();
         this.applyContentVisible(true);
         this.applySelectable();
+    }
+
+    /**
+     * 角标：1 = 广告（预制件里那张 `common/ad` 的原图）、2 = 券（换成 `common/ad_ticket`）。
+     * 换成券图后**再切回 1 时要还原原图**，所以第一次先把预制件那张记进 `selectAdBaseFrame`。
+     */
+    private applySelectBadge(): void {
+        if (!this.selectAdNode) return;
+        const show = this.selectType > 0;
+        this.selectAdNode.active = show;
+        if (!show) return;
+
+        const sprite = this.selectAdNode.getComponent(Sprite);
+        if (!sprite) return;
+        if (!this.selectAdBaseFrame) this.selectAdBaseFrame = sprite.spriteFrame ?? null;
+        if (this.selectType === 2) {
+            loadIconFrame(TICKET_ICON_PATH, (sf) => {
+                // 异步回来时这一格可能已经换了状态（面板刷新）→ 只在还需要券角标时贴图
+                if (sf && this.selectAdNode?.isValid && this.selectType === 2) sprite.spriteFrame = sf;
+            });
+        } else if (this.selectAdBaseFrame) {
+            sprite.spriteFrame = this.selectAdBaseFrame;
+        }
     }
 
     /** 面板下发「这一格现在能不能点」（已选过 / 空槽 / 本轮被拒发 → false，表现上灰化） */

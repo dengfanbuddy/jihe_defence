@@ -88,6 +88,40 @@ export class BattleConstUtil {
         return v !== undefined ? v : (defaultValue ?? 0);
     }
 
+    /**
+     * **每局「看广告复活」的次数上限**（`battle_constants.reviveAdPerRun`，现 1；0 = 关掉这一条）。
+     *
+     * 消费点只有一处：`Scene_Game_Stage` 的**致命伤拦截器**（英雄被打死那一刻先问一次
+     * "背包里有复活券 / 还有广告复活次数吗"）。⚠ 复活券**不受本键约束** ——
+     * 它一局能用几次由背包存量决定（券是玩家买到手的东西，再套一层局内配额等于券作废）。
+     */
+    static getReviveAdPerRun(): number {
+        return Math.max(0, Math.floor(BattleConstUtil.getNumber('reviveAdPerRun', 1)));
+    }
+
+    /**
+     * **局外遗物抽取**的当日基准价（金币）—— 当天第 1 抽的价格。
+     *
+     * 三个键一起构成价格阶梯（口径真源 `docs/meta-growth/README.md` §1.3）：
+     *   `当天第 N 抽（N 从 1 起）= min(base + step × (N-1), cap)`
+     * ⚠ **只有花金币的抽才抬价**：用抽取券（`outer_draw_ticket`）抽不扣金币、也不抬阶梯。
+     * 每天 0 点按**本地日期键**回到 `base`（不是"距上次 24 小时"）。
+     * 消费点只有一处：`battle/OuterRelicDraw.costOfDraw`（别在业务里另算一遍）。
+     */
+    static getOuterDrawCostBase(): number {
+        return Math.max(0, BattleConstUtil.getNumber('outerDrawCostBase', 200));
+    }
+
+    /** 局外遗物抽取·每付费抽一次的涨价步长（见 `getOuterDrawCostBase`） */
+    static getOuterDrawCostStep(): number {
+        return Math.max(0, BattleConstUtil.getNumber('outerDrawCostStep', 100));
+    }
+
+    /** 局外遗物抽取·当日单抽价格封顶（**0 = 不封顶**；见 `getOuterDrawCostBase`） */
+    static getOuterDrawCostCap(): number {
+        return Math.max(0, BattleConstUtil.getNumber('outerDrawCostCap', 600));
+    }
+
     /** 玩家经验公式基数 */
     static getPlayerExpFormulaBase(): number {
         return BattleConstUtil.getNumber('playerExpFormulaBase', 100);

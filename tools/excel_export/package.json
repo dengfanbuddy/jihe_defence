@@ -24,7 +24,12 @@
     "audit:skill": "node ../skill-audit/verify-skills.mjs",
     "audit:achieve": "node ../achievement-audit/verify-achievements.mjs",
     "audit:herocard": "node ../hero-card-audit/audit.mjs",
-    "typecheck": "tsc --noEmit"
+    "audit:ui": "node ../ui-token-audit/audit.mjs",
+    "audit:mall": "node ../mall-audit/audit.mjs",
+    "audit:bag": "node ../bag-audit/audit.mjs",
+    "audit:draw": "node ../outer-draw-audit/audit.mjs",
+    "typecheck": "tsc --noEmit",
+    "typecheck:diff": "node ../typecheck-diff/check.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.4",

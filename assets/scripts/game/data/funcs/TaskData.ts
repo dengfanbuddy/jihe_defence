@@ -30,6 +30,7 @@
  */
 import { DataModule } from '../DataModule';
 import { TaskConfig } from '../configs/TaskConfig';
+import { todayKey, weekKey } from '../../common/DayKey';
 import type { TaskCfg, TaskTarget, TaskType } from '../../excel_table/Tb_TaskConfig';
 
 /** 单个任务的进度记录 */
@@ -342,23 +343,17 @@ export class TaskDataModule extends DataModule<ITaskData> {
         this.data.records = this.data.records.filter(r => alive.has(r.id));
     }
 
-    /** 当天日期键 YYYYMMDD */
+    /**
+     * 当天日期键 YYYYMMDD。
+     * ⚠ 实现已抽到 `game/common/DayKey.ts`（**唯一口径**）：日/周键必须与 `ShopData`
+     *   的每日重置、每日广告次数用**同一把尺**，各写一份迟早在时区/UTC 上分叉。
+     */
     private static todayKey(): string {
-        const d = new Date();
-        return `${d.getFullYear()}${TaskDataModule._pad2(d.getMonth() + 1)}${TaskDataModule._pad2(d.getDate())}`;
+        return todayKey();
     }
 
-    /** 本周周期键 = 本周周一的日期 YYYYMMDD（天然唯一，跨年也不会撞） */
+    /** 本周周期键 = 本周周一的日期 YYYYMMDD（同上，口径在 DayKey.ts） */
     private static weekKey(): string {
-        const d = new Date();
-        d.setHours(0, 0, 0, 0);
-        const offsetToMonday = (d.getDay() + 6) % 7; // 周一 = 0
-        d.setDate(d.getDate() - offsetToMonday);
-        return `${d.getFullYear()}${TaskDataModule._pad2(d.getMonth() + 1)}${TaskDataModule._pad2(d.getDate())}`;
-    }
-
-    /** 两位补零（不用 padStart：本项目 tsconfig 的 lib 目标里没有它） */
-    private static _pad2(n: number): string {
-        return n < 10 ? `0${n}` : `${n}`;
+        return weekKey();
     }
 }

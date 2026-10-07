@@ -68,6 +68,14 @@ const STUBS = {
     'game/common/EntityVisualConfig.js': `exports.UnitKind = { Normal: 0, Hero: 1 }; exports.getUnitScale = () => 1; exports.resolveUnitKind = () => 0; exports.FINAL_BOSS_STAGE = 5;`,
     'platform/excel_table/TbConfigDecorator.js': `exports.tb_config = () => (cls) => cls;`,
     'platform/excel_table/TbContainer.js': `exports.TbContainer = class {};`,
+    // `Tb_RelicConfig.ts` 现在也 import 了 `TbRoot`（局外池查询 `getOuterRelicCfgs` 要用它），
+    // 本体检不跑那条链路，给个**只在被调用时才真读表**的最小壳即可（属性结算路径不会碰它）
+    'platform/excel_table/TbRoot.js': `
+const fs = require('fs');
+const path = require('path');
+const relics = JSON.parse(fs.readFileSync(path.join(${JSON.stringify(ROOT)}, 'assets/resources/tb/relics.json'), 'utf8'));
+exports.TbRoot = { ins: { getTbContainer() { return { cfgs: relics, size: relics.length, getCfgById: (id) => relics.find((r) => r.id === id) }; } } };
+`,
 };
 
 /**

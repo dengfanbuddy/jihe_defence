@@ -323,3 +323,142 @@ export function formatInline(value: unknown, options?: Partial<SerializeOptions>
         return String(safe);
     }
 }
+
+// ---------------------------------------------------------------------------
+// refs —— 把结果里「下一步能直接拿去用的标识」抽出来
+// ---------------------------------------------------------------------------
+
+/**
+ * ## 为什么要有这一段
+ *
+ * 模型拿到一次 `execute_code` 的回执后，最常见的下一步是「用刚才那个节点/那张图」。
+ * 但回执是一大坨 JSON，uuid 可能埋在 `[Node name=x uuid=…]` 摘要里、可能在
+ * `db://` 路径的中间 —— 于是模型**重新查一遍**（多一轮），或者更糟：**凭记忆编一个**。
+ *
+ * 所以出口处统一扫一遍，把可复用的标识去重排在结尾。
+ *
+ * ## 只抽「不会认错」的两类
+ *
+ * - **全形 uuid**（`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`，可带 Cocos 子资源后缀 `@f9941`）；
+ * - **`db://` 资源库 URL**。
+ *
+ * 刻意**不抽**压缩型 uuid（22~23 个 base64 字符那种）：任何一段 22 字符的单词都会命中，
+ * 抽出来就是噪声。也不抽「节点路径」——`Canvas/x/y` 与普通文本无法区分。
+ * 要这两类就在代码里显式 `return` 它们（全形或 `db://`）。
+ */
+
+/** 一条可直接复用的标识。 */
+export interface ValueRef {
+    kind: 'uuid' | 'dbUrl';
+    value: string;
+}
+
+/** 抽取结果：`refs` 是（可能被截断的）列表，`total` 是**去重后**的实际命中数。 */
+export interface RefCollection {
+    refs: ValueRef[];
+    total: number;
+}
+
+/** 全形 uuid（不带 `g`：`g` 版本由 `scanString` 自己维护 `lastIndex`）。 */
+const UUID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+const UUID_RE_G = new RegExp(UUID_PATTERN, 'g');
+
+/** 资源库 URL：`db://` 起，到第一个空白 / 引号 / 括号 / JSON 分隔符为止。 */
+const DB_URL_RE_G = /db:\/\/[^\s"'`<>()[\]{},;]+/g;
+
+/** 默认最多回几条 —— 够下一步用，又不会把回执撑大。 */
+export const DEFAULT_REF_LIMIT = 12;
+
+/** 扫描一段字符串，按**出现顺序**回调里面的标识。 */
+function scanString(text: string, push: (ref: ValueRef) => void): void {
+    if (text.length === 0) return;
+    const found: Array<{ index: number; ref: ValueRef }> = [];
+
+    DB_URL_RE_G.lastIndex = 0;
+    for (let m = DB_URL_RE_G.exec(text); m; m = DB_URL_RE_G.exec(text)) {
+        // 日志/文案里常常写成 `db://assets/x.ts...`（省略号不是路径的一部分）—— 去掉尾部的点
+        const value = m[0].replace(/[.…]+$/, '');
+        if (value.length > 'db://'.length) found.push({ index: m.index, ref: { kind: 'dbUrl', value } });
+    }
+
+    UUID_RE_G.lastIndex = 0;
+    for (let m = UUID_RE_G.exec(text); m; m = UUID_RE_G.exec(text)) {
+        // `uuid@f9941` 是 Cocos 的子资源寻址写法，一起带上（`loadFrame` 之类的助手认它）
+        const sub = /^@[0-9a-zA-Z]+/.exec(text.slice(m.index + m[0].length));
+        found.push({ index: m.index, ref: { kind: 'uuid', value: m[0] + (sub ? sub[0] : '') } });
+    }
+
+    found.sort((a, b) => a.index - b.index);
+    for (const item of found) push(item.ref);
+}
+
+/**
+ * 从任意（已序列化或未序列化的）值里抽取可复用标识。
+ *
+ * @param value - 任意值；字符串按内容扫，数组/对象递归，其它类型忽略。
+ * @param options - `{limit}`：最多回几条（默认 12，上限 200）。
+ * @returns `{refs, total}`；`total > refs.length` 说明还有更多没列出来。
+ */
+export function collectRefs(value: unknown, options?: { limit?: number }): RefCollection {
+    const rawLimit = options?.limit;
+    const limit = Math.max(1, Math.min(200, typeof rawLimit === 'number' && Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : DEFAULT_REF_LIMIT));
+    const refs: ValueRef[] = [];
+    const seen = new Set<string>();
+    let total = 0;
+
+    const push = (ref: ValueRef): void => {
+        const key = `${ref.kind}:${ref.value}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        total += 1;
+        if (refs.length < limit) refs.push(ref);
+    };
+
+    const visit = (node: unknown, depth: number): void => {
+        if (node === null || node === undefined || depth > 12) return;
+        if (typeof node === 'string') {
+            scanString(node, push);
+            return;
+        }
+        if (typeof node !== 'object') return;
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item, depth + 1);
+            return;
+        }
+        let keys: string[] = [];
+        try {
+            keys = Object.keys(node as Record<string, unknown>);
+        } catch {
+            return;
+        }
+        for (const key of keys) {
+            let child: unknown;
+            try {
+                child = (node as Record<string, unknown>)[key];
+            } catch {
+                continue;
+            }
+            visit(child, depth + 1);
+        }
+    };
+
+    visit(value, 0);
+    return { refs, total };
+}
+
+/**
+ * 把抽取结果拼成一段可直接接在工具文案后面的文本。
+ *
+ * @param collection - `collectRefs` 的返回。
+ * @returns 多行文本；没有标识时回空串（调用方据此决定要不要接）。
+ */
+export function formatRefs(collection: RefCollection): string {
+    if (collection.refs.length === 0) return '';
+    const more =
+        collection.total > collection.refs.length ? `，共 ${collection.total} 个，这里只列前 ${collection.refs.length} 个` : '';
+    return [
+        '',
+        `--- refs（本次结果里出现过的可复用标识：uuid / db:// 路径，去重${more}）`,
+        ...collection.refs.map((ref) => `- ${ref.value}`),
+    ].join('\n');
+}

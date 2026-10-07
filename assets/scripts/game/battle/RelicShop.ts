@@ -99,6 +99,19 @@ export interface RelicShopDeps {
      * 未接入 SDK 时的兜底策略也在宿主 / `AdMgr` 那一层，本类只认 true = 看完。
      */
     playAd(placement: AdPlacement): Promise<boolean>;
+
+    /* ── 局内广告券（背包道具，**唯一消费口就是本类的两个广告位**）──
+     * ⚠ 券与"广告免费次数"是**两回事**：券只替换"看广告"这一步，**局内配额照扣**
+     *   （口径见 `docs/meta-growth/README.md` §3.1）。所以用券时仍然走 `roll(true)`，
+     *   那边会 `adFreeUsed++` —— 攒一周券也换不来额外的抽取次数。 */
+
+    /** 背包里还有几张局内广告券（判断刷新按钮第三态用；未注入 = 0，逐字回到今天的样子） */
+    getAdTicketCount?(): number;
+    /**
+     * 扣 1 张广告券。返回 false = 没扣成（没券 / 存量在别处被扣掉）→ 调用方**退回看广告那一支**。
+     * 扣券由宿主做（本类不认识数据层，与 `spendGold` 同一分工）。
+     */
+    consumeAdTicket?(): boolean;
     /**
      * 选中了技能、但**一个未锁定的技能槽都没有**时的提示钩子（宿主负责飘字 / 弹条）。
      * 不提供就只打日志。
@@ -259,11 +272,13 @@ export class RelicShop {
      * =================================================================== */
 
     /**
-     * 刷新按钮的判据（**唯一真源**）：金币够 → 直接扣钱；不够但还有广告免费次数 → 看广告；都没有 → 置灰。
+     * 刷新按钮的判据（**唯一真源**）：金币够 → 直接扣钱；不够但有**广告券** → 扣券；
+     * 不够也没券、但还有广告免费次数 → 看广告；都没有 → 置灰。
      * 面板拿它画按钮，`refresh()` 拿它做准入。
      */
     refreshGate(): RefreshGate {
-        return evaluateRefreshGate(this.deps.getGold(), this.refreshCost.value, this.adFreeLeft.value);
+        return evaluateRefreshGate(this.deps.getGold(), this.refreshCost.value, this.adFreeLeft.value,
+            this.deps.getAdTicketCount?.() ?? 0);
     }
 
     /** 现在能不能刷新（= 判据的 `enabled`；给日志/宿主查询用） */
@@ -274,8 +289,9 @@ export class RelicShop {
     /**
      * 刷新 4 个候选（遗物 + 技能混合池）—— 准入用的就是 `refreshGate()` 那一份判据：
      *   ① 金币 ≥ 本次费用 → 扣金币抽 4 个
-     *   ② 金币不够、但还有「广告免费抽」次数 → 弹激励视频，看完免费抽 4 个（不扣钱、不抬高后续费用）
-     *   ③ 两者都不行 → 面板此时已是置灰态，这里只打日志（点不动，正常走不到）
+     *   ② 金币不够、但背包里有**广告券** → 扣 1 张券，免看广告抽 4 个（**不弹广告**）
+     *   ③ 金币不够、没券、但还有「广告免费抽」次数 → 弹激励视频，看完免费抽 4 个（不扣钱、不抬高后续费用）
+     *   ④ 三者都不行 → 面板此时已是置灰态，这里只打日志（点不动，正常走不到）
      */
     refresh(): void {
         if (!this.deps.getBag()) return;
@@ -288,13 +304,39 @@ export class RelicShop {
             this.roll(false);
             return;
         }
+        // ② 有券：扣券 → 走"免费"那一支（**局内配额照扣**，见 deps.getAdTicketCount 的说明）
+        if (gate.viaTicket && this.tryUseAdTicket()) {
+            this.roll(true);
+            return;
+        }
         if (!gate.viaAd) {
-            console.warn(`[遗物] 金币不足（${this.deps.getGold()}/${cost}）且没有广告免费次数，刷新被拒`);
+            console.warn(`[遗物] 金币不足（${this.deps.getGold()}/${cost}）且没有广告券 / 广告免费次数，刷新被拒`);
             return;
         }
         this.deps.playAd('relic_refresh').then((ok) => {
             if (ok) this.roll(true);
         });
+    }
+
+    /**
+     * 尝试用 1 张局内广告券。
+     *
+     * ⚠ 两个顺序都是刻意的：① **先扣券再抽** —— 扣不动就整笔失败（不能"先抽再扣"，
+     *   那样扣不到时就成了白送）；② 扣完立刻 `syncCost()`，让面板的第三态（「用 券」）
+     *   在券用光后马上变回「看广告」。
+     */
+    private tryUseAdTicket(): boolean {
+        const consume = this.deps.consumeAdTicket;
+        if (!consume) return false;
+        if (!consume()) {
+            console.warn('[遗物] 广告券没扣成（存量已被别处扣掉？）→ 本次退回"看广告"');
+            this.syncCost();
+            return false;
+        }
+        const left = this.deps.getAdTicketCount?.() ?? 0;
+        console.log(`[遗物] 用 1 张局内广告券免看广告刷新（背包剩 ${left} 张）`);
+        this.syncCost();
+        return true;
     }
 
     /** 真正抽 4 个并写进槽位（规则见 `RelicDraw.roll`：混合池 + 品质权重 + 阶段门槛 + 技能配额） */
@@ -356,7 +398,7 @@ export class RelicShop {
      * 格子被点击（由面板/item 向上冒泡上来的通知）。
      *
      * 先校验它确实是**本次候选**里的那个（刷新后旧点击作废），
-     * 需要广告的（`viaAd`）先弹激励视频，看到了才发放。
+     * 需要广告的（`viaAd`）**先看背包里有没有广告券**（有就扣券、不弹广告），没有才走激励视频。
      *
      * @param optionId 遗物 id（1001~1293）或技能 id（101~130）—— 两段不重叠，一个数字足够定位
      * @param viaAd true = 该格处于「看广告可再选一个」状态（本次已选过后的广告补选）
@@ -377,6 +419,11 @@ export class RelicShop {
         }
         if (this.adPicksLeft <= 0) {
             console.warn(`[遗物] 广告补选次数已用完：${option.name}`);
+            return;
+        }
+        // 有券 → 扣券免看广告；没扣成就退回看广告那一支（配额一样照扣，见 tryUseAdTicket）
+        if (this.tryUseAdTicket()) {
+            this.grant(option, true);
             return;
         }
         this.deps.playAd('relic_extra_pick').then((ok) => {

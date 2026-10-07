@@ -1,0 +1,253 @@
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/@types/jsb.d.ts(213,18): error TS2304: Cannot find name 'TypedArray'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/@types/jsb.d.ts(214,17): error TS2304: Cannot find name 'TypedArray'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(38157,32): error TS2314: Generic type 'Map<T>' requires 1 type argument(s).
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(38215,37): error TS2314: Generic type 'Map<T>' requires 1 type argument(s).
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(38216,39): error TS2314: Generic type 'Map<T>' requires 1 type argument(s).
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60068,55): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60084,125): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60133,33): error TS2304: Cannot find name '_Motion'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60134,27): error TS2304: Cannot find name '_Motion'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60136,47): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60138,17): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60141,33): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60148,50): error TS2304: Cannot find name '_VariableDescription'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60151,48): error TS2304: Cannot find name '_Motion'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60152,54): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60158,27): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60161,21): error TS2503: Cannot find namespace '_poseGraphOp'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60164,27): error TS2503: Cannot find namespace '_poseGraphOp'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60166,28): error TS2503: Cannot find namespace '_poseGraphOp'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60173,19): error TS2503: Cannot find namespace '____private'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(60174,20): error TS2304: Cannot find name '_PoseGraph'.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(62997,52): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(63005,58): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(63013,80): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(63028,32): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(63033,33): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(63061,61): error TS2307: Cannot find module 'pal/audio/type' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(66294,60): error TS2307: Cannot find module 'pal/input/input-source' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(66295,58): error TS2307: Cannot find module 'pal/input/input-source' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(66296,59): error TS2307: Cannot find module 'pal/input/input-source' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(66297,62): error TS2307: Cannot find module 'pal/input/input-source' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(66298,65): error TS2307: Cannot find module 'pal/input/input-source' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(75452,109): error TS2307: Cannot find module 'cc/editor/exotic-animation' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(75453,155): error TS2307: Cannot find module 'cc/editor/embedded-player' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(75454,60): error TS2307: Cannot find module 'cc/editor/new-gen-anim' or its corresponding type declarations.
+C:/ProgramData/cocos/editors/Creator/3.8.6/resources/resources/3d/engine/bin/.declarations/cc.d.ts(75455,26): error TS2307: Cannot find module 'cc/editor/serialization' or its corresponding type declarations.
+assets/scripts/game/battle/AttributeSystem.ts(42,46): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+assets/scripts/game/battle/BattleContext.ts(387,72): error TS2550: Property 'includes' does not exist on type 'Projectile[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+assets/scripts/game/battle/StatusSystem.ts(23,50): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+assets/scripts/game/battle/StatusSystem.ts(28,36): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+assets/scripts/game/config/ConfigLoader.ts(25,37): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+assets/scripts/game/config/ConfigLoader.ts(47,13): error TS2322: Type '13' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(47,34): error TS2322: Type '13' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(51,13): error TS2322: Type '17' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(51,31): error TS2322: Type '17' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(52,13): error TS2322: Type '18' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(52,28): error TS2322: Type '18' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(53,13): error TS2322: Type '19' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(53,26): error TS2322: Type '19' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(54,13): error TS2322: Type '20' is not assignable to type 'AttributeType'.
+assets/scripts/game/config/ConfigLoader.ts(54,33): error TS2322: Type '20' is not assignable to type 'AttributeType'.
+assets/scripts/game/data/configs/ShopConfig.ts(114,69): error TS2550: Property 'includes' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+assets/scripts/platform/excel_table/ExcelConfigDecorator.ts(30,20): error TS2339: Property 'registryContainer' does not exist on type 'TbRoot'.
+assets/scripts/platform/excel_table/ExcelConfigDecorator.ts(38,20): error TS2339: Property 'registryDecoder' does not exist on type 'TbRoot'.
+assets/scripts/platform/excel_table/ITbDecode.ts(6,35): error TS2344: Type 'T' does not satisfy the constraint '{ id: number; }'.
+assets/scripts/platform/fsm/fsm_hierarchical.ts(30,26): error TS2550: Property 'includes' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+assets/scripts/platform/reactivity/arrayInstrumentations.ts(99,30): error TS2345: Argument of type '"includes"' is not assignable to parameter of type 'keyof any[]'.
+assets/scripts/platform/reactivity/reactive.ts(416,21): error TS2322: Type 'object' is not assignable to type 'T'.
+assets/scripts/platform/reactivity/reactive.ts(416,30): error TS2345: Argument of type 'T' is not assignable to parameter of type 'object'.
+assets/scripts/platform/reactivity/reactive.ts(426,21): error TS2322: Type 'object' is not assignable to type 'DeepReadonly<T>'.
+assets/scripts/platform/reactivity/reactive.ts(426,30): error TS2345: Argument of type 'T' is not assignable to parameter of type 'object'.
+assets/scripts/platform/reactivity/shared/general.ts(7,14): error TS2322: Type 'readonly any[]' is not assignable to type 'readonly never[]'.
+assets/scripts/platform/resources/BundMgr.ts(66,24): error TS2304: Cannot find name 'Global'.
+assets/scripts/platform/resources/BundMgr.ts(67,34): error TS2304: Cannot find name 'EnumBundle'.
+assets/scripts/platform/resources/BundMgr.ts(72,17): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(78,21): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(82,29): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(87,21): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(120,33): error TS2304: Cannot find name 'EnumBundle'.
+assets/scripts/platform/resources/BundMgr.ts(125,21): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(140,13): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(154,21): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(170,13): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(178,21): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(208,13): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(222,13): error TS2304: Cannot find name 'MDebug'.
+assets/scripts/platform/resources/BundMgr.ts(235,13): error TS2304: Cannot find name 'MDebug'.
+extensions/dsh_chat/source/capture.ts(130,21): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/capture.ts(273,17): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/capture.ts(451,91): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/cocos-tools.ts(213,28): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(32,21): error TS2591: Cannot find name 'fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(33,21): error TS2591: Cannot find name 'os'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(34,23): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(61,37): error TS2304: Cannot find name '__dirname'.
+extensions/dsh_chat/source/core/engine.ts(110,19): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(111,15): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(112,18): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(113,24): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(114,14): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(115,20): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(116,23): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(117,28): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(118,46): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(220,17): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(246,69): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/engine.ts(291,73): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/engine.ts(455,9): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(456,9): error TS2591: Cannot find name 'module'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(457,9): error TS18004: No value exists in scope for the shorthand property 'exports'. Either declare one or provide an initializer.
+extensions/dsh_chat/source/core/engine.ts(458,9): error TS18004: No value exists in scope for the shorthand property '__dirname'. Either declare one or provide an initializer.
+extensions/dsh_chat/source/core/engine.ts(459,9): error TS18004: No value exists in scope for the shorthand property '__filename'. Either declare one or provide an initializer.
+extensions/dsh_chat/source/core/engine.ts(463,9): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(469,9): error TS18004: No value exists in scope for the shorthand property 'setImmediate'. Either declare one or provide an initializer.
+extensions/dsh_chat/source/core/engine.ts(769,24): error TS1503: Named capturing groups are only available when targeting 'ES2018' or later.
+extensions/dsh_chat/source/core/engine.ts(769,91): error TS2550: Property 'groups' does not exist on type 'RegExpExecArray'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2018' or later.
+extensions/dsh_chat/source/core/engine.ts(1234,17): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/engine.ts(1430,40): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/recipes.ts(45,21): error TS2591: Cannot find name 'fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/recipes.ts(46,23): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/recipes.ts(180,43): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/recipes.ts(296,19): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/recipes.ts(474,76): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/recipes.ts(606,33): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/recipes.ts(795,47): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/core/sandbox.ts(33,21): error TS2591: Cannot find name 'vm'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/serialize.ts(224,16): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/core/serialize.ts(224,42): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/dsh-host.ts(23,41): error TS2591: Cannot find name 'child_process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/dsh-host.ts(24,28): error TS2591: Cannot find name 'crypto'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/dsh-host.ts(25,22): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/dsh-host.ts(96,17): error TS2304: Cannot find name '__dirname'.
+extensions/dsh_chat/source/dsh-host.ts(574,26): error TS2503: Cannot find namespace 'NodeJS'.
+extensions/dsh_chat/source/dsh-host.ts(646,143): error TS2503: Cannot find namespace 'NodeJS'.
+extensions/dsh_chat/source/dsh-host.ts(674,25): error TS2503: Cannot find namespace 'NodeJS'.
+extensions/dsh_chat/source/dsh-host.ts(789,24): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/dsh-host.ts(796,25): error TS2591: Cannot find name 'child_process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/history.ts(28,23): error TS2591: Cannot find name 'child_process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/history.ts(29,25): error TS2591: Cannot find name 'os'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/history.ts(30,31): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/history.ts(90,61): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/history.ts(99,18): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/history.ts(105,20): error TS2304: Cannot find name '__dirname'.
+extensions/dsh_chat/source/images.ts(32,53): error TS2591: Cannot find name 'fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/images.ts(33,55): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/images.ts(235,21): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/images.ts(366,46): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/images.ts(396,22): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/images.ts(398,23): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/main.ts(22,22): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/main.ts(62,19): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/main.ts(92,17): error TS2304: Cannot find name '__dirname'.
+extensions/dsh_chat/source/panels/default/index.ts(49,30): error TS2591: Cannot find name 'fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/panels/default/index.ts(50,22): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/panels/default/index.ts(101,26): error TS2304: Cannot find name '__dirname'.
+extensions/dsh_chat/source/panels/default/index.ts(972,46): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/panels/default/index.ts(1722,58): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/panels/default/index.ts(4852,40): error TS2339: Property 'includes' does not exist on type 'readonly string[]'.
+extensions/dsh_chat/source/panels/default/index.ts(5122,1): error TS2591: Cannot find name 'module'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(15,30): error TS2591: Cannot find name 'child_process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(16,28): error TS2591: Cannot find name 'fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(17,31): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(31,20): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(66,9): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/paths.ts(77,24): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(49,22): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(111,14): error TS2591: Cannot find name 'module'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(112,13): error TS2591: Cannot find name 'module'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(115,19): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(161,25): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(295,34): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(295,55): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(295,76): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(1948,49): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(3007,22): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/scene.ts(3106,34): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/scene.ts(3443,21): error TS2591: Cannot find name 'require'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/scene.ts(3784,49): error TS2550: Property 'includes' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+extensions/dsh_chat/source/sdk-client.ts(24,35): error TS2591: Cannot find name 'child_process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/sdk-client.ts(36,12): error TS2503: Cannot find namespace 'NodeJS'.
+extensions/dsh_chat/source/stats.ts(107,32): error TS2591: Cannot find name 'fs/promises'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/stats.ts(108,25): error TS2591: Cannot find name 'os'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/stats.ts(109,22): error TS2591: Cannot find name 'path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/stats.ts(223,18): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/stats.ts(286,30): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/stats.ts(823,42): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/stats.ts(870,30): error TS2550: Property 'values' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+extensions/dsh_chat/source/stats.ts(924,24): error TS2550: Property 'includes' does not exist on type 'any[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+extensions/dsh_chat/source/types/electron.d.ts(43,55): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/types/electron.d.ts(44,52): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+extensions/dsh_chat/source/types/electron.d.ts(45,34): error TS2591: Cannot find name 'Buffer'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+temp_attr_verify.ts(63,1): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1484,22): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1505,23): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1592,22): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1597,63): error TS2591: Cannot find name 'events'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1612,23): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1916,19): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(1960,25): error TS2503: Cannot find namespace 'NodeJS'.
+tools/excel_export/node_modules/exceljs/index.d.ts(2012,39): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(2014,30): error TS2583: Cannot find name 'AsyncGenerator'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2018' or later.
+tools/excel_export/node_modules/exceljs/index.d.ts(2021,18): error TS2591: Cannot find name 'stream'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/node_modules/exceljs/index.d.ts(2028,30): error TS2583: Cannot find name 'AsyncGenerator'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2018' or later.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(44,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(45,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(46,16): error TS2591: Cannot find name 'node:vm'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(47,31): error TS2591: Cannot find name 'node:url'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(49,41): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(63,6): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(67,5): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(401,61): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/scripts/gen-shop-from-hero-design.ts(401,88): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/scripts/migrate-modifier-effects.ts(19,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/migrate-modifier-effects.ts(20,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/migrate-modifier-effects.ts(21,31): error TS2591: Cannot find name 'node:url'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/scripts/migrate-modifier-effects.ts(23,41): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+tools/excel_export/scripts/migrate-modifier-effects.ts(52,42): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/scripts/migrate-modifier-effects.ts(84,71): error TS2550: Property 'includes' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+tools/excel_export/src/cli.ts(14,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(15,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(16,27): error TS2591: Cannot find name 'node:util'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(17,34): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(18,44): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(19,58): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(20,32): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(21,28): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(23,24): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(24,26): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(25,71): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/cli.ts(30,19): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(30,43): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(82,15): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(97,17): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(138,50): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(138,81): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(140,48): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(152,66): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(218,51): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(218,82): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(266,52): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(275,54): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(275,86): error TS2550: Property 'padStart' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(278,52): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(304,37): error TS2550: Property 'padEnd' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/cli.ts(304,65): error TS2339: Property 'padEnd' does not exist on type 'CellType'.
+tools/excel_export/src/cli.ts(360,5): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(365,42): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/cli.ts(366,5): error TS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/codec.ts(140,55): error TS2550: Property 'includes' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2016' or later.
+tools/excel_export/src/core/codec.ts(418,27): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/core/excelIo.ts(10,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/excelIo.ts(11,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/excelIo.ts(13,42): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/core/excelToJson.ts(7,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/excelToJson.ts(8,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/excelToJson.ts(9,37): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/core/excelToJson.ts(10,40): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/core/jsonToExcel.ts(8,16): error TS2591: Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/core/jsonToExcel.ts(10,32): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+tools/excel_export/src/core/jsonToExcel.ts(34,23): error TS2550: Property 'entries' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2017' or later.
+tools/excel_export/src/util/paths.ts(2,18): error TS2591: Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/util/paths.ts(3,31): error TS2591: Cannot find name 'node:url'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.
+tools/excel_export/src/util/paths.ts(5,41): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.

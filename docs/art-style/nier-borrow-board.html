@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>集合防御 · 尼尔 UI 借鉴对照板</title>
+<style>
+  /* ── token 全部来自 docs/art-style/tokens.json（附录 C）── */
+  :root{
+    --accent-600:#67999A; --accent-400:#70ACB3; --accent-ring:#6FA9A7;
+    --identity:#A85A5A;
+    --ink-900:#445054; --ink-800:#465259; --ink-700:#56636A; --ink-pill:#5C676E;
+    --ink-600:#6A696B; --ink-400:#999999; --ink-300:#747474; --ink-200:#D8D8D8;
+    --text:#000000; --on-dark:#FFFFFF;
+    --canvas-menu:#EFEEED; --canvas-battle:#EBF4FB;
+    --surface:#FFFFFF; --surface-sunken:#D8D8D8;
+    --danger:#C0392B; --gold:#D38C1E;
+    --q-common:#DDDDDD; --q-rare:#5096FF; --q-epic:#CF68FF; --q-legendary:#FF6464;
+    /* 只出现在「现在」一侧，用来演示被替换掉的现役违规色 */
+    --legacy-green:#22B14C; --legacy-hithero:#FF4C4C;
+    --radius-s:4px; --radius-m:8px; --radius-l:16px;
+    /* 本板自己用的：只用于演示分段刻度的格 */
+    --seg-on:var(--accent-400); --seg-off:var(--surface); --seg-line:var(--ink-400);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:40px 24px 80px;
+    background:var(--surface-sunken);          /* 页面底用 token，不是新色 */
+    color:var(--text);
+    font:400 14px/1.6 Arial,"Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  /* ── 页头 ── */
+  header{margin-bottom:32px;}
+  h1{font-size:24px;font-weight:700;color:var(--ink-900);margin:0 0 10px;}
+  .sub{color:var(--ink-600);max-width:900px;}
+  .sub b{color:var(--ink-900);}
+  .rule{height:1px;background:var(--ink-200);margin:22px 0 30px;}
+
+  /* ── 卡片：无阴影（§10），只靠白底 + 细边 ── */
+  .card{
+    background:var(--surface); border:1px solid var(--ink-200); border-radius:var(--radius-l);
+    padding:24px 26px 22px; margin-bottom:22px;
+  }
+  .card-h{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;}
+  .card-n{
+    flex:none;width:26px;height:26px;border-radius:50%;
+    border:1px solid var(--ink-900);color:var(--ink-900);
+    font-size:12px;line-height:24px;text-align:center;font-weight:700;
+  }
+  .card-h h2{font-size:20px;font-weight:700;color:var(--ink-900);margin:0;}
+  .card-tag{font-size:12px;color:var(--ink-400);border:1px solid var(--ink-200);border-radius:20px;padding:1px 9px;}
+  .card-p{color:var(--ink-600);margin:8px 0 18px;}
+  .card-p b{color:var(--ink-900);}
+  .card-p code{font:400 12px/1 Consolas,"Courier New",monospace;background:var(--canvas-menu);padding:1px 5px;border-radius:var(--radius-s);color:var(--ink-800);}
+
+  /* ── 对照格 ── */
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:820px){.pair{grid-template-columns:1fr;}}
+  .pane{border:1px solid var(--ink-200);border-radius:var(--radius-m);overflow:hidden;}
+  .pane-h{
+    font-size:12px;letter-spacing:.14em;padding:7px 12px;
+    border-bottom:1px solid var(--ink-200);background:var(--canvas-menu);color:var(--ink-600);
+  }
+  .pane.now .pane-h{color:var(--ink-400);}
+  .pane.new .pane-h{color:var(--ink-900);font-weight:700;}
+  .pane-b{padding:20px 16px;min-height:150px;display:flex;flex-direction:column;justify-content:center;gap:16px;}
+  .pane.now .pane-b{background:var(--canvas-menu);}
+  .pane.new .pane-b{background:var(--canvas-battle);}
+  /* 同一块面板的「两态」对照：两侧必须同底，否则差别会被读成"两个界面"而不是"同一屏的两种状态" */
+  .pair.samebg .pane.now .pane-b,
+  .pair.samebg .pane.new .pane-b{background:var(--canvas-battle);}
+
+  .foot{margin-top:16px;font-size:12px;color:var(--ink-400);}
+  .foot b{color:var(--ink-600);}
+  .foot code{font:400 12px/1 Consolas,"Courier New",monospace;color:var(--ink-600);}
+
+  /* ── 通用小件 ── */
+  .row{display:flex;align-items:center;gap:10px;}
+  .lbl-sm{font-size:12px;color:var(--ink-400);letter-spacing:.12em;}
+  .num{font:400 14px/1 Consolas,"Courier New",monospace;color:var(--ink-900);}
+  .bar{height:6px;border-radius:3px;background:var(--ink-200);position:relative;width:120px;}
+  .bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--accent-400);border-radius:3px;}
+  /* 分段刻度：数得清的量 */
+  .seg{display:flex;gap:4px;}
+  .seg i{width:9px;height:9px;border:1px solid var(--seg-line);border-radius:1px;background:var(--seg-off);}
+  .seg i.on{background:var(--seg-on);border-color:var(--seg-on);}
+  .dot{width:7px;height:7px;background:var(--ink-900);transform:rotate(45deg);flex:none;}
+  .dot.hollow{background:transparent;border:1px solid var(--ink-400);}
+  .tag{font:400 13px/1 Consolas,"Courier New",monospace;color:var(--ink-400);}
+  .tag.on{color:var(--ink-900);font-weight:700;}
+
+  /* 数据行 */
+  .datarow{display:flex;align-items:baseline;gap:8px;width:100%;max-width:300px;}
+  .datarow .k{font-size:12px;letter-spacing:.14em;color:var(--ink-400);flex:none;}
+  .datarow .lead{flex:1;border-bottom:1px dotted var(--ink-200);transform:translateY(-4px);}
+  .datarow .v{font:400 15px/1 Consolas,"Courier New",monospace;color:var(--ink-900);flex:none;}
+
+  /* 迷你 HUD 示意 */
+  .huds{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start;}
+  @media (max-width:820px){.huds{grid-template-columns:1fr;}}
+  .hud{text-align:center;}
+  .hud h4{margin:0 0 4px;font-size:14px;color:var(--ink-900);}
+  .hud p{margin:0 0 10px;font-size:12px;color:var(--ink-400);}
+  .phone{
+    position:relative;width:152px;height:270px;margin:0 auto;
+    background:var(--canvas-battle);border:1px solid var(--ink-200);border-radius:var(--radius-m);
+  }
+  .el{position:absolute;border-radius:1px;}
+  .el.core{background:var(--accent-400);}                          /* 核心信息：建议恒开 */
+  .el.opt{background:transparent;border:1px solid var(--accent-400);} /* 可选信息：可关 */
+  .el.fx{background:transparent;border:1px dashed var(--ink-400);}    /* 表现层：可关 */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:2px 0 18px;font-size:12px;color:var(--ink-600);}
+  .legend span{display:flex;align-items:center;gap:7px;}
+  .legend i{width:14px;height:9px;display:block;border-radius:1px;}
+  .legend i.core{background:var(--accent-400);}
+  .legend i.opt{border:1px solid var(--accent-400);}
+  .legend i.fx{border:1px dashed var(--ink-400);}
+
+  /* 图纸母题演示区 */
+  .paper{position:relative;background:var(--surface);border-radius:var(--radius-m);padding:0;}
+  .paper-inner{padding:26px 30px;}
+  .tblock{display:flex;border:1px solid var(--ink-900);font-size:10px;line-height:1.5;}
+  .tblock div{padding:3px 8px;border-right:1px solid var(--ink-900);color:var(--ink-900);}
+  .tblock div:last-child{border-right:0;}
+  .tblock span{display:block;color:var(--ink-400);font-size:9px;letter-spacing:.1em;}
+
+  h3.sec{font-size:16px;color:var(--ink-900);margin:26px 0 12px;}
+  .note{
+    border-left:3px solid var(--accent-600);background:var(--surface);
+    padding:12px 16px;color:var(--ink-600);border-radius:0 var(--radius-s) var(--radius-s) 0;
+  }
+  .note b{color:var(--ink-900);}
+  .warnbox{border-left:3px solid var(--danger);}
+  footer{margin-top:36px;font-size:12px;color:var(--ink-400);}
+  footer a{color:var(--ink-600);}
+  .tick{color:var(--ink-400);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>尼尔《机械纪元》UI · 借鉴对照板</h1>
+  <p class="sub">
+    配套文档：<b>docs/art-style/nier-ui-reference.md</b>。本板只做一件事：把 6 组「<b>现在的做法</b> / <b>借用后的做法</b>」并排画出来。
+    颜色全部取自 <code>docs/art-style/tokens.json</code>；圆角只用 4/8/16；<b>零阴影、零渐变、零发光、零纹理、零 emoji</b>（§10）。
+    面板底用 <code>#EFEEED</code>（局外纸面）与 <code>#EBF4FB</code>（局内战场）区分两个界面族。
+  </p>
+  <div class="rule"></div>
+</header>
+
+<!-- ══════════════ 1 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">1</div><h2>离散量读数：连续条 → 分段刻度</h2><span class="card-tag">B1 · 小改造</span></div>
+  <p class="card-p">
+    尼尔把<b>数得清的量</b>画成方格读数，把<b>连续的量</b>留给条。<b>判据</b>：技能 <code>max_level</code>、成就 <code>tier</code>、遗物份数、Boss 库存 → 分段刻度；
+    HP / EXP / 倒计时 → 保持连续条。<b>不要把 HP 条改成分段</b>，那会把"还差几格"的语义用错地方。
+  </p>
+  <div class="pair">
+    <div class="pane now">
+      <div class="pane-h">现 在</div>
+      <div class="pane-b">
+        <div class="row"><span class="lbl-sm" style="width:56px">技 能</span><span class="bar"><i style="width:66%"></i></span><span class="num">Lv 2/3</span></div>
+        <div class="row"><span class="lbl-sm" style="width:56px">成 就</span><span class="bar"><i style="width:66%"></i></span><span class="num">银 2/3</span></div>
+        <div class="row"><span class="lbl-sm" style="width:56px">库 存</span><span class="bar"><i style="width:66%"></i></span><span class="num">x2/3</span></div>
+      </div>
+    </div>
+    <div class="pane new">
+      <div class="pane-h">借 用 后</div>
+      <div class="pane-b">
+        <div class="row"><span class="lbl-sm" style="width:56px">技 能</span><span class="seg"><i class="on"></i><i class="on"></i><i></i></span><span class="num">Lv 2</span></div>
+        <div class="row"><span class="lbl-sm" style="width:56px">成 就</span><span class="seg"><i class="on"></i><i class="on"></i><i></i></span><span class="num">银</span></div>
+        <div class="row"><span class="lbl-sm" style="width:56px">库 存</span><span class="seg"><i class="on"></i><i class="on"></i><i></i></span><span class="num">2</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>落点</b>：<code>SkillSlot.ts</code> · <code>AchievementItem</code> · <code>View_Game_Stage</code> 的 Boss 条目 <code>count</code>。
+  <b>新登记项</b>：格 <code>9×9</code> + 间距 <code>4</code>（这是我唯一要求新增的间距档，见文档 §8-2）。</p>
+</section>
+
+<!-- ══════════════ 2 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">2</div><h2>状态表意：换颜色 → 换字重 + 形状</h2><span class="card-tag">A1 · 直接采纳</span></div>
+  <p class="card-p">
+    尼尔监督的原始指令是"<b>尽量避免使用大范围的色彩</b>"，于是设计师改用<b>字体的粗细与深浅</b>表达状态变化。
+    我们现状是<b>就地发明颜色</b>：技能详情的「当前等级」染了一个<b>没登记进 §1 的绿</b>；Boss 条目的「场上限时」借用了<b>英雄受击红</b>（§10 明写这个通道已被"打谁"占用）。
+  </p>
+  <div class="pair">
+    <div class="pane now">
+      <div class="pane-h">现 在</div>
+      <div class="pane-b">
+        <div class="row"><span class="tag">lv.1</span><span style="font-size:12px;color:var(--ink-600)">攻击力 +14%</span></div>
+        <div class="row"><span class="tag" style="color:var(--legacy-green)">lv.2</span><span style="font-size:12px;color:var(--ink-600)">攻击力 +22%</span><span class="lbl-sm" style="color:var(--legacy-green);letter-spacing:0">← 绿字 = 当前级</span></div>
+        <div class="row"><span class="tag">lv.3</span><span style="font-size:12px;color:var(--ink-600)">攻击力 +30%</span></div>
+        <div class="row" style="margin-top:6px"><span class="lbl-sm" style="width:44px">Boss</span><span class="num" style="color:var(--legacy-hithero)">01:12</span><span class="lbl-sm" style="letter-spacing:0">← 红字 = 限时</span></div>
+      </div>
+    </div>
+    <div class="pane new">
+      <div class="pane-h">借 用 后</div>
+      <div class="pane-b">
+        <div class="row"><span class="tag">lv.1</span><span style="font-size:12px;color:var(--ink-400)">攻击力 +14%</span></div>
+        <div class="row"><span class="dot"></span><span class="tag on">lv.2</span><span style="font-size:12px;color:var(--ink-900);font-weight:700">攻击力 +22%</span></div>
+        <div class="row"><span class="tag">lv.3</span><span style="font-size:12px;color:var(--ink-400)">攻击力 +30%</span></div>
+        <div class="row" style="margin-top:6px"><span class="lbl-sm" style="width:44px">Boss</span><span class="num" style="font-weight:700">01:12</span><span class="lbl-sm" style="letter-spacing:0">+ 前置小三角 = 限时</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>落点</b>：<code>SkillDetailPanel.ts:25</code>（删掉 <code>ACTIVE_LEVEL_COLOR</code>）· <code>View_Game_Stage.ts:21-26</code> · <code>AbilityDesc.ts</code> 的 <code>+N%</code>/<code>-N%</code>。
+  <b>连带</b>：<code>tools/skill-slot-audit/audit.mjs:457</code> 的 <code>GREEN</code> 期望值要一起改 —— 那条体检<b>正在保护这个违规</b>。</p>
+</section>
+
+<!-- ══════════════ 3 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">3</div><h2>数据行：三件挤一行 → 左标签 / 右等宽数字</h2><span class="card-tag">A3 · 直接采纳</span></div>
+  <p class="card-p">
+    尼尔的基本单元是「<b>细线框 + 左上角小标签 + 右侧读数</b>」：标签极小、字距很宽，数值等宽右对齐，中间用极淡的引导线连起来。
+    我们现在是"图标 + 条 + <code>当前/上限</code> 三者水平对齐挤在一行"，扫读时眼睛要来回找。
+  </p>
+  <div class="pair">
+    <div class="pane now">
+      <div class="pane-h">现 在</div>
+      <div class="pane-b">
+        <div class="row"><span class="el core" style="width:14px;height:14px;border-radius:3px;position:static"></span><span class="bar" style="width:110px"><i style="width:72%"></i></span><span class="num">300/300</span></div>
+        <div class="row"><span class="el core" style="width:14px;height:14px;border-radius:3px;position:static"></span><span class="bar" style="width:110px"><i style="width:38%"></i></span><span class="num">48/64</span></div>
+      </div>
+    </div>
+    <div class="pane new">
+      <div class="pane-h">借 用 后</div>
+      <div class="pane-b">
+        <div class="datarow"><span class="k">最 大 生 命</span><span class="lead"></span><span class="v">300/300</span></div>
+        <div class="datarow"><span class="k">最 大 魔 法</span><span class="lead"></span><span class="v">48/64</span></div>
+        <div class="datarow"><span class="k">攻 击 距 离</span><span class="lead"></span><span class="v">2.20 m</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>落点</b>：英雄详情弹窗 <code>Cmp_HeroDetail</code> 的属性行（<code>HERO_DETAIL_ATTR_ROWS</code> 那 5 行）· 结算面板 · 遗物详情。
+  <b>代价</b>：改框尺寸的 Label 先用场景侧助手 <code>labelFit</code> 算一遍会不会裁字（AGENTS.md 已规定）。</p>
+</section>
+
+<!-- ══════════════ 4 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">4</div><h2>母题：装饰线 → 图纸语法（图框 / 标题栏 / 尺寸线）</h2><span class="card-tag">A2 · 直接采纳</span></div>
+  <p class="card-p">
+    尼尔靠「<b>乐谱</b>」这一个母题把扁平设计救活（五线谱、低音谱号、乐曲结束的双小节线），
+    设计师的原话是"太执着于扁平化，设计会变得干瘪而没有灵魂"。
+    <b>我们的母题早就写在 §0 里了 —— 工程图纸</b>（"参考的物：蓝图与工程图纸"），只是从没变成语法。
+    下面这套<b>零新增颜色、零新素材</b>。
+  </p>
+  <div class="pair">
+    <div class="pane now">
+      <div class="pane-h">现 在</div>
+      <div class="pane-b" style="justify-content:flex-start">
+        <div style="width:100%;max-width:340px;background:var(--surface);border-radius:var(--radius-m);padding:18px 20px">
+          <div style="font-size:16px;font-weight:700;color:var(--ink-900)">第 3 阶段</div>
+          <div style="height:1px;background:var(--ink-200);margin:12px 0"></div>
+          <div style="font-size:12px;color:var(--ink-600)">只有一条 1px 灰分隔线。再问"这里该放什么装饰"就只能加颜色或加图标。</div>
+        </div>
+      </div>
+    </div>
+    <div class="pane new">
+      <div class="pane-h">借 用 后</div>
+      <div class="pane-b" style="justify-content:flex-start">
+        <svg width="100%" viewBox="0 0 340 190" style="max-width:340px" role="img" aria-label="图纸母题：图框 + 裁切角 + 标题栏 + 尺寸线">
+          <!-- 图框（细墨线） -->
+          <rect x="6.5" y="6.5" width="327" height="177" fill="none" stroke="#D8D8D8" stroke-width="1"/>
+          <!-- 四角裁切角（墨色 L，= 仪器感） -->
+          <g stroke="#445054" stroke-width="2" stroke-linecap="round" fill="none">
+            <path d="M6.5 26 V6.5 H26"/><path d="M314 6.5 H333.5 V26"/>
+            <path d="M333.5 164 V183.5 H314"/><path d="M26 183.5 H6.5 V164"/>
+          </g>
+          <!-- 标题栏（右下三格） -->
+          <g>
+            <rect x="213.5" y="152.5" width="98" height="26" fill="none" stroke="#445054" stroke-width="1"/>
+            <line x1="245.5" y1="152.5" x2="245.5" y2="178.5" stroke="#445054" stroke-width="1"/>
+            <line x1="278.5" y1="152.5" x2="278.5" y2="178.5" stroke="#445054" stroke-width="1"/>
+            <text x="220" y="164" font-size="8" fill="#999999" font-family="Arial">图号</text>
+            <text x="220" y="174" font-size="9" fill="#445054" font-family="Consolas,monospace">STAGE-3</text>
+            <text x="252" y="164" font-size="8" fill="#999999" font-family="Arial">版本</text>
+            <text x="252" y="174" font-size="9" fill="#445054" font-family="Consolas,monospace">v1.0.2</text>
+            <text x="285" y="164" font-size="8" fill="#999999" font-family="Arial">比例</text>
+            <text x="285" y="174" font-size="9" fill="#445054" font-family="Consolas,monospace">1:50</text>
+          </g>
+          <!-- 内容：保留原来的标题 -->
+          <text x="26" y="46" font-size="16" font-weight="700" fill="#445054" font-family="Arial">第 3 阶段</text>
+          <!-- 标签+读数（同第 3 组） -->
+          <text x="26" y="70" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">剩 余 怪 物</text>
+          <text x="200" y="71" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="end">18</text>
+          <line x1="92" y1="67" x2="196" y2="67" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="1 3"/>
+          <text x="26" y="92" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">已 击 杀</text>
+          <text x="200" y="93" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="end">62</text>
+          <line x1="84" y1="89" x2="196" y2="89" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="1 3"/>
+          <!-- 尺寸线：细线 + 两端箭头 + 中间断口写数值 -->
+          <g stroke="#6A696B" stroke-width="1" fill="none">
+            <line x1="26" y1="120" x2="96" y2="120"/>
+            <line x1="176" y1="120" x2="200" y2="120"/>
+            <path d="M30 116 L26 120 L30 124 Z" fill="#6A696B" stroke="none"/>
+            <path d="M196 116 L200 120 L196 124 Z" fill="#6A696B" stroke="none"/>
+          </g>
+          <text x="136" y="124" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="middle">HP 300/300</text>
+          <!-- 剖面线（= 禁用/未解锁态，纯 SVG 斜线，无渐变） -->
+          <defs>
+            <pattern id="hatch" width="5" height="5" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="5" stroke="#D8D8D8" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect x="26" y="138" width="52" height="20" fill="url(#hatch)" stroke="#D8D8D8" stroke-width="1"/>
+          <text x="52" y="152" font-size="9" fill="#999999" font-family="Arial" text-anchor="middle">未解锁</text>
+          <text x="88" y="152" font-size="9" fill="#999999" font-family="Arial">剖面线 = 此格不可用（无需另配色）</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>六件套</b>：图框 / 裁切角 · <b>标题栏</b>（图号·版本·比例 = 一个天然的元信息容器）· <b>尺寸线</b>（两端箭头 + 中间断口写数值）·
+  <b>引出线</b>（标注与 tooltip）· <b>圆圈编号</b>（序号 / 技能槽角标）· <b>剖面线</b>（禁用 / 未解锁 / 空槽，替代现有的纯灰底）。
+  <b>注意</b>：剖面线用 SVG <code>&lt;pattern&gt;</code> 斜线实现，<b>不是</b> CSS 渐变 —— 不触碰"禁渐变"。</p>
+</section>
+
+<!-- ══════════════ 5 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">5</div><h2>破损态：唯一允许的情绪破格</h2><span class="card-tag">C1 · 需拍板</span></div>
+  <p class="card-p">
+    尼尔最有名的 UI 语言之一是<b>自爆之后那套"坏掉了"的界面</b> —— 克制到极点的设计只留一个破格口子。
+    我们的禁用清单禁的是<b>发光 / 粒子 / 后处理 / 纹理</b>，<b>不禁"线稿的缺失"</b> ——
+    所以在浅底图纸风里，破损态可以<b>零新色、零新素材、零新特效</b>地做出来。
+    <b>建议只用在两处</b>（失败结算 / 濒死），幅度极小。
+  </p>
+  <div class="pair samebg">
+    <div class="pane now">
+      <div class="pane-h">正 常 状 态</div>
+      <div class="pane-b">
+        <svg width="100%" viewBox="0 0 320 150" style="max-width:320px" role="img" aria-label="完整的图框与读数">
+          <rect x="6.5" y="6.5" width="307" height="137" fill="none" stroke="#D8D8D8" stroke-width="1"/>
+          <g stroke="#445054" stroke-width="2" stroke-linecap="round" fill="none">
+            <path d="M6.5 26 V6.5 H26"/><path d="M294 6.5 H313.5 V26"/>
+            <path d="M313.5 124 V143.5 H294"/><path d="M26 143.5 H6.5 V124"/>
+          </g>
+          <text x="24" y="44" font-size="14" font-weight="700" fill="#445054" font-family="Arial">本 局 失 败</text>
+          <text x="24" y="70" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">坚 持 时 间</text>
+          <text x="180" y="71" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="end">02:14</text>
+          <text x="24" y="92" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">击 杀 数</text>
+          <text x="180" y="93" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="end">62</text>
+          <g stroke="#6A696B" stroke-width="1" fill="none">
+            <line x1="24" y1="118" x2="80" y2="118"/><line x1="152" y1="118" x2="180" y2="118"/>
+            <path d="M28 114 L24 118 L28 122 Z" fill="#6A696B" stroke="none"/>
+            <path d="M176 114 L180 118 L176 122 Z" fill="#6A696B" stroke="none"/>
+          </g>
+          <text x="116" y="122" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="middle">距 通 关</text>
+        </svg>
+      </div>
+    </div>
+    <div class="pane new">
+      <div class="pane-h">破 损 态（幅 度 极 小）</div>
+      <div class="pane-b">
+        <svg width="100%" viewBox="0 0 320 150" style="max-width:320px" role="img" aria-label="破损态：图框缺一段、读数被划掉、虚线断裂">
+          <!-- 图框：右下缺一段 -->
+          <rect x="6.5" y="6.5" width="307" height="137" fill="none" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="0" opacity="0.5"/>
+          <g stroke="#445054" stroke-width="2" stroke-linecap="round" fill="none">
+            <path d="M6.5 26 V6.5 H26"/><path d="M294 6.5 H313.5 V26"/>
+            <!-- 右下角：缺了竖边与横边各一段，并让 L 错位 2px -->
+            <path d="M313.5 118 V128" opacity="0.35"/>
+            <path d="M292 143.5 H6.5 V124"/>
+          </g>
+          <text x="24" y="44" font-size="14" font-weight="700" fill="#445054" font-family="Arial">本 局 失 败</text>
+          <text x="24" y="70" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">坚 持 时 间</text>
+          <text x="180" y="71" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="end">02:14</text>
+          <text x="24" y="92" font-size="8" letter-spacing="1.6" fill="#999999" font-family="Arial">达 成 奖 励</text>
+          <text x="180" y="93" font-size="11" fill="#999999" font-family="Consolas,monospace" text-anchor="end">+120 经验</text>
+          <!-- 读数被划掉：1px c-danger 细线 -->
+          <line x1="118" y1="89" x2="182" y2="89" stroke="#C0392B" stroke-width="1"/>
+          <!-- 尺寸线：断了一截 + 箭头偏离 2px -->
+          <g stroke="#6A696B" stroke-width="1" fill="none">
+            <line x1="24" y1="118" x2="62" y2="118" opacity="0.5"/>
+            <line x1="152" y1="118" x2="180" y2="118"/>
+            <path d="M28 114 L24 118 L28 122 Z" fill="#6A696B" stroke="none"/>
+            <path d="M178 116 L182 120 L178 124 Z" fill="#6A696B" stroke="none"/>
+          </g>
+          <text x="116" y="122" font-size="11" fill="#445054" font-family="Consolas,monospace" text-anchor="middle">距 通 关</text>
+          <!-- 虚线断裂（范围圈语汇）：不是"用底色盖住一段"，而是**真的少画一段** —— 缺口 ≈30°，约虚线间隙的 2.5 倍，且末端外偏 1.5px 制造错位 -->
+          <path d="M259.1 30.7 A20 20 0 1 0 268.3 24.8" fill="none" stroke="#C0CCD1" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="272" y="86" font-size="8" fill="#999999" font-family="Arial" text-anchor="middle">虚线断裂</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>四件破损语汇</b>：图框缺一段 · 虚线断裂 · 读数被划掉（唯一用 <code>c-danger</code> <code>#C0392B</code> 细线的地方）· 尺寸线箭头错位 1~2px。
+  <b>风险</b>：做过头会变成"故意做旧"，与"干净图纸"冲突 —— 建议<b>先只在阵亡结算面板做一处</b>看观感。</p>
+</section>
+
+<!-- ══════════════ 6 ══════════════ -->
+<section class="card">
+  <div class="card-h"><div class="card-n">6</div><h2>HUD：写死的画布 → 玩家可关 + 三套预设</h2><span class="card-tag">B2 · 小改造</span></div>
+  <p class="card-p">
+    尼尔把 <b>HP 条 / 经验条 / 小地图 / 伤害数字 / 敌血条</b> 全做成<b>插件芯片</b>：拔掉就真的不显示，还能存三套预设随时切。
+    <b>只借结论，不借机制</b>（"占容量"会和我们的遗物系统语义打架）。
+    我们的 <code>View_Game_Stage</code> 现在挂了 12+ 个元件，打击反馈 B2/B3 又往屏幕上加了印痕层 / 连击 / 落款 / 角标 / 墨闪 —— <b>再加就该有人喊停了</b>。
+  </p>
+  <div class="legend">
+    <span><i class="core"></i>核心信息（建议恒开）</span>
+    <span><i class="opt"></i>可选信息（可关）</span>
+    <span><i class="fx"></i>表现层（可关，关了不掉信息）</span>
+  </div>
+  <div class="huds">
+    <div class="hud">
+      <h4>简洁</h4><p>小屏 / 老手 / 录屏</p>
+      <div class="phone">
+        <div class="el core" style="left:56px;top:8px;width:40px;height:9px"></div>
+        <div class="el core" style="right:6px;top:8px;width:36px;height:9px"></div>
+        <div class="el core" style="left:12px;top:209px;width:14px;height:14px"></div>
+        <div class="el core" style="left:32px;top:211px;width:44px;height:5px"></div>
+        <div class="el core" style="left:47px;top:243px;width:57px;height:12px"></div>
+      </div>
+    </div>
+    <div class="hud">
+      <h4>标准 <span style="color:var(--ink-400);font-weight:400">（默认）</span></h4><p>大多数玩家</p>
+      <div class="phone">
+        <div class="el core" style="left:56px;top:8px;width:40px;height:9px"></div>
+        <div class="el core" style="right:6px;top:8px;width:36px;height:18px"></div>
+        <div class="el core" style="left:12px;top:209px;width:14px;height:14px"></div>
+        <div class="el core" style="left:32px;top:211px;width:44px;height:5px"></div>
+        <div class="el core" style="left:32px;top:220px;width:44px;height:5px"></div>
+        <div class="el opt" style="left:16px;top:232px;width:64px;height:6px"></div>
+        <div class="el core" style="left:47px;top:243px;width:57px;height:12px"></div>
+        <div class="el opt" style="left:4px;top:100px;width:18px;height:40px"></div>
+        <div class="el opt" style="left:8px;top:186px;width:9px;height:9px"></div>
+        <div class="el opt" style="right:8px;bottom:78px;width:9px;height:11px"></div>
+        <div class="el opt" style="right:8px;bottom:64px;width:9px;height:11px"></div>
+        <div class="el opt" style="right:8px;bottom:50px;width:9px;height:11px"></div>
+      </div>
+    </div>
+    <div class="hud">
+      <h4>全部</h4><p>想看清一切的玩家</p>
+      <div class="phone">
+        <div class="el core" style="left:56px;top:8px;width:40px;height:9px"></div>
+        <div class="el core" style="right:6px;top:8px;width:36px;height:18px"></div>
+        <div class="el fx" style="left:2px;top:2px;width:12px;height:12px;border-style:solid;border-width:1px 0 0 1px"></div>
+        <div class="el fx" style="right:2px;top:2px;width:12px;height:12px;border-style:solid;border-width:1px 1px 0 0"></div>
+        <div class="el core" style="left:12px;top:209px;width:14px;height:14px"></div>
+        <div class="el core" style="left:32px;top:211px;width:44px;height:5px"></div>
+        <div class="el core" style="left:32px;top:220px;width:44px;height:5px"></div>
+        <div class="el opt" style="left:16px;top:232px;width:64px;height:6px"></div>
+        <div class="el core" style="left:47px;top:243px;width:57px;height:12px"></div>
+        <div class="el opt" style="left:4px;top:100px;width:18px;height:40px"></div>
+        <div class="el opt" style="left:8px;top:186px;width:9px;height:9px"></div>
+        <div class="el opt" style="right:8px;bottom:78px;width:9px;height:11px"></div>
+        <div class="el opt" style="right:8px;bottom:64px;width:9px;height:11px"></div>
+        <div class="el opt" style="right:8px;bottom:50px;width:9px;height:11px"></div>
+        <div class="el fx" style="left:60px;top:150px;width:30px;height:6px"></div>
+        <div class="el fx" style="left:58px;top:166px;width:34px;height:6px"></div>
+        <div class="el fx" style="left:30px;top:120px;width:14px;height:5px"></div>
+        <div class="el fx" style="left:104px;top:132px;width:14px;height:5px"></div>
+      </div>
+    </div>
+  </div>
+  <p class="foot"><b>落点</b>：新增 <code>game/common/HudPrefs.ts</code>（纯 TS 无 cc，存 <code>DataModule</code>）+ <code>View_Game_Stage</code> 按它写 <code>active</code>；
+  <code>HitScreenLayer</code> / <code>HitVfxLayer</code> 的开关也归它管（那两层现在<b>无条件</b>画）。<b>顺带收益</b>：低端机去掉两层 <code>Graphics</code> = 实打实的填充率。
+  <b>建议不给游戏内好处</b>（尼尔是给容量的）—— 纯无障碍，避免和遗物系统的"装载预算"语义撞车。</p>
+</section>
+
+<div class="note warnbox">
+  <b>三个提醒</b><br>
+  ① 本板是<b>参考研究</b>，不改变规范。视觉口径的唯一权威仍是 <code>docs/美术风格预设.md</code>；采纳要走文档 §8「待拍板」。<br>
+  ② <b>尼尔的米色不要抄</b>：它比我们深（社区取样 ≈ <code>#B0AB98</code>），低对比是靠"大屏 + 暗环境"撑住的，手机小屏会糊。我们的 <code>#EFEEED</code> / <code>#EBF4FB</code> 更亮是对的。<br>
+  ③ <b>第 2 组的绿字不要直接删</b>：<code>audit:slot</code> 的检查项 ⑯ 把 <code>34,177,76</code> 钉成了期望值，改色必须连测试判据一起改，否则下一个人会以为是自己改坏的。
+</div>
+
+<footer>
+  <div class="rule"></div>
+  出处：[UI Design in NieR:Automata — PlatinumGames](https://www.platinumgames.com/official-blog/article/9624)（貴島久芳 自述，一手）·
+  [中文翻译 — indienova](https://indienova.com/indie-game-development/ui-design-of-nier-automata/) ·
+  [Plug-in chips（HUD 芯片机制）](https://saschb2b.github.io/game-mechanics/games/nier-automata/chip-system) ·
+  [NieR-Automata-Design-System（非官方复刻）](https://github.com/Kndgy/NieR-Automata-Design-System)。<br>
+  本页零 JS、零外部资源，可离线双击打开。色值取自 <code>docs/art-style/tokens.json</code>；<code>--legacy-green</code> 与 <code>--legacy-hithero</code> 只用于演示"现在"一侧的现役违规色，<b>不属于 token 表</b>。
+</footer>
+
+</div>
+</body>
+</html>

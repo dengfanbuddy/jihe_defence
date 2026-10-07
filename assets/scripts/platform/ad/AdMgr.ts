@@ -45,6 +45,27 @@ export type AdPlacement =
     | 'buff_shop_refresh'
     /** 暂停界面：暂停达到时长后拉起一次 */
     | 'pause_resume'
+    /**
+     * 局内：英雄阵亡时在**复活面板**上看广告复活一次
+     * （每局次数 = `battle_constants.reviveAdPerRun`；背包里有 `revive_ticket` 时**不拉起广告**）
+     */
+    | 'revive'
+    // ── 局外商城（全屏页 `View_Shop`）的 6 个位置：一格的 `placement` 直接写在 mall_items.json 里 ──
+    /** 商城·金币袋（A1） */
+    | 'shop_gold'
+    /** 商城·英雄经验瓶（A2） */
+    | 'shop_hero_exp'
+    /** 商城·账号经验册（A3） */
+    | 'shop_acc_exp'
+    /** 商城·局外遗物抽取券（A4） */
+    | 'shop_relic_draw'
+    /** 商城·局内复活券（A5） */
+    | 'shop_revive_ticket'
+    /** 商城·局内广告券（A6） */
+    | 'shop_ad_ticket'
+    /** ⚠ A5 曾经是「开局增益券」（`shop_boost`）的埋点位，2026-11 起那一格改成复活券；
+     *  本字符串保留只为让历史埋点数据还能对上，**新代码不要再传它** */
+    | 'shop_boost'
     | string;
 
 /** 平台接入方需要实现的接口 */

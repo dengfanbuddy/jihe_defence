@@ -8,7 +8,9 @@
 </head>
 <body>
 <article>
-  <div class="tab-intro">结算：一局结束统一产出<strong>局外奖励</strong> —— 英雄经验按<strong>关卡阶梯</strong>发、失败再乘阶段折扣，局外遗物按「数量→品质→id」三段概率抽，全部以 <strong>icon + 数量</strong> 展示在结束面板。</div>
+  <div class="callout warn"><strong>⚠ 2026-11 规则修改：本页的「遗物」那一条已作废。</strong>遗物<strong>不再由结算产出</strong>（下面的「数量→品质→id 三段概率」整层停用；<strong>品质权重那一层被新方案复用</strong>），改为<strong>局外花金币抽取</strong>；同时<strong>局内抽到的遗物不再写进局外图鉴</strong>。结算现在<strong>只发通用英雄经验</strong>（即②那条阶梯，已在 <code>endRun</code> 落地）。新口径的完整数值（品质权重 6 : 2.5 : 1 : 0.5、价格 200/+100/封顶 600 每日重置、红档特效词缀、份数无上限）见 <code>docs/meta-growth/README.md</code>。本页其余部分（经验阶梯 / 局内经济 / 面板结构 / 局外成长进 base）<strong>仍然有效</strong>。</div>
+
+  <div class="tab-intro">结算：一局结束统一产出<strong>局外奖励</strong> —— 英雄经验按<strong>关卡阶梯</strong>发、失败再乘阶段折扣，<s>局外遗物按「数量→品质→id」三段概率抽</s>（<strong>已作废，见上</strong>），全部以 <strong>icon + 数量</strong> 展示在结束面板。</div>
 
   <div class="callout ok"><strong>定案汇总（第一轮 12 条）：</strong>① 失败系数 10/20/30/40/50% ② 阶梯 = 80 × 1.12^(档-1)、20 档 ③ <strong>玩家账号经验不由结算发</strong>，改由局外任务系统（后续设计）④ 局内击杀奖励<strong>不随关卡缩放</strong>；局内遗物<strong>抽后不放回</strong> ⑤ 失败掉落 = 胜利的一半 ⑥ 品质权重随关卡<strong>微调</strong> ⑦ epic = 第三档品质 ⑧ <code>equipments</code> 就是局外遗物系统，<strong>统一命名</strong> ⑨ 成长维度收敛为攻击/生命/防御 ⑩ 曲线 k = 1.0 ⑪ icon 后续单独处理 ⑫ 当前难度存 <code>PlayerInfo</code>，每关单独配置可另建表。</div>
 
@@ -139,7 +141,7 @@
   <table>
     <thead><tr><th scope="col">项目</th><th scope="col">口径</th></tr></thead>
     <tbody>
-      <tr><td>结算产出</td><td><strong>只有英雄经验</strong>（+ 遗物）。玩家账号经验<strong>不再由对局结束发放</strong>。</td></tr>
+      <tr><td>结算产出</td><td><strong>只有英雄经验</strong><s>（+ 遗物）</s> <strong>⚠ 遗物已于 2026-11 移出结算，改局外金币抽取</strong>。玩家账号经验<strong>不再由对局结束发放</strong>。</td></tr>
       <tr><td>账号经验来源</td><td>局外<strong>任务系统</strong>：如"今日完成难度模式 N 局""今日击杀怪物 X 只"等。<span class="q n">后续设计</span></td></tr>
       <tr><td>结算仍要做的事</td><td>照旧写 <code>playerInfo.recordGameEnd(kills, stage)</code>（<code>totalGames</code> / <code>totalKills</code> / <code>maxWave</code>）—— 任务系统读的就是这些累计值。<code>PlayerInfo.addExp()</code> 保留给任务系统调用。</td></tr>
     </tbody>
@@ -158,7 +160,7 @@
   <div class="callout bad"><strong>现状是坏的：</strong><code>Scene_Game_Stage.firstHeroId()</code> 的 for 循环被注释掉了，<strong>恒返回 <code>null</code></strong> ⇒ 现在每局结束<strong>没有任何英雄拿到经验</strong>。本次要顺手修掉。</div>
 
   <h2>二、局外遗物收集系统</h2>
-  <p>结算产出的遗物进<strong>局外收集</strong>，与局内遗物<strong>共用同一套 id</strong>（<code>relics.json</code>，298 件，其中商店道具 293 件 = id 1001~1293）。<strong>配置上一条遗物拆成两个互相独立的部分</strong>。</p>
+  <p><s>结算产出的遗物进<strong>局外收集</strong></s>（<strong>⚠ 2026-11：遗物改由局外金币抽取产出，本节描述的三段概率已停用；品质权重那一层被复用，见 <code>docs/meta-growth/README.md</code> §1</strong>），与局内遗物<strong>共用同一套 id</strong>（<code>relics.json</code>，298 件，其中商店道具 293 件 = id 1001~1293）。<strong>配置上一条遗物拆成两个互相独立的部分</strong>。</p>
 
   <div class="diagram">
     <svg viewBox="0 0 760 250" width="760" height="250" role="img" aria-label="relics.json 拆成局内与局外两部分">

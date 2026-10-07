@@ -31,16 +31,41 @@ npm run migrate:affix        # 按门禁规则迁移 units/relics（幂等；--d
 npm run fix:crit             # 暴击口径修复（属性15 base=150 + 文案承诺的暴击词条回填 + 叠加方式归一；幂等）
 npm run audit:attr           # 属性生效体检：真跑一遍属性链路，看「加了属性有没有变」（见 tools/attr-audit）
 npm run audit:slot           # 技能槽规则体检：真跑 SkillSlots/Ability + 真配表，验锁定/落槽/升级口径（见 tools/skill-slot-audit）
+npm run audit:mall           # 局外商城体检：真跑 ShopData/DataCenter/ShopVM + 真配表 + 读真预制件对契约（见 tools/mall-audit）
+npm run audit:bag            # 局外背包体检：真跑 BagData/BagConfig/BagVM + 真配表 + 真预制件 + 文案宽度（见 tools/bag-audit）
 npm run list                 # 列出所有表 / 字段 / 类型 / 说明
 npm run typecheck            # tsc --noEmit
 ```
 
-当前共 9 张表：
+当前共 14 张表：
 
 | 分组 | 表 |
 |---|---|
 | 战斗核心（6） | `units` `attributes` `abilities` `modifiers` `relics` `battle_constants` |
 | 肉鸽商店（3） | `shop_constants` `shop_draw` `kill_buffs` |
+| 局外商城（1） | `mall_items` |
+| 局外背包（1） | `bag_items` |
+| 局外成长 / 任务（3） | `tasks` `achievements` `player_levels` |
+
+> **`mall_items` 是「局外全屏商城」的商品表（2026-11 加）**，一行一个商品：每日补给（`kind=free`，不看广告）
+> + 6 个广告商品（`kind=ad`，`placement` 就是 `AdMgr` 的广告位）。`grants` 是 JSON 列
+> （`[{"type":"gold","amount":300}]`，一项一件），`name` / `amount_text` **也由它下发到界面**
+> —— 所以"格子上写的数"与"真正发的数"是同一份数据，改数量只改这张表。
+> 跨商品的规则常量（每日广告总上限 14 / 免广告卡 84 次·24 小时 / 连续登录加成阶梯 / 增益券每种值多少）
+> 在 `battle_constants` 的 7 个 `shop*` 键里。
+> ⚠ 它与**已删除的旧 `shop_items`**（肉鸽商店道具，已并入 `relics`）**不是一回事**，别混。
+> 口径真源 `docs/shop/README.md`，体检 `npm run audit:mall`（122 条）。
+
+> **`bag_items` 是「局外背包」的通用道具表（2026-11 加）**，一行一件玩家**可能持有**的道具：
+> 名字 / 描述 / 图标 / 品质 / 堆叠上限 / 能不能手动用 / 有效期。局外背包（`prefabs/ui/views/bag/View_Bag`）
+> 照着它铺格子，**代码里不写死任何一件道具**。
+> ⚠ 它是**道具字典**（长什么样），不是**存量** —— 存量在存档模块 `data/funcs/BagData.ts`（按 `key` 记账），
+> 两者靠 `key` 对上。⚠ 与 `relics`（遗物）不是一回事：遗物有自己的表与页面，**不进背包**。
+> ⚠ `name` ≤ 8 个汉字、`desc` / `use_hint` ≤ 12 个汉字、正文总高 ≤ 面板留给它的 622px：
+> 名字框是 `CLAMP`（**超了静默裁字**），正文框是 `RESIZE_HEIGHT`（不裁字，但**写长了会把
+> 「使用 / 出售」顶出面板**）—— 两种在编辑器里都看不出来
+>（`npm run audit:bag` 的 B 段**从预制件现读框尺寸**逐行估算拦它）。口径真源 `docs/bag/README.md`，
+> 体检 `npm run audit:bag`（144 条）。
 
 > **技能表也是一张（2026-09）**：原 `shop_skills` 表（30 条肉鸽额外技能）已**并入 `abilities`**，靠 `scope` 区分归属 ——
 > `unit` 单位自带（`units.json` 的 `abilities` 引用它，id 1~22）/ `shop` 肉鸽商店抽取池（id **101~130**）/ `both` 两侧都出

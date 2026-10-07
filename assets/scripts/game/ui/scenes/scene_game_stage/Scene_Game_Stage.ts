@@ -5,6 +5,8 @@ import { ViewLayer } from '../../../../platform/ui/ViewInfo';
 import UIManager from '../../../../platform/ui/UIManager';
 import { AdMgr, type AdPlacement } from '../../../../platform/ad/AdMgr';
 import { View_Game_Stage } from './cmps/View_Game_Stage';
+import { RevivePromptPanel } from './cmps/RevivePromptPanel';
+import type { ReviveChoice } from './cmps/RevivePromptPanel';
 import { StageScopeEvents, StageScopeKeys } from './cmps/StageScope';
 import BaseView from '../../../../platform/ui/BaseView';
 
@@ -14,9 +16,9 @@ import { BattleContext, EventBus, BattleConstUtil, BattleEvents, StateType } fro
 import { EventNames } from '../../../battle/core/EventBus';
 import { Entity } from '../../../battle/Entity';
 import { DataCenter } from '../../../data';
+import { BAG_ITEM_KEY } from '../../../data/configs/BagConfig';
 import { TbRoot } from '../../../../platform/excel_table/TbRoot';
 import { ShopConfig } from '../../../data/configs/ShopConfig';
-import { getOuterRelic } from '../../../data/configs/EquipmentConfig';
 import { AttributeScaling } from '../../../battle/core/AttributeScaling';
 import { AttributeType } from '../../../battle/core/Types';
 import { MonsterPool } from '../../../game_stage/entityview/MonsterPool';
@@ -455,6 +457,16 @@ export class Scene_Game_Stage extends BaseView {
   /** 上一次投影到 store 的背包指纹（只在遗物真的变化时才写 relicBag，避免每次受伤都触发 UI watcher） */
   private lastRelicBagKey = '';
 
+  /**
+   * **复活面板**（运行期建在 HUD 节点下；见 `cmps/RevivePromptPanel.ts` 文件头）。
+   * 英雄被打死那一刻由 `onLethalForHero` 弹出来，玩家的三种选择见 `onReviveChoice`。
+   */
+  private revivePrompt: RevivePromptPanel = null;
+  /** 本局还剩几次「看广告复活」（`battle_constants.reviveAdPerRun`；`resetRun` 复位） */
+  private adRevivesLeft = 0;
+  /** 复活面板正开着（致命伤拦截器据此**继续拦截**：同一帧第二只怪的补刀不许真的打死英雄） */
+  private revivePending = false;
+
   @property(Node)
   uiViewNode: Node
   uiView: View_Game_Stage
@@ -492,6 +504,12 @@ export class Scene_Game_Stage extends BaseView {
       getHeroLevel: () => this.battleStore.level ?? 1,
       getPhase: () => this.stage,
       playAd: (placement) => this.playRewardAd(placement),
+      // 局内广告券（背包道具）：刷新 / 补选时**先问背包**——有券就扣券免看广告，没券才走广告。
+      //   ⚠ 这两个 getter 直接读 `bagData`（响应式），所以面板的 watcher 会跟着券的数量自动重画
+      //   （"有券了按钮还写着看广告"这件事靠 `refreshButtonKey` 里的 viaTicket 那一位挡掉）。
+      //   券**不增加局内配额**：用券照样走 `roll(true)`，`adFreeUsed` 照扣（见 docs/meta-growth/README.md §3.1）
+      getAdTicketCount: () => DataCenter.ins.bagData.getCount(BAG_ITEM_KEY.adTicket),
+      consumeAdTicket: () => DataCenter.ins.bagData.consumeItem(BAG_ITEM_KEY.adTicket, 1),
       // 技能槽全锁定时选中技能 → 飘字提示（节点在 HUD 名下 → 由 HUD 写它的表现）
       onSkillAllLocked: () => this.uiView?.showFloatText('技能槽已全部锁定，先解锁再选技能'),
       // 成就效果（开局快照）：抽取费用折扣 / 额外选项数 / 额外广告免费抽 / 开局赠遗物
@@ -654,6 +672,9 @@ export class Scene_Game_Stage extends BaseView {
     this.targetPicker?.unbind();
     this.manualTarget = null;
     this.applyBattleShake(0, 0);
+    // 复活面板：中途退出/结算退回主界面时也要收掉（它是**全屏遮罩**，留着会挡住整个主界面）
+    this.revivePending = false;
+    this.revivePrompt?.hide();
     // 退出副本：先卸载预制件缓存（节点池清空 + resources 引用释放）
     this.monsterPool?.releasePrefabs();
     this.projectilePool?.releasePrefabs();
@@ -731,6 +752,11 @@ export class Scene_Game_Stage extends BaseView {
     // 换局：Boss 调度复位（库存清空、守卫回到 2 只、CD 归位、守卫击杀数归零 → 加码撤销）
     this.bossScheduler?.reset();
     this.lastRelicBagKey = '';
+    // 换局：复活名额复位（**每局** `battle_constants.reviveAdPerRun` 次；背包里的复活券不受影响），
+    //   同时把上一局可能还开着的复活面板收掉 —— 否则新一局开局就顶着一块全屏遮罩
+    this.adRevivesLeft = BattleConstUtil.getReviveAdPerRun();
+    this.revivePending = false;
+    this.revivePrompt?.hide();
     // 换局：普攻锁定目标随战斗上下文作废（避免指向上一局的实体）
     this.attackTarget = null;
     // 换局：战斗事件要在新 ctx 上重新订阅（旧 ctx 的 bus 随旧上下文一起丢弃）
@@ -1504,19 +1530,22 @@ export class Scene_Game_Stage extends BaseView {
   }
 
   /**
-   * 遗物真的发到手里（`RelicShop` 的 `deps.onRelicGranted` 回调）→ 写遗物**图鉴** + 上报成就进度。
+   * 遗物真的发到手里（`RelicShop` 的 `deps.onRelicGranted` 回调）。
    *
-   * 为什么"图鉴"这一笔放在宿主而不是 `RelicShop` 里：① 战斗功能类不认识数据层（分层，见 `SkillSlotsDeps.onSkillGranted`）；
-   * ② 「只记图鉴里那 37 件」的过滤属于**数据口径**，得跟图鉴页 `Cmp_OuterRelics` 的清单同源。
+   * ⚠ **2026-11 起这里什么都不做** —— 口径改动见 `docs/meta-growth/README.md` §0.2：
+   * **局内抽到的遗物不再写进局外图鉴**。局外遗物只有一个来源，就是图鉴页的「抽 取」
+   * （`DataCenter.drawOuterRelic`，花金币或抽取券）。
    *
-   * ⚠ `getOuterRelic(id)` 非空 = 这件遗物**有局外版**（`scope = outer / both`）—— 图鉴里的 37 件就是这批；
-   *   商店池里另外 200+ 件**仅局内版**的遗物不属于图鉴，记进去会让种类数提前顶满 37（两边口径打架）。
-   *   `AchievementData` 的 `relic_collected` 描述写的就是「收集局外遗物图鉴（共37件）」。
+   * 为什么要删掉原来那行 `equipCollection.addCollected(relicId)`：局内池 268 件里有
+   * **28 件"两侧都有"**（scope = both）、一局抽满必然全部到手一遍，而
+   * `getAllEquipmentBonuses()` 是**按份数线性累加**的 ⇒ **打两局局外属性就翻倍**。
+   * 这条漏洞在"局外遗物只能金币抽取"上线之前看不出来（那样图鉴只是白涨），
+   * 抽取上线之后它会直接把局外成长线翻倍。
+   *
+   * 保留这个（空的）回调位是因为它仍是「局内发货」的契约点：以后要接别的记账
+   * （埋点 / 引导 / "本局获得了什么"的统计）落点还是这里，**但不许再写图鉴**。
    */
-  private onRelicCollected(relicId: number): void {
-    if (!getOuterRelic(relicId)) return;
-    DataCenter.ins.equipCollection.addCollected(relicId);
-    DataCenter.ins.achieveData.peakProgress('relic_collected', DataCenter.ins.equipCollection.getDistinctCount());
+  private onRelicCollected(_relicId: number): void {
   }
 
   /** 默认玩法参数（与 BattleDemo 默认一致；id 为 number 配置编号） */
@@ -1611,6 +1640,11 @@ export class Scene_Game_Stage extends BaseView {
     // 英雄受伤/治疗 → 投影到 store（UI 血条）；唯一写入口 syncHeroToStore
     this.ctx.bus.onBattleEvent(BattleEvents.OnTakeDamage, (e: any) => {
       if (e.target === this.hero) {
+        // ★ 致命伤拦截：**必须在这里**（Phase 7 的 `OnTakeDamage` 在 Phase 8 的死亡检查之前，
+        //   见 `DamagePipeline`）—— 这一击若把英雄打到 hp ≤ 0，就地补回来 + 置回 `alive`，
+        //   Phase 8 的 `IsDead()` 就不成立、`Die()`（会 `modifiers.Clear()`）不会被调用，
+        //   所以"复活"不需要重建任何遗物/Buff/技能状态。同一套路见 `Modifier_TimeRewind`。
+        this.onLethalForHero();
         this.syncHeroToStore();
         // 成就标记：英雄本局挨过伤害（`clear_no_damage` 的判据，结算时读，见 reportRunTasks）
         this.tookDamage = true;
@@ -2373,6 +2407,133 @@ export class Scene_Game_Stage extends BaseView {
   }
 
   /* ===================================================================
+   * 复活（局内复活券 / 看广告复活）—— 用的地方**检查背包**，不另存一份
+   *
+   * 三种"复活来源"的口径（`docs/bag/README.md` §6）：
+   *   ① **局内复活券**：背包道具 `revive_ticket`（商城 A5 发，跨局累积）→ 有几张就能复活几次
+   *   ② **看广告复活**：每局 `battle_constants.reviveAdPerRun` 次（现 1），且 `AdMgr` 可用
+   *   ③ 都没有 → 与旧行为**逐字一致**：不弹面板，直接 `endRun('defeat','hero_dead')`
+   *
+   * ⚠ 拦截时机是本文件唯一一处"技术选择"：**不能**等到 `OnDeath`（那时 `Die()` 已经清空 Modifier，
+   *   复活就得把遗物 / Buff / 技能全部重挂一遍）。走 `OnTakeDamage` 补血 + 置回 `alive`，
+   *   死亡检查就永远不成立 —— 机制说明见 `DamagePipeline` 的 Phase 7 / Phase 8 注释。
+   * =================================================================== */
+
+  /**
+   * 英雄这一击被打死时的处理（在 `OnTakeDamage` 里调，此时 `Die()` 还没跑）。
+   *
+   * 判据（**只有这里读过一次**，面板只负责画）：
+   *   · 有复活券（`bagData.getCount('revive_ticket') > 0`）→ 面板出现「用复活券复活」
+   *   · 没有券但本局还有广告复活次数且广告可用 → 面板出现「看广告复活」
+   *   · 两样都没有 → **什么都不做**，让 `DamagePipeline` 照旧判死（`OnDeath → endRun`）
+   */
+  private onLethalForHero(): void {
+    if (this.finished || !this.hero) return;
+    // 没被打死（大多数情况）→ 立刻返回，别在每次受伤时都去读背包
+    if (this.hero.hp > 0 && this.hero.alive) return;
+
+    if (this.revivePending) {
+      // 面板已经开着（同一帧里的第二只怪补刀）→ 继续拦住，绝不让它真的判死
+      this.keepHeroAlive();
+      return;
+    }
+
+    const ticketLeft = DataCenter.ins.bagData.getCount(BAG_ITEM_KEY.reviveTicket);
+    const canAd = this.adRevivesLeft > 0 && AdMgr.inst.isAvailable('revive');
+    if (ticketLeft <= 0 && !canAd) return;
+
+    this.keepHeroAlive();
+    this.revivePending = true;
+    // 面板期间**暂停本局**（`update` 的暂停分支会停掉战斗推进，也就不会再有伤害进来）
+    this.battleStore.isPaused = true;
+    this.showRevivePrompt(ticketLeft, canAd);
+  }
+
+  /**
+   * 把"这一击打死了"就地撤销：补回 1 点血 + **把 `alive` 置回 true**。
+   *
+   * ⚠ 第二件事不能漏：`Entity.ChangeHp` 在 `hp <= 0` 时会把 `alive` 置 false，而
+   *   `IsDead()` 判的是 `!alive || hp <= 0` —— 只补血不置回 `alive` 照样判死
+   *   （同一个坑记在 `Modifier_TimeRewind` 的注释里）。
+   * ⚠ 只补到 1 点血（不是满血）：满血是**玩家选了复活之后**才给的（`finishRevive`），
+   *   否则"点放弃"那一刻的状态就已经是满血了。
+   */
+  private keepHeroAlive(): void {
+    const hero = this.hero;
+    if (!hero) return;
+    hero.alive = true;
+    if (hero.hp < 1) hero.ChangeHp(1 - hero.hp);
+  }
+
+  /** 弹复活面板（首次调用时把面板建在 HUD 节点下，之后复用同一块） */
+  private showRevivePrompt(ticketLeft: number, canAd: boolean): void {
+    if (!this.revivePrompt) {
+      this.revivePrompt = RevivePromptPanel.ensure(this.uiViewNode);
+      if (this.revivePrompt) this.revivePrompt.onChoose = (c) => this.onReviveChoice(c);
+    }
+    if (!this.revivePrompt) {
+      ezgame.error('[复活] 面板没建起来（HUD 节点缺失？）→ 本局按阵亡结束');
+      this.giveUpRevive('panel_missing');
+      return;
+    }
+    this.revivePrompt.show({ ticketLeft, canAd });
+  }
+
+  /**
+   * 玩家在复活面板上做了选择（面板只上报，动作全在这里）。
+   * @param choice `ticket` 用复活券 · `ad` 看广告 · `giveup` 放弃本局
+   */
+  private onReviveChoice(choice: ReviveChoice): void {
+    if (!this.revivePending) return;
+
+    if (choice === 'ticket') {
+      // 扣券与判据同源：扣不动（存量刚被别处扣掉）就重画一次面板，而不是白送一次复活
+      if (!DataCenter.ins.bagData.consumeItem(BAG_ITEM_KEY.reviveTicket, 1)) {
+        const left = DataCenter.ins.bagData.getCount(BAG_ITEM_KEY.reviveTicket);
+        this.revivePrompt?.show({ ticketLeft: left, canAd: this.adRevivesLeft > 0 && AdMgr.inst.isAvailable('revive') });
+        return;
+      }
+      this.finishRevive(`用 1 张局内复活券复活（背包剩 ${DataCenter.ins.bagData.getCount(BAG_ITEM_KEY.reviveTicket)} 张）`);
+      return;
+    }
+
+    if (choice === 'ad') {
+      if (this.adRevivesLeft <= 0) return;
+      this.playRewardAd('revive').then((ok) => {
+        if (!this.node || !this.node.isValid) return;
+        if (!ok) {
+          // 没看完 = 不发奖（`AdMgr` 的既定语义）；面板留着，玩家还能选券或放弃
+          this.uiView?.showFloatText(AdMgr.inst.hasProvider ? '看完视频才能复活' : '广告暂不可用');
+          return;
+        }
+        this.adRevivesLeft--;
+        this.finishRevive(`看广告复活（本局还剩 ${this.adRevivesLeft} 次）`);
+      });
+      return;
+    }
+
+    this.giveUpRevive('hero_giveup');
+  }
+
+  /** 复活成功：收起面板 → 满血 → 解除暂停（本局继续） */
+  private finishRevive(reason: string): void {
+    this.revivePending = false;
+    this.revivePrompt?.hide();
+    this.hero?.FullHeal();
+    this.battleStore.isPaused = false;
+    this.syncHeroToStore();
+    ezgame.info(`[复活] ${reason} → 满血继续本局（第 ${this.stage} 阶段，存活 ${this.elapsed.toFixed(0)}s）`);
+  }
+
+  /** 放弃复活 → 本局判负（与旧的"英雄阵亡"同一条收口，只换一个 reason 便于日志对账） */
+  private giveUpRevive(reason: string): void {
+    this.revivePending = false;
+    this.revivePrompt?.hide();
+    if (this.hero && !this.hero.IsDead()) this.hero.Die();
+    this.endRun('defeat', reason);
+  }
+
+  /* ===================================================================
    * 本局结束 —— 唯一收口
    * =================================================================== */
 
@@ -2410,11 +2571,21 @@ export class Scene_Game_Stage extends BaseView {
       const next = DataCenter.ins.levelData.getUnlockedLevel();
       ezgame.info(`[难度] 通关 ${levelLabel(this.difficulty)}`
         + (advanced ? ` → 已解锁 ${levelLabel(next)}` : '（已通关过，进度不变）'));
+
+      // 通关 → 发**通用英雄经验**（英雄详情弹窗里花它升级，见 docs/hero-detail/README.md §4）。
+      // ⚠ 只有**通关**发：它是 `clearRewardHeroExpBase` 唯一的消费方，那个键的自述就是
+      //   "通关局外英雄经验基数（结算时按配置发）"；中途退出走 `exit()` 不调 `endRun`，所以不发。
+      // ⚠ 与「任务领奖发账号经验/金币」不冲突：那是**另一条轴**（账号等级与经济），
+      //   英雄经验只买英雄等级、没有第二个出口，所以留在结算里发（见下面的说明）。
+      const heroExp = DataCenter.ins.grantClearHeroExp(this.difficulty);
+      if (heroExp > 0) {
+        ezgame.info(`[英雄经验] 通关结算 +${heroExp}（难度 ${levelLabel(this.difficulty)} 收益系数参与计算）`);
+      }
     }
 
-    // ⚠ 这里**不再发局外奖励**（旧版在此一次性发账号经验/英雄经验）。
-    //   现在的口径是「**完成任务才发奖**」：本局只把结算数据**上报成任务进度**，
-    //   玩家在任务界面点「领取」时由 DataCenter.grantTaskReward 发账号经验 + 金币。
+    // ⚠ 除上面那笔**英雄经验**外，这里**不再发局外奖励**（旧版在此一次性发账号经验/英雄经验）。
+    //   账号经验与金币的口径是「**完成任务才发奖**」：本局只把结算数据**上报成任务进度**，
+    //   玩家在任务界面点「领取」时由 DataCenter.grantTaskReward 发放。
     this.reportRunTasks(this.victory);
 
     this.battleStore.isGameOver = true;

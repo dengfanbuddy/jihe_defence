@@ -10,11 +10,18 @@ import { TaskScopeEvents } from './TaskScope';
 
 const { ccclass, property } = _decorator;
 
-/** 页签配色（作者摆的两态色：选中青 / 未选中浅灰） */
-const TAB_ACTIVE_BG = '#3F9E9B';
+/**
+ * 页签两态 —— **与工程里另一个「2 个页签」的条同一套口径**
+ * （`Cmp_FuncTabs` 的左侧一级菜单 / `Cmp_OuterRelics` 的遗物页子页签：
+ * 选中 = 深板岩药丸底 + 白字，未选中 = 无底 + 深墨字）：
+ *   · 选中底 `#5C676E` 就是风格预设里的 `c-ink-pill`（文档 §6「选中药丸整块高亮，不是只变文字色」）
+ *   · 未选中底写的是**纸面底色**（`View_TaskUI.prefab` 的全屏底也是它）→ 观感上等于"没有底"，
+ *     与遗物页那种"格子干脆不摆底图"一致。⚠ 哪天改了全屏底色，这里要一起改。
+ */
+const TAB_ACTIVE_BG = '#5C676E';
 const TAB_ACTIVE_LABEL = '#FFFFFF';
-const TAB_INACTIVE_BG = '#E3E8E8';
-const TAB_INACTIVE_LABEL = '#3F9E9B';
+const TAB_INACTIVE_BG = '#EFEEED';
+const TAB_INACTIVE_LABEL = '#354047';
 
 /**
  * View_TaskUI.ts — 任务界面（日任务 / 周任务）
@@ -148,7 +155,7 @@ export class View_TaskUI extends BaseView {
         }
     }
 
-    /** 页签两态：选中 = 青底白字，未选中 = 浅灰底青字 */
+    /** 页签两态：选中 = 深板岩药丸底 + 白字，未选中 = 无底（纸面底）+ 深墨字 */
     private applyTabs(): void {
         this.applyTab(this.dailyTabBtn, this.dailyTabLabel, this.activeType === 'daily');
         this.applyTab(this.weeklyTabBtn, this.weeklyTabLabel, this.activeType === 'weekly');
@@ -156,8 +163,11 @@ export class View_TaskUI extends BaseView {
 
     private applyTab(btn: Button, label: Label, active: boolean): void {
         if (!btn) return;
-        // 关掉 Button 的 Color 过渡：它的 normalColor 是作者摆的固定色，
-        // 悬停/按下后会按它自己那套恢复，把我们写进去的选中态冲掉
+        // 关掉 Button 的 Color 过渡，底色完全由这里写 Sprite。
+        // ⚠ 两种写法只能选一种：开着 COLOR 过渡时 Button 会用 normalColor 覆盖**同一节点上**的 Sprite
+        //   （作者摆的两态色会被冲掉）；而 `transition = NONE` 之后 Button **再也不碰**颜色
+        //   （`_applyTransition` 只在 COLOR/SPRITE/SCALE 三个分支里改目标，此时写 normalColor 是死代码）
+        //   —— 所以关掉过渡之后，颜色的唯一写入方必须是本函数。与 `TaskItem.applyState` 同一套路。
         btn.transition = Button.Transition.NONE;
         const sprite = btn.getComponent(Sprite);
         if (sprite) sprite.color = new Color().fromHEX(active ? TAB_ACTIVE_BG : TAB_INACTIVE_BG);

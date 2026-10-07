@@ -996,8 +996,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 45.556640625,
-      "height": 50.4
+      "width": 36.4453125,
+      "height": 20.16
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1035,10 +1035,10 @@
     "_string": "详 情",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 20,
-    "_fontSize": 20,
+    "_actualFontSize": 16,
+    "_fontSize": 16,
     "_fontFamily": "Arial",
-    "_lineHeight": 40,
+    "_lineHeight": 16,
     "_overflow": 0,
     "_enableWrapText": true,
     "_font": null,
@@ -1210,7 +1210,7 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 192.402,
+      "x": 162.4,
       "y": 62.042,
       "z": 0
     },
@@ -1260,7 +1260,7 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 0,
+      "x": -40,
       "y": 0,
       "z": 0
     },
@@ -1301,8 +1301,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 45.556640625,
-      "height": 50.4
+      "width": 60,
+      "height": 40
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1340,11 +1340,11 @@
     "_string": "解 锁",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 20,
-    "_fontSize": 20,
+    "_actualFontSize": 16,
+    "_fontSize": 16,
     "_fontFamily": "Arial",
-    "_lineHeight": 40,
-    "_overflow": 0,
+    "_lineHeight": 16,
+    "_overflow": 1,
     "_enableWrapText": true,
     "_font": null,
     "_isSystemFontUsed": true,
@@ -1419,8 +1419,8 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": -89.952,
-      "y": -1.972,
+      "x": 7,
+      "y": 0,
       "z": 0
     },
     "_lrot": {
@@ -1460,8 +1460,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 26,
-      "height": 26
+      "width": 22,
+      "height": 22
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1555,8 +1555,8 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": -72.9,
-      "y": -2.005,
+      "x": 45,
+      "y": 0,
       "z": 0
     },
     "_lrot": {
@@ -1596,12 +1596,12 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 22.24609375,
-      "height": 25.2
+      "width": 46,
+      "height": 22
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
-      "x": 0,
+      "x": 0.5,
       "y": 0.5
     },
     "_id": ""
@@ -1635,11 +1635,11 @@
     "_string": "2k",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 20,
-    "_fontSize": 20,
+    "_actualFontSize": 16,
+    "_fontSize": 16,
     "_fontFamily": "Arial",
-    "_lineHeight": 20,
-    "_overflow": 0,
+    "_lineHeight": 16,
+    "_overflow": 1,
     "_enableWrapText": true,
     "_font": null,
     "_isSystemFontUsed": true,
@@ -1705,7 +1705,7 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 80,
+      "width": 140,
       "height": 40
     },
     "_anchorPoint": {
@@ -1842,7 +1842,7 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 60,
-      "height": 50.4
+      "height": 25.2
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1872,9 +1872,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 80,
-      "g": 79,
-      "b": 78,
+      "r": 68,
+      "g": 80,
+      "b": 84,
       "a": 255
     },
     "_string": "火枪手",
@@ -1883,7 +1883,7 @@
     "_actualFontSize": 20,
     "_fontSize": 20,
     "_fontFamily": "Arial",
-    "_lineHeight": 40,
+    "_lineHeight": 20,
     "_overflow": 0,
     "_enableWrapText": true,
     "_font": null,
@@ -2334,7 +2334,7 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 11.123046875,
-      "height": 50.4
+      "height": 25.2
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2375,7 +2375,7 @@
     "_actualFontSize": 20,
     "_fontSize": 20,
     "_fontFamily": "Arial",
-    "_lineHeight": 40,
+    "_lineHeight": 20,
     "_overflow": 0,
     "_enableWrapText": true,
     "_font": null,
@@ -2442,8 +2442,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 25.013671875,
-      "height": 22.68
+      "width": 22.234375,
+      "height": 20.16
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2473,18 +2473,18 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 80,
-      "g": 79,
-      "b": 79,
+      "r": 68,
+      "g": 80,
+      "b": 84,
       "a": 255
     },
     "_string": "LV.",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 18,
-    "_fontSize": 18,
+    "_actualFontSize": 16,
+    "_fontSize": 16,
     "_fontFamily": "Arial",
-    "_lineHeight": 18,
+    "_lineHeight": 16,
     "_overflow": 0,
     "_enableWrapText": true,
     "_font": null,
@@ -2825,9 +2825,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 77,
-      "g": 77,
-      "b": 77,
+      "r": 106,
+      "g": 105,
+      "b": 107,
       "a": 255
     },
     "_string": "最大生命",
@@ -3377,9 +3377,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 77,
-      "g": 77,
-      "b": 77,
+      "r": 106,
+      "g": 105,
+      "b": 107,
       "a": 255
     },
     "_string": "攻击力",
@@ -3929,9 +3929,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 77,
-      "g": 77,
-      "b": 77,
+      "r": 106,
+      "g": 105,
+      "b": 107,
       "a": 255
     },
     "_string": "护甲",
@@ -4481,9 +4481,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 77,
-      "g": 77,
-      "b": 77,
+      "r": 106,
+      "g": 105,
+      "b": 107,
       "a": 255
     },
     "_string": "攻击距离",
@@ -4903,7 +4903,7 @@
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
+      "__uuid__": "ad3ce0b3-ef4e-4ece-a1f1-50b513f34132@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 1,
@@ -4983,13 +4983,13 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 182,
-      "g": 186,
-      "b": 190,
+      "r": 216,
+      "g": 216,
+      "b": 216,
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
+      "__uuid__": "ad3ce0b3-ef4e-4ece-a1f1-50b513f34132@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 1,
@@ -5099,7 +5099,7 @@
       "__id__": 75
     },
     "lvLabel": {
-      "__id__": 99
+      "__id__": 94
     },
     "expBar": {
       "__id__": 201
@@ -5108,7 +5108,7 @@
       "__id__": 82
     },
     "actionSprite": {
-      "__id__": 58
+      "__id__": 69
     },
     "actionLabel": {
       "__id__": 52

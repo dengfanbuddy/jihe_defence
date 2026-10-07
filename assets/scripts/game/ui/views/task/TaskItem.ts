@@ -22,8 +22,8 @@ const STATE_STYLE: Record<TaskState, { text: string; bg: string; labelColor: str
     claimed: { text: '已领取', bg: '#E0E4E4', labelColor: '#9AA6A6' },
 };
 
-/** 任务名（标题）色：可领奖时高亮，其余用预制件的深墨色 */
-const TITLE_COLOR_NORMAL = '#2F3A3C';
+/** 任务名（标题）色：可领奖时高亮，其余用预制件的深墨色（ink-900，与 `task_item_1.prefab` 的 title 实配同值） */
+const TITLE_COLOR_NORMAL = '#445054';
 const TITLE_COLOR_CLAIMABLE = '#3F9E9B';
 
 /** 进度条满宽兜底（预制件 progress_bg 宽 250；找不到父节点时用它） */

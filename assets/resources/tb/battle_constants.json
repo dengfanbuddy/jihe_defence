@@ -57,5 +57,35 @@
     12,
     20
   ],
-  "pxPerMeter": 50
+  "pxPerMeter": 50,
+  "reviveAdPerRun": 1,
+  "outerDrawCostBase": 200,
+  "outerDrawCostStep": 100,
+  "outerDrawCostCap": 600,
+  "shopAdDailyTotalLimit": 14,
+  "shopAdCardNeedWatches": 84,
+  "shopAdCardHours": 24,
+  "shopStreakMuls": [
+    1,
+    1,
+    1.5,
+    1.5,
+    1.5,
+    1.5,
+    2
+  ],
+  "shopStreakGiftDay": 7,
+  "shopStreakGiftTickets": 1,
+  "shopBoostTicketValues": {
+    "run_start_gold": 50,
+    "shop_option_plus": 1,
+    "shop_draw_discount": 10,
+    "ad_free_draw": 1,
+    "kill_buff_discount": 10,
+    "gold_gain_bonus": 5,
+    "battle_exp_bonus": 5,
+    "hero_start_level": 1,
+    "hero_select_free": 1,
+    "relic_start_gift": 1
+  }
 }

@@ -249,6 +249,42 @@
     color: var(--dsw-alias-state-error-primary);
 }
 
+/* 「没搜完」是**警告**不是错误：结果能用，但覆盖面不全（理由写在文案里） */
+.dsh-history-note[data-tone="warn"] {
+    color: var(--dsw-alias-state-warn-primary, var(--dsw-alias-label-primary));
+}
+
+/* 搜索行：输入框占满，右边一颗按钮（内容窄的时候按钮不许被压扁） */
+.dsh-history-searchrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 6px;
+}
+
+.dsh-history-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+    color: var(--dsw-alias-label-primary);
+    font: var(--dsw-font-xxs-12);
+    outline: none;
+}
+
+.dsh-history-search::placeholder {
+    color: var(--dsw-alias-label-caption);
+}
+
+.dsh-history-searchrow .dsh-btn {
+    flex: 0 0 auto;
+    background: var(--dsw-alias-bg-layer-1);
+    box-shadow: var(--dsw-elevation-stroke);
+}
+
 .dsh-history-list {
     display: flex;
     flex-direction: column;
@@ -256,18 +292,20 @@
     gap: 4px;
 }
 
-/* 一条会话 = 一个按钮（整块可点，键盘也能用） */
+/*
+ * 一条会话 = 一坨 `div`，里面**可点的部分**是一颗 `.dsh-history-open` 按钮。
+ *
+ * ⚠ 为什么不是「整行一颗按钮」：这一行里现在还有导出/删除按钮，按钮套按钮既不是合法
+ * HTML，点击事件也会互相打架（点删除会连带把会话打开）。所以外壳只负责布局。
+ */
 .dsh-history-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 7px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 7px 5px;
     border: 1px solid transparent;
     border-radius: var(--dsw-radius-m, 8px);
     background: var(--dsw-alias-bg-layer-1);
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
 }
 
 .dsh-history-item:hover {
@@ -276,6 +314,18 @@
 
 .dsh-history-item[data-current="true"] {
     border-color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-history-open {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 1px 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
 }
 
 .dsh-history-item-title {
@@ -293,6 +343,105 @@
     margin-top: 3px;
     font: var(--dsw-font-xxs-12);
     color: var(--dsw-alias-label-secondary);
+}
+
+/* 行内动作条（导出 md / 导出 jsonl / 删）：靠右，平时低调，hover 才亮 */
+.dsh-history-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.dsh-history-actions[data-confirm="true"] {
+    justify-content: flex-start;
+}
+
+.dsh-mini-btn {
+    padding: 2px 7px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--dsw-alias-bg-base);
+    box-shadow: var(--dsw-elevation-stroke);
+    color: var(--dsw-alias-label-secondary);
+    font: var(--dsw-font-xxxs-11);
+    cursor: pointer;
+}
+
+.dsh-mini-btn:hover {
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.dsh-mini-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* 删除是**不可逆**的：红色文字但不填色（填色会把整行变成一块警告牌） */
+.dsh-mini-danger {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-history-confirm-text {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-state-error-primary);
+    overflow-wrap: anywhere;
+}
+
+/* 二次确认条上那个「顺带回收无引用附件」的勾。
+   它做得很低调（小字、次要色、不抢视线），因为它是**可选的、默认不勾的**，
+   而且是**分钟级**操作：附件是不可重建的（DSH 官方口径 "Images are kept forever"），
+   所以回收必须是用户明确点的，不能长得像一个顺手就会按的按钮。 */
+.dsh-history-reclaim {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.dsh-history-reclaim input {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* 搜索命中：片段列表 */
+.dsh-history-snippets {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 2px 3px;
+}
+
+.dsh-history-snippet {
+    display: flex;
+    gap: 5px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-history-snippet-label {
+    flex: 0 0 auto;
+    color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-history-snippet-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* 「搜到的就是这一条」：滚过去之后高亮几秒（4 秒后由面板摘掉这个标记） */
+.dsh-body [data-hit="true"] {
+    border-left: 2px solid var(--dsw-alias-state-business-primary);
+    padding-left: 6px;
+    border-radius: 4px;
+    background: var(--dsw-alias-interactive-bg-hover-accent);
 }
 
 .dsh-history-empty {
@@ -397,6 +546,521 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     margin: 10px 0 6px;
+}
+
+/* ---------------------------------------------------------------- 用量（token / 上下文占用） */
+/*
+   为什么是**抽屉**而不是塞进状态行：状态行只有 11px 高，面板还能窄到 380px ——
+   那里只放得下**一个**数（上下文占用率，就是那颗 chip）。而这块真正有用的是七八项，
+   外加几条必须一起说出来的口径（检查点是攒着写的、组成是估算的、花费本 profile 没有）。
+   所以 chip 负责「一眼比大小」，抽屉负责「说清楚」。
+
+   摆法与历史会话 / 图片选择器完全一致：`.dsh-root` 的直接子元素、夹在对话区与输入区之间 ——
+   不做浮层（窄面板里浮层会盖住对话，而这块东西本来就是「看一眼就关」的）。
+*/
+.dsh-usage {
+    flex: 0 0 auto;
+    max-height: 62%;
+    overflow: auto;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-usage[hidden] {
+    display: none;
+}
+
+.dsh-usage-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-usage-title {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xs-13);
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-usage-note {
+    padding: 6px 12px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-usage-note[data-tone="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-usage-note[data-tone="warn"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-usage-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px 10px;
+}
+
+/* 占用条：**只画「预估 / 窗口」这一条**。估算组成不往这条上堆 ——
+   它俩不是一个口径（上游 README 明说加起来对不上），堆在一条上等于用一个假总数骗人。 */
+.dsh-usage-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--dsw-alias-bg-base);
+    box-shadow: var(--dsw-elevation-stroke);
+    overflow: hidden;
+}
+
+.dsh-usage-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--dsw-alias-state-business-primary);
+    transition: width 0.2s ease;
+}
+
+.dsh-usage-fill[data-tone="warn"] {
+    background: var(--dsw-alias-state-warn-primary);
+}
+
+.dsh-usage-fill[data-tone="danger"] {
+    background: var(--dsw-alias-state-error-primary);
+}
+
+/* 一块说明（占用 / 本会话累计 / 回合与耗时…）：标题 + 若干「标签 值」行 */
+.dsh-usage-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 8px;
+    border-radius: var(--dsw-radius-m, 8px);
+    background: var(--dsw-alias-bg-layer-1);
+}
+
+.dsh-usage-block-title {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-usage-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font: var(--dsw-font-xxs-12);
+}
+
+.dsh-usage-label {
+    flex: 0 0 auto;
+    color: var(--dsw-alias-label-secondary);
+}
+
+.dsh-usage-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    color: var(--dsw-alias-label-primary);
+    overflow-wrap: anywhere;
+}
+
+/* 数字列对齐用等宽：`1.00M` 与 `88.8k` 混排时，比例字体会让小数点跳来跳去 */
+.dsh-usage-value[data-mono="true"] {
+    font-family: var(--ds-font-family-code);
+}
+
+/* 那几条口径说明：小字、低对比、每条一行 —— 它们不是装饰，是让数字可判读的部分 */
+.dsh-usage-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-usage-notes-item {
+    padding-left: 10px;
+    position: relative;
+    overflow-wrap: anywhere;
+}
+
+.dsh-usage-notes-item::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+}
+
+/* 数据来源与水位：这一行是「这个数字有多新」的唯一答案，别省 */
+.dsh-usage-source {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+    overflow-wrap: anywhere;
+}
+
+/* 状态行那颗 chip：没数据时整颗藏起来（0% 会假装「用得很省」） */
+.dsh-usage-chip {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--dsw-alias-bg-base);
+    box-shadow: var(--dsw-elevation-stroke);
+    color: var(--dsw-alias-label-secondary);
+    font: var(--dsw-font-xxxs-11);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.dsh-usage-chip[hidden] {
+    display: none;
+}
+
+.dsh-usage-chip:hover {
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.dsh-usage-chip[data-tone="warn"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-usage-chip[data-tone="danger"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+/* ---------------------------------------------------------------- 进度（清单 / 目标 / 回合目录） */
+/*
+    与用量抽屉同一个摆法（`.dsh-root` 直接子元素、不做浮层），也同一个理由：
+    状态行只放得下**一个**比例（那颗「待办 3/8」chip），而这块是三件事：
+    现在在做哪几步、这一局在追什么目标、整个日志一共聊了哪几轮（还能点着跳）。
+
+    内部的「一块说明」「一行标签值」直接复用 `.dsh-usage-block` / `.dsh-usage-line` ——
+    它们本来就是通用件（标题 + 若干行），没必要为同一件事写两套长得一样的样式
+    （写两套的下场是改了一处忘了另一处，两个抽屉慢慢长得不一样）。
+    这里只写三块**独有**的东西：抽屉外壳、清单条目、回合条目。
+*/
+.dsh-progress {
+    flex: 0 0 auto;
+    max-height: 62%;
+    overflow: auto;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-progress[hidden] {
+    display: none;
+}
+
+.dsh-progress-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-progress-title {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xs-13);
+    color: var(--dsw-alias-label-primary);
+}
+
+/* 头部那行口径（来源 / 水位 / 落后）：与用量抽屉同一条纪律 —— sticky、永远可见 */
+.dsh-progress-note {
+    padding: 6px 12px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-progress-note[data-tone="error"] {
+    color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-progress-note[data-tone="warn"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-progress-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px 10px;
+}
+
+/* ---- 待办清单 ---- */
+
+.dsh-todo-count {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+}
+
+.dsh-todo {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.dsh-todo-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 0;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+}
+
+/*
+    状态标记用**文字符号**而不是图标：面板里没有图标资源，而这三个符号在任何字体里都有。
+    颜色只回答「这条什么状态」，不额外发明配色（沿用面板已有的三级文字色 + 业务色）。
+*/
+.dsh-todo-mark {
+    flex: 0 0 auto;
+    width: 1em;
+    text-align: center;
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-todo-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* 做完了：压低对比度（划线会让十几条挤在一起时很难读，中文尤其） */
+.dsh-todo-item[data-status="completed"] {
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-todo-item[data-status="completed"] .dsh-todo-mark {
+    color: var(--dsw-alias-state-success-primary);
+}
+
+/* 正在做：整条提亮到主文字色 —— 一眼扫过去先看到它 */
+.dsh-todo-item[data-status="in_progress"] {
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-todo-item[data-status="in_progress"] .dsh-todo-mark {
+    color: var(--dsw-alias-state-business-primary);
+}
+
+/* ---- 回合目录 ---- */
+
+.dsh-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 5px 7px;
+    border: 0;
+    border-left: 2px solid var(--dsw-alias-border-l2);
+    border-radius: 0 var(--dsw-radius-s, 6px) var(--dsw-radius-s, 6px) 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+
+/* 能跳的才有指针与悬停底色；跳不了的（那一轮已经被 600 条上限挤掉）保持朴素 */
+.dsh-turn[data-jump="true"] {
+    cursor: pointer;
+}
+
+.dsh-turn[data-jump="true"]:hover {
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.dsh-turn[data-current="true"] {
+    border-left-color: var(--dsw-alias-state-business-primary);
+}
+
+.dsh-turn-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-turn-no {
+    font-family: var(--ds-font-family-code);
+}
+
+.dsh-turn-prompt {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-turn-response {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    overflow-wrap: anywhere;
+}
+
+/* 还没结束的那一轮：草稿是**正在长**的，用斜体与低对比度区分于已定稿的回复 */
+.dsh-turn-draft {
+    font: var(--dsw-font-xxs-12);
+    font-style: italic;
+    color: var(--dsw-alias-label-tertiary);
+    overflow-wrap: anywhere;
+}
+
+/* 状态行那颗「待办 x/y」：与用量 chip 同一颗样式，只有一处不同 ——
+   清单是**上一轮**的时候要看得出来（见 renderProgressChip 的 tone） */
+.dsh-progress-chip[data-tone="stale"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+/* ---------------------------------------------------------------- 活动（后台任务 / 子 agent） */
+/*
+    与用量/进度抽屉同一个摆法（`.dsh-root` 直接子元素、夹在对话区与输入区之间、不做浮层）。
+    内部同样复用 `.dsh-usage-block` / `.dsh-usage-source` / `.dsh-usage-notes` 那几个通用件，
+    这里只写这块**独有**的：抽屉外壳与每一行（job / 子 agent）。
+
+    为什么外壳要 `max-height: 62% + overflow: auto` 与另外两个抽屉一样：
+    job 的 label 可能是**整条命令原文**（pwsh 就是这么传的），行会很高；
+    不设上限的话抽屉会把对话区挤没（最底下的说明也就永远看不到了）。
+*/
+.dsh-activity {
+    flex: 0 0 auto;
+    max-height: 62%;
+    overflow: auto;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-activity[hidden] {
+    display: none;
+}
+
+.dsh-activity-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--dsw-alias-bg-layer-2);
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.dsh-activity-title {
+    flex: 1 1 auto;
+    font: var(--dsw-font-xs-13);
+    color: var(--dsw-alias-label-primary);
+}
+
+/* 头部那行口径（读到几点 / 服务没挂 / agent 没在跑）：与另外两个抽屉同一条纪律 —— 永远可见 */
+.dsh-activity-note {
+    padding: 6px 12px;
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-activity-note[data-tone="warn"] {
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-activity-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px 10px;
+}
+
+.dsh-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* 一行一项（job 或子 agent）；状态色只在左边一条竖线上，别把整行染色 */
+.dsh-activity-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px 6px 10px;
+    background: var(--dsw-alias-bg-base);
+    border-radius: 6px;
+    box-shadow: var(--dsw-elevation-stroke);
+    border-left: 2px solid var(--dsw-alias-border-l2);
+}
+
+.dsh-activity-item[data-tone="busy"] {
+    border-left-color: var(--dsw-alias-state-warn-primary);
+}
+
+.dsh-activity-item[data-tone="done"] {
+    border-left-color: var(--dsw-alias-state-success-primary);
+}
+
+.dsh-activity-item[data-tone="error"] {
+    border-left-color: var(--dsw-alias-state-error-primary);
+}
+
+.dsh-activity-item[data-tone="warn"] {
+    border-left-color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-activity-item-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.dsh-activity-badge {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-primary);
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    white-space: nowrap;
+}
+
+/* job 的种类（pwsh / bash / subagent…）与 id 都是**辅助信息**，别跟状态抢视线 */
+.dsh-activity-kind,
+.dsh-activity-id {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap;
+}
+
+/* 命令原文可能很长：换行而不是溢出（面板很窄，横向滚动条会盖住内容） */
+.dsh-activity-label {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.dsh-activity-meta {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+/* 「中断当前一轮」：贴着行的右边，比正常按钮小一号（它不是这一行的主行动） */
+.dsh-activity-stop {
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.dsh-activity-chip[data-tone="busy"] {
+    color: var(--dsw-alias-state-warn-label);
 }
 
 /* ---------------------------------------------------------------- 转写区 */
@@ -1265,3 +1929,432 @@
     text-overflow: ellipsis;
     text-align: right;
 }
+
+/* ---------------------------------------------------------------- 交互块 */
+/*
+ * 「模型在等你拍板」的那块：提问 / 授权请求 / 计划评审三合一。
+ *
+ * 三条口径：
+ * 1. **不占位**：没有交互时整块 `hidden`（窄面板里高度是稀缺资源）；有交互时它夹在
+ *    对话区与输入区之间 —— 是同一列里的一个块，不是盖在对话上的浮层。
+ * 2. **必须能收缩**：`detail`（计划评审时是整份计划 markdown）可以有几千字，所以给它
+ *    自己的滚动区（`max-height` + `overflow:auto`），否则会把输入框顶出屏幕。
+ * 3. **动作语义一眼分得开**：「允许一次」走 success 色，「拒绝」是普通按钮，「✕」只做
+ *    取消（关掉不答）—— 三件事在 DSH 那边是三个不同的结果。
+ */
+
+.dsh-interaction {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    max-height: 52vh;
+    overflow-y: auto;
+    border-top: 1px solid var(--dsw-alias-border-l2);
+    background: var(--dsw-alias-bg-layer-1);
+}
+
+.dsh-interaction-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    box-shadow: var(--dsw-elevation-stroke);
+    background: var(--dsw-alias-bg-layer-2);
+}
+
+/* 授权请求要显眼：它是「不点就没法继续」的那种 */
+.dsh-interaction-card[data-kind="approval"] {
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-state-warn-primary);
+}
+
+/* 计划评审：更"正式"的一档表面（它对应的是计划模式里那份计划） */
+.dsh-interaction-card[data-kind="plan"] {
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l3);
+}
+
+.dsh-interaction-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dsh-interaction-badge {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-brand-primary);
+}
+
+.dsh-interaction-card[data-kind="approval"] .dsh-interaction-badge {
+    background: var(--dsw-alias-state-warn-primary);
+}
+
+.dsh-interaction-source {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-interaction-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dsh-interaction-question-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dsh-interaction-header {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+    letter-spacing: 0.04em;
+}
+
+.dsh-interaction-question {
+    font: var(--dsw-font-s-14);
+    color: var(--dsw-alias-label-primary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-interaction-reason {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+/* 计划正文：自己的滚动区（见本节口径 2） */
+.dsh-interaction-detail {
+    max-height: 30vh;
+    overflow-y: auto;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--dsw-alias-bg-layer-3);
+    font: var(--dsw-font-markdown-base);
+    color: var(--dsw-alias-label-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-interaction-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.dsh-interaction-option {
+    padding: 3px 10px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-bg-layer-3);
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l3);
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.dsh-interaction-option:hover:not(:disabled) {
+    background: var(--dsw-alias-bg-layer-1);
+}
+
+/* 选中态：只用于多选 / 需要按「提交回答」的场合 */
+.dsh-interaction-option[data-on="1"] {
+    background: var(--dsw-alias-brand-primary);
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary);
+}
+
+/* 「批准」那一项：intent.approve 是**按名字**指定的，与选项顺序无关 */
+.dsh-interaction-option[data-role="approve"] {
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-state-success-primary);
+}
+
+.dsh-interaction-option:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.dsh-interaction-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-bg-base);
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
+}
+
+.dsh-interaction-input:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-brand-primary);
+}
+
+.dsh-interaction-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.dsh-interaction-allow {
+    background: var(--dsw-alias-state-success-primary);
+}
+
+.dsh-interaction-submit {
+    background: var(--dsw-alias-brand-primary);
+}
+
+/* ===========================================================================
+ * 输入触发器：`/` 斜杠命令表 与 `@` 路径候选（同一块，见面板的「输入触发器」一节）
+ * ===========================================================================
+ *
+ * 三条口径：
+ * 1. **不是浮层**：与历史抽屉/图片选择器同一个摆法（`.dsh-root` 的直接子元素、夹在
+ *    对话区与输入区之间）。窄面板里浮层要自己算位置，而输入框会长高、对话区会滚动 ——
+ *    结果是菜单飘到别处。
+ * 2. **高度有上限**：`max-height` + 自己滚动，否则命令表长起来会把对话区挤没。
+ * 3. **高亮只靠一条竖线与底色**：面板的强调色已经有品牌色/成功/警告三个语义，
+ *    这里再用一个颜色会变成第四种 —— 位置本身就是"选中"的最强信号（DSH 的命令菜单同理）。
+ */
+
+.dsh-popup {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px;
+    max-height: 30vh;
+    overflow-y: auto;
+    border-top: 1px solid var(--dsw-alias-border-l2);
+    background: var(--dsw-alias-bg-layer-1);
+}
+
+.dsh-popup-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 6px;
+    box-sizing: border-box;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    /* 高亮的竖线用 border-left 而不是 outline：outline 在窄行里会与相邻项贴在一起 */
+    border-left: 2px solid transparent;
+}
+
+.dsh-popup-item[data-active="true"] {
+    background: var(--dsw-alias-bg-layer-3);
+    border-left-color: var(--dsw-alias-brand-primary);
+}
+
+.dsh-popup-label {
+    flex: 0 0 auto;
+    max-width: 60%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font: var(--dsw-font-xxxs-11);
+    /* 路径/命令名是等宽语境（要能一眼看出 `/` 与 `@`），但字号跟面板正文走 */
+    font-family: var(--ds-font-family-code);
+    color: var(--dsw-alias-label-primary);
+}
+
+.dsh-popup-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+/* 语法表达不了的路径（含控制字符/内嵌引号）也画出来，但不可选 —— 静默消失更让人困惑 */
+.dsh-popup-item[data-disabled="true"] .dsh-popup-label {
+    color: var(--dsw-alias-label-tertiary);
+    text-decoration: line-through;
+}
+
+/* ---------------------------------------------------------------- 上下文增长曲线 */
+/*
+ * 用量抽屉里的那一块「上下文增长」：一根柱一次模型调用（点太多时是一个回合）。
+ *
+ * 四条布局口径（每一条都是为了「能看出形状」）：
+ * 1. **柱宽固定 + 横向滚动**：让容器去挤柱子的画法会把落差抹平，而落差正是这张图要看的东西
+ *    —— 所以柱宽由 JS 给（`style.width`），容器 `overflow-x: auto`；
+ * 2. **回合带与柱林在同一个滚动容器里**：分开两个容器的话滚起来会错位，而「哪一根柱属于
+ *    哪一轮」全靠它们对齐（错位等于没有回合带）；
+ * 3. **`✂` 画在柱子上方**（`top: -14px`，落在 plot 的 `padding-top` 里）：画在柱子顶上会被
+ *    最高的那根挡住，而 `overflow-x: auto` 的容器会把超出盒子的内容裁掉；
+ * 4. **估算柱用斜纹**：与实心柱在灰度上就分得开（不用多一种颜色 —— 这个面板的强调色
+ *    已经有品牌/成功/警告三个语义了）。
+ */
+.dsh-timeline-head {
+    font: var(--dsw-font-xxs-12);
+    color: var(--dsw-alias-label-primary);
+    overflow-wrap: anywhere;
+}
+
+.dsh-timeline-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+}
+
+/* 回合带：一整轮一条，交替底色 —— 「这一段是哪一轮」的最小可见依据 */
+.dsh-timeline-bands {
+    display: flex;
+    align-items: stretch;
+    height: 14px;
+}
+
+.dsh-timeline-band {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--dsw-alias-bg-base);
+}
+
+.dsh-timeline-band[data-alt="true"] {
+    background: var(--dsw-alias-bg-layer-3);
+}
+
+.dsh-timeline-band-label {
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 柱林：`padding-top` 是给 ✂ 留的那一格（见上面第 3 条） */
+.dsh-timeline-plot {
+    display: flex;
+    align-items: stretch;
+    height: 118px;
+    padding: 14px 0 0;
+}
+
+/* 一根柱一格：柱子贴底，压缩点的竖线占满整格 */
+.dsh-timeline-slot {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+}
+
+.dsh-timeline-bar {
+    width: 100%;
+    /* 1px 是**画素**下限，不是数据下限：真值是 0 的柱子在 tip 里照样写着 0 */
+    min-height: 1px;
+    border-radius: 2px 2px 0 0;
+    background: var(--dsw-alias-brand-primary);
+}
+
+/* 估算柱：斜纹（这一根用的是 total，不是 provider 实测的 prompt） */
+.dsh-timeline-bar[data-estimated="true"] {
+    background: repeating-linear-gradient(
+        45deg,
+        var(--dsw-alias-label-tertiary) 0 2px,
+        transparent 2px 4px
+    );
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-label-tertiary);
+}
+
+/* 有压缩的柱子提亮一点：竖线本身很细，柱子变色更容易先被看到 */
+.dsh-timeline-bar[data-cut="true"] {
+    background: var(--dsw-alias-state-warn-primary);
+}
+
+.dsh-timeline-bar[data-cut="true"][data-estimated="true"] {
+    background: repeating-linear-gradient(
+        45deg,
+        var(--dsw-alias-state-warn-primary) 0 2px,
+        transparent 2px 4px
+    );
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-state-warn-primary);
+}
+
+/* 压缩点：一条竖线（虚线）+ 顶上一个 ✂ */
+.dsh-timeline-cut {
+    position: absolute;
+    left: 50%;
+    top: -14px;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dashed var(--dsw-alias-state-warn-primary);
+}
+
+.dsh-timeline-cut-mark {
+    position: absolute;
+    top: 1px;
+    left: -4px;
+    font-size: 9px;
+    line-height: 1;
+    color: var(--dsw-alias-state-warn-label);
+}
+
+/* 图例：实心 / 斜纹 / ✂ 三格，一格一句话 */
+.dsh-timeline-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font: var(--dsw-font-xxxs-11);
+    color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-timeline-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dsh-timeline-swatch {
+    flex: 0 0 auto;
+    width: 12px;
+    height: 10px;
+    border-radius: 2px;
+    text-align: center;
+    line-height: 10px;
+    font-size: 9px;
+    background: var(--dsw-alias-brand-primary);
+}
+
+.dsh-timeline-swatch[data-swatch="estimated"] {
+    background: repeating-linear-gradient(
+        45deg,
+        var(--dsw-alias-label-tertiary) 0 2px,
+        transparent 2px 4px
+    );
+    box-shadow: inset 0 0 0 1px var(--dsw-alias-label-tertiary);
+}
+
+.dsh-timeline-swatch[data-swatch="cut"] {
+    background: transparent;
+    color: var(--dsw-alias-state-warn-label);
+}
+
+.dsh-timeline-legend-text {
+    overflow-wrap: anywhere;
+}
+

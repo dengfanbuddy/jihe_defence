@@ -1,5 +1,6 @@
 import { tb_config } from '../../platform/excel_table/TbConfigDecorator';
 import { TbContainer } from '../../platform/excel_table/TbContainer';
+import { TbRoot } from '../../platform/excel_table/TbRoot';
 
 /**
  * 遗物配置表（relics.json）——「一件遗物一行」
@@ -104,4 +105,23 @@ export function relicOuterDesc(relic: RelicCfg): string {
 @tb_config(':tb/relics')
 export class RelicCfgContainer extends TbContainer<RelicCfg> {
   getTbName(): string { return 'RelicCfg'; }
+}
+
+/**
+ * **局外池**：`scope` 含 `outer` 的那批遗物（现 37 件 = 28 件 both + 9 件仅局外）。
+ *
+ * ⚠ 为什么放在**表文件**而不是 `data/configs/EquipmentConfig`：这条过滤有**两个**调用方 ——
+ * 图鉴页（`EquipmentConfig.getOuterRelics`，也是成就 `relic_collected` 的数据源）与
+ * 局外抽取（`battle/OuterRelicDraw.outerPool`）。而 `EquipmentConfig` 为了算总加成
+ * **反向依赖了 `DataCenter`**，抽取侧再引它就成了模块循环依赖（本项目刻意回避，见
+ * `TaskData` 的宿主注入注释）。放在表容器这一层，两边都只是**向下**依赖，且过滤口径只有一份。
+ * 两个门面都只是转发到这里（改口径只改这一处）。
+ */
+export function getOuterRelicCfgs(): RelicCfg[] {
+    try {
+        return TbRoot.ins.getTbContainer(RelicCfgContainer).cfgs.filter((r) => relicHasOuter(r));
+    } catch {
+        // 配表未加载完成（启动早期）→ 回空数组，调用方各自决定怎么退化（图鉴空页 / 抽不出东西）
+        return [];
+    }
 }

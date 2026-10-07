@@ -98,17 +98,20 @@ export class ShopRelicsPanel extends UIWidget {
      * 刷新（宿主与各个 watcher 的公共出口）
      * =================================================================== */
 
-    /** 把 4 个格子铺到 item 上（空槽收起；本次已选过 → 剩余置灰或转「广告选取」） */
+    /** 把 4 个格子铺到 item 上（空槽收起；本次已选过 → 剩余置灰或转「广告/券选取」） */
     private refreshItems(): void {
         const slots: ShopSlotVM[] = this.shop ? this.shop.slots.value : [];
         const used = !!this.shop?.rollUsed.value;
         const adPick = used && !!this.shop?.adMode.value;
+        // 补选时的角标语义：背包里有广告券 → 「用 券」；没有 → 「看广告」。
+        // ⚠ 判据只有一处（`RelicShop.refreshGate().viaTicket`），面板不自己读背包
+        const ticketPick = adPick && !!this.shop?.refreshGate().viaTicket;
 
         for (let i = 0; i < this.items.length; i++) {
             const vm = slots?.[i] ?? null;
             const id = Number(vm?.id ?? 0);
-            // 已选过：普通模式下整格不可点；广告补选模式下剩余格变成「看广告可再选一个」
-            this.items[i].setItemInfo(vm, adPick ? 1 : 0);
+            // 已选过：普通模式下整格不可点；广告/券补选模式下剩余格变成「免看广告再选一个」
+            this.items[i].setItemInfo(vm, adPick ? (ticketPick ? 2 : 1) : 0);
             // selectable 由宿主给（本轮「拒发」的格子已在宿主侧置灰，例如技能槽全锁定）
             this.items[i].setSelectable(id > 0 && !!vm?.selectable && (!used || adPick));
         }

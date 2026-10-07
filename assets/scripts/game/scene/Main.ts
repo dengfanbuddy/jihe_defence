@@ -10,6 +10,10 @@ import '../data/configs/TaskConfig';
 import '../data/configs/LevelConfig';
 // 成就表（achievements.json）同理
 import '../data/configs/AchievementConfig';
+// 局外商城商品表（mall_items.json）同理；它还要读 battle_constants 的 shop* 常量
+import '../data/configs/MallConfig';
+// 通用道具表（bag_items.json）同理（局外背包 View_Bag 的道具字典）
+import '../data/configs/BagConfig';
 import { Scene_Menu } from '../ui/scenes/scene_menu/Scene_Menu';
 const { ccclass, property } = _decorator;
 

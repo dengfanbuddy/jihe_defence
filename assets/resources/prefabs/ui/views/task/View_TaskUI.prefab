@@ -171,8 +171,8 @@
     "_color": {
       "__type__": "cc.Color",
       "r": 239,
-      "g": 241,
-      "b": 241,
+      "g": 238,
+      "b": 237,
       "a": 255
     },
     "_spriteFrame": {
@@ -736,16 +736,16 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 47,
-      "g": 58,
-      "b": 60,
+      "r": 68,
+      "g": 80,
+      "b": 84,
       "a": 255
     },
     "_string": "任务",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 38,
-    "_fontSize": 38,
+    "_actualFontSize": 40,
+    "_fontSize": 40,
     "_fontFamily": "Arial",
     "_lineHeight": 51,
     "_overflow": 1,
@@ -908,7 +908,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -592,
+      "y": 521,
       "z": 0
     },
     "_lrot": {
@@ -964,8 +964,8 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": -118,
-      "y": 20,
+      "x": -175,
+      "y": 0,
       "z": 0
     },
     "_lrot": {
@@ -1055,8 +1055,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 230,
-      "height": 80
+      "width": 340,
+      "height": 30
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1094,8 +1094,8 @@
     "_string": "日任务",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 30,
-    "_fontSize": 30,
+    "_actualFontSize": 20,
+    "_fontSize": 20,
     "_fontFamily": "Arial",
     "_lineHeight": 41,
     "_overflow": 1,
@@ -1164,8 +1164,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 230,
-      "height": 80
+      "width": 340,
+      "height": 60
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1195,9 +1195,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 63,
-      "g": 158,
-      "b": 155,
+      "r": 92,
+      "g": 103,
+      "b": 110,
       "a": 255
     },
     "_spriteFrame": {
@@ -1240,23 +1240,23 @@
     "_transition": 1,
     "_normalColor": {
       "__type__": "cc.Color",
-      "r": 63,
-      "g": 158,
-      "b": 155,
+      "r": 92,
+      "g": 103,
+      "b": 110,
       "a": 255
     },
     "_hoverColor": {
       "__type__": "cc.Color",
-      "r": 59,
-      "g": 149,
-      "b": 146,
+      "r": 107,
+      "g": 118,
+      "b": 125,
       "a": 255
     },
     "_pressedColor": {
       "__type__": "cc.Color",
-      "r": 54,
-      "g": 134,
-      "b": 132,
+      "r": 76,
+      "g": 85,
+      "b": 91,
       "a": 255
     },
     "_disabledColor": {
@@ -1324,8 +1324,8 @@
     },
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 118,
-      "y": 20,
+      "x": 175,
+      "y": 0,
       "z": 0
     },
     "_lrot": {
@@ -1415,8 +1415,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 230,
-      "height": 80
+      "width": 340,
+      "height": 30
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1446,16 +1446,16 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 63,
-      "g": 158,
-      "b": 155,
+      "r": 53,
+      "g": 64,
+      "b": 71,
       "a": 255
     },
     "_string": "周任务",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
-    "_actualFontSize": 30,
-    "_fontSize": 30,
+    "_actualFontSize": 20,
+    "_fontSize": 20,
     "_fontFamily": "Arial",
     "_lineHeight": 41,
     "_overflow": 1,
@@ -1524,8 +1524,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 230,
-      "height": 80
+      "width": 340,
+      "height": 60
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1555,9 +1555,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 227,
-      "g": 232,
-      "b": 232,
+      "r": 239,
+      "g": 238,
+      "b": 237,
       "a": 255
     },
     "_spriteFrame": {
@@ -1600,23 +1600,23 @@
     "_transition": 1,
     "_normalColor": {
       "__type__": "cc.Color",
-      "r": 227,
-      "g": 232,
-      "b": 232,
+      "r": 239,
+      "g": 238,
+      "b": 237,
       "a": 255
     },
     "_hoverColor": {
       "__type__": "cc.Color",
-      "r": 213,
-      "g": 218,
-      "b": 218,
+      "r": 230,
+      "g": 229,
+      "b": 228,
       "a": 255
     },
     "_pressedColor": {
       "__type__": "cc.Color",
-      "r": 193,
-      "g": 197,
-      "b": 197,
+      "r": 216,
+      "g": 215,
+      "b": 214,
       "a": 255
     },
     "_disabledColor": {
@@ -1668,8 +1668,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 749.9999999999991,
-      "height": 150
+      "width": 709.9999999999995,
+      "height": 72
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -1694,12 +1694,12 @@
     "__prefab": {
       "__id__": 68
     },
-    "_alignFlags": 44,
+    "_alignFlags": 41,
     "_target": null,
-    "_left": 2.2737367544323206e-13,
-    "_right": 2.2737367544323206e-13,
-    "_top": 0,
-    "_bottom": 0,
+    "_left": 20,
+    "_right": 20,
+    "_top": 110,
+    "_bottom": 1152,
     "_horizontalCenter": 0,
     "_verticalCenter": 0,
     "_isAbsLeft": true,
@@ -1709,7 +1709,7 @@
     "_isAbsHorizontalCenter": true,
     "_isAbsVerticalCenter": true,
     "_originalWidth": 750,
-    "_originalHeight": 0,
+    "_originalHeight": 72,
     "_alignMode": 1,
     "_lockFlags": 0,
     "_id": ""
@@ -1762,7 +1762,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": 20,
+      "y": -71,
       "z": 0
     },
     "_lrot": {
@@ -1891,7 +1891,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": 537,
+      "y": 556,
       "z": 0
     },
     "_lrot": {
@@ -2106,7 +2106,7 @@
     "value": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -326,
+      "y": -334,
       "z": 0
     }
   },
@@ -2218,7 +2218,7 @@
     "value": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -534,
+      "y": -550,
       "z": 0
     }
   },
@@ -2330,7 +2330,7 @@
     "value": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -742,
+      "y": -766,
       "z": 0
     }
   },
@@ -2442,7 +2442,7 @@
     "value": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -950,
+      "y": -982,
       "z": 0
     }
   },
@@ -2554,7 +2554,7 @@
     "value": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -1158,
+      "y": -1198,
       "z": 0
     }
   },
@@ -2604,7 +2604,7 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 710,
-      "height": 1276
+      "height": 1316
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2642,7 +2642,7 @@
     "_paddingTop": 20,
     "_paddingBottom": 20,
     "_spacingX": 0,
-    "_spacingY": 12,
+    "_spacingY": 20,
     "_verticalDirection": 1,
     "_horizontalDirection": 0,
     "_constraint": 0,
@@ -2682,8 +2682,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 709.9999999999973,
-      "height": 1074
+      "width": 709.9999999999984,
+      "height": 1112
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2827,8 +2827,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 709.9999999999984,
-      "height": 1074
+      "width": 709.9999999999995,
+      "height": 1112
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2886,10 +2886,10 @@
     },
     "_alignFlags": 45,
     "_target": null,
-    "_left": 20.00000000000057,
-    "_right": 20.00000000000057,
-    "_top": 110,
-    "_bottom": 150,
+    "_left": 20,
+    "_right": 20,
+    "_top": 182,
+    "_bottom": 40,
     "_horizontalCenter": 0,
     "_verticalCenter": 0,
     "_isAbsLeft": true,

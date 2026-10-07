@@ -35,6 +35,17 @@ import * as path from 'path';
 
 import { type ToolReply } from '../constants';
 import {
+    captureSceneView,
+    cropToCssRect,
+    downscaleToWidth,
+    electronUnavailableReason,
+    encodeImage,
+    getElectron,
+    imageSizeOf,
+    invalidateSceneView,
+    listContents,
+} from '../capture';
+import {
     buildRecipeHelpers,
     RECIPE_HELPER_SIGNATURES,
     type RecipeRunner,
@@ -70,6 +81,10 @@ const SCENE_METHOD = {
     ping: 'ping',
     runCode: 'runCode',
     describeApi: 'describeApi',
+    /** 场景视图几何：Electron 截图靠它定位 webContents 并换算裁切矩形 */
+    viewMetrics: 'viewMetrics',
+    /** 取景 / 还原视角：「把整个场景塞进画布再截」靠它（见 captureView 的 fit 参数） */
+    fitView: 'fitView',
 } as const;
 
 /** 把任意异常收敛成一句话。 */
@@ -110,6 +125,241 @@ const sleep = (ms: number): Promise<void> =>
     });
 
 /**
+ * 图片像素探针 —— **素材级事实**：这张图到底长什么样、能不能染色。
+ *
+ * ## 为什么它必须在 editor 侧、靠 Electron
+ *
+ * 「这张图中心的 alpha 是不是 0」「主体是不是白的（能不能用 `Sprite.color` 染色）」
+ * 这类问题是**看图**，不是看场景。而：
+ *
+ * - **场景进程**里拿不到可靠解码路径（要自己上 canvas，且图集子帧/压缩格式各不一样）；
+ * - **Node 没有内置 PNG 解码器** —— 在 editor 沙箱里 `fs.readFileSync` 拿到的是一堆字节，
+ *   自己解析 IDAT/zlib 是几千行且白干；
+ * - ✅ **Electron 主进程的 `nativeImage.createFromPath()` + `toBitmap()`** 一次给到
+ *   BGRA 原始像素 —— 零依赖、任意常见格式、任意尺寸。`capture.ts` 抓图已经在用同一套。
+ *
+ * ## 它替掉的是什么
+ *
+ * 实测反复出现的三个问题，原先只能靠「打开图片看」或者**猜**：
+ *
+ * | 问题 | 原答案 | 现在 |
+ * |---|---|---|
+ * | `rect_rd_10.png` 存不存在 | 拼路径猜、读目录看一眼 | 一次调用，还给**相近名字** |
+ * | `rect_board_rd_10` 中心是空的（是"环"不是"板"） | 把白字放上去才发现看不见 | `center.a` = 0 |
+ * | `achivement.png` 是深色图形（**染不了色**） | 染了没用，再猜一轮 | `tint.whiteish = false` |
+ *
+ * ## 诚实的边界
+ *
+ * - 只吃**磁盘上的图片文件**。`db://internal/…`（引擎内置）不在工程目录，会明说而不是静默失败。
+ * - `.meta` 里读不到 uuid 时 `uuid` 为 null（**不影响像素结论**）。
+ * - 图集里的**子帧**：这里给的是**整张图**的坐标，要子帧自己用 SpriteFrame 的 `rect` 换算。
+ *
+ * @param ref 图片路径：`db://assets/…` / 工程相对 / 绝对，三者都行
+ * @param options.x 要精确读的那个像素的 x（**整图像素坐标**，原点左上）
+ * @param options.y 同上
+ */
+function probeImage(ref: unknown, options?: Record<string, unknown>): Record<string, unknown> {
+    const opts: Record<string, unknown> = options || {};
+    const raw = typeof ref === 'string' ? ref.trim() : '';
+    if (!raw) {
+        throw new Error("probe(ref)：要一个图片路径，例如 probe('db://assets/resources/textures/common/rect_rd_20.png')。");
+    }
+
+    let file = raw;
+    if (raw.indexOf('db://assets/') === 0) {
+        file = path.join(Editor.Project.path, 'assets', raw.slice('db://assets/'.length));
+    } else if (raw.indexOf('db://') === 0) {
+        throw new Error(
+            `probe：'${raw}' 指向的不是工程 assets 里的文件（db://internal 之类是引擎内置资源，磁盘上不在工程目录）。`,
+        );
+    }
+    if (!path.isAbsolute(file)) file = path.join(Editor.Project.path, file);
+
+    if (!fs.existsSync(file)) {
+        // 路径写错是最常见的原因 —— 顺手把同目录下名字相近的列出来，省一轮 listDir
+        let nearby: string[] = [];
+        try {
+            const base = path.basename(file).replace(/\.(png|jpe?g|webp)$/i, '').toLowerCase();
+            const stem = base.slice(0, Math.min(6, base.length));
+            nearby = fs
+                .readdirSync(path.dirname(file))
+                .filter((name) => name.toLowerCase().indexOf(stem) >= 0)
+                .slice(0, 8);
+        } catch {
+            nearby = [];
+        }
+        return { ok: false, path: file, exists: false, error: `文件不存在：${file}`, nearby };
+    }
+
+    let uuid: string | null = null;
+    try {
+        const metaFile = `${file}.meta`;
+        if (fs.existsSync(metaFile)) {
+            const meta = JSON.parse(fs.readFileSync(metaFile, 'utf-8')) as { uuid?: unknown };
+            if (meta && typeof meta.uuid === 'string') uuid = meta.uuid;
+        }
+    } catch {
+        /* 读不到就算了：像素结论不依赖它 */
+    }
+    /** 与 `audit:ui` 的 P4 同一条判据：引擎内置贴图 uuid 前缀 */
+    const engineBuiltin = Boolean(uuid && uuid.indexOf('7d8f9b89') === 0);
+
+    const electron = getElectron() as { nativeImage?: { createFromPath(p: string): any } } | null;
+    if (!electron || !electron.nativeImage || typeof electron.nativeImage.createFromPath !== 'function') {
+        return {
+            ok: false,
+            path: file,
+            exists: true,
+            uuid,
+            error: `拿不到 Electron 的 nativeImage（${electronUnavailableReason() || '当前不在主进程？'}），读不了像素。`,
+        };
+    }
+
+    let image: any;
+    let size: { width: number; height: number } = { width: 0, height: 0 };
+    let bitmap: Buffer;
+    try {
+        image = electron.nativeImage.createFromPath(file);
+        size = image.getSize();
+        if (!size.width || !size.height) {
+            return { ok: false, path: file, exists: true, uuid, error: 'nativeImage 解不开这张图（格式不认识？）。' };
+        }
+        bitmap = image.toBitmap(); // BGRA
+    } catch (err) {
+        return {
+            ok: false,
+            path: file,
+            exists: true,
+            uuid,
+            error: `解像素失败：${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+
+    /** BGRA → 一个像素。越界回 null（不抛）。 */
+    const pixelAt = (x: number, y: number): Record<string, number> | null => {
+        if (!(x >= 0 && y >= 0 && x < size.width && y < size.height)) return null;
+        const o = (y * size.width + x) * 4;
+        if (o + 3 >= bitmap.length) return null;
+        return { r: bitmap[o + 2], g: bitmap[o + 1], b: bitmap[o], a: bitmap[o + 3] };
+    };
+    const toHex = (px: Record<string, number> | null): string | null =>
+        px ? `#${[px.r, px.g, px.b, px.a].map((v) => v.toString(16).padStart(2, '0')).join('')}` : null;
+
+    // 全图统计（抽样，够下判断且不会被大图拖慢）
+    const total = size.width * size.height;
+    const step = Math.max(1, Math.floor(total / 20000));
+    let sampled = 0;
+    let transparent = 0;
+    let alphaMin = 255;
+    let alphaMax = 0;
+    let sumR = 0;
+    let sumG = 0;
+    let sumB = 0;
+    let opaqueCount = 0;
+    let whiteishCount = 0;
+    const colourTally = new Map<string, number>();
+    for (let i = 0; i < total; i += step) {
+        const px = pixelAt(i % size.width, Math.floor(i / size.width));
+        if (!px) continue;
+        sampled += 1;
+        if (px.a < alphaMin) alphaMin = px.a;
+        if (px.a > alphaMax) alphaMax = px.a;
+        if (px.a === 0) {
+            transparent += 1;
+            continue;
+        }
+        opaqueCount += 1;
+        sumR += px.r;
+        sumG += px.g;
+        sumB += px.b;
+        const maxC = Math.max(px.r, px.g, px.b);
+        const minC = Math.min(px.r, px.g, px.b);
+        if (px.a >= 200 && minC >= 200 && maxC - minC <= 24) whiteishCount += 1;
+        const key = `${px.r >> 5},${px.g >> 5},${px.b >> 5}`;
+        colourTally.set(key, (colourTally.get(key) || 0) + 1);
+    }
+
+    const meanOf = (sum: number): number => (opaqueCount > 0 ? Math.round(sum / opaqueCount) : 0);
+    const meanRGB = [meanOf(sumR), meanOf(sumG), meanOf(sumB)];
+    const whiteishRatio = opaqueCount > 0 ? Math.round((whiteishCount / opaqueCount) * 100) / 100 : 0;
+    const topColours = Array.from(colourTally.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map((entry) => {
+            const parts = entry[0].split(',').map((v) => (Number(v) << 5) | 16);
+            return {
+                hex: `#${parts.map((v) => Math.min(255, v).toString(16).padStart(2, '0')).join('')}`,
+                share: opaqueCount > 0 ? Math.round((entry[1] / opaqueCount) * 100) / 100 : 0,
+            };
+        });
+
+    const center = pixelAt(Math.floor(size.width / 2), Math.floor(size.height / 2));
+    const corners = {
+        tl: toHex(pixelAt(0, 0)),
+        tr: toHex(pixelAt(size.width - 1, 0)),
+        bl: toHex(pixelAt(0, size.height - 1)),
+        br: toHex(pixelAt(size.width - 1, size.height - 1)),
+    };
+    const cornerAlphas = [
+        pixelAt(0, 0),
+        pixelAt(size.width - 1, 0),
+        pixelAt(0, size.height - 1),
+        pixelAt(size.width - 1, size.height - 1),
+    ].map((px) => (px ? px.a : null));
+
+    /** 真正的那个问题：「这图能不能用 `Sprite.color` 染成任意色」 */
+    const canvasLike = cornerAlphas.every((a) => a === 0);
+    const tintNote = !canvasLike
+        ? '四角不全是透明 —— 它大概是一张**不透明底**的图（或圆角没铺满），染色会染到整块背景。'
+        : whiteishRatio >= 0.9
+          ? '主体接近白/灰且四角透明 —— 典型的**可染色**图标（`Sprite.color` 能把它变成任意颜色）。'
+          : whiteishRatio >= 0.4
+            ? '主体是浅色但不够纯白 —— 染色后**颜色会偏**（原色会透出来）。'
+            : '主体是**彩色/深色**的 —— 用 `Sprite.color` 染不出想要的颜色（深色只会更黑），要么换图要么别染。';
+
+    const out: Record<string, unknown> = {
+        ok: true,
+        path: file,
+        exists: true,
+        uuid,
+        engineBuiltin,
+        bytes: (() => {
+            try {
+                return fs.statSync(file).size;
+            } catch {
+                return null;
+            }
+        })(),
+        width: size.width,
+        height: size.height,
+        alpha: {
+            min: alphaMin,
+            max: alphaMax,
+            transparentRatio: sampled > 0 ? Math.round((transparent / sampled) * 100) / 100 : 0,
+        },
+        center: { rgba: center, hex: toHex(center) },
+        corners,
+        cornerAlphas,
+        fullBleed: cornerAlphas.every((a) => a !== null && a > 0),
+        meanRGB,
+        whiteishRatio,
+        tint: { canvasLike, whiteish: whiteishRatio >= 0.9, note: tintNote },
+        topColours,
+        sampledPixels: sampled,
+        note: '坐标都是**整张图**的像素（原点左上）；图集子帧要自己用 SpriteFrame 的 rect 换算。',
+    };
+
+    const wantX = Number(opts.x);
+    const wantY = Number(opts.y);
+    if (Number.isFinite(wantX) && Number.isFinite(wantY)) {
+        const px = pixelAt(Math.round(wantX), Math.round(wantY));
+        out.at = { x: Math.round(wantX), y: Math.round(wantY), rgba: px, hex: toHex(px) };
+        if (!px) out.atNote = `(${wantX}, ${wantY}) 越界了（图是 ${size.width}×${size.height}）`;
+    }
+    return out;
+}
+
+/**
  * editor 起手式助手的签名清单 —— 同一份内容既注入沙箱、也用于 `describe_api` 展示。
  *
  * recipe 那五条也在这里：它们**是助手、不是工具**，工具列表只有四个
@@ -122,6 +372,7 @@ const EDITOR_HELPER_SIGNATURES = [
     'resolveProjectPath(p) → string（相对路径按工程根解析）',
     'listDir(dir) → string[]',
     'readJson(file) → any',
+    "probe(ref, {x?, y?}) → {width, height, center, corners, alpha, whiteishRatio, tint, topColours, engineBuiltin, nearby}  // **图片的像素级事实**：读某个像素/中心/四角、透明比例、主体是不是白色（= 能不能用 Sprite.color 染色）、是不是引擎内置贴图。ref 收 'db://assets/…' / 工程相对 / 绝对；文件不存在会顺手列出名字相近的",
     ...RECIPE_HELPER_SIGNATURES,
 ] as const;
 
@@ -145,6 +396,8 @@ function buildEditorHelpers(): Record<string, unknown> {
             const abs = path.isAbsolute(file) ? file : path.join(Editor.Project.path, file);
             return JSON.parse(fs.readFileSync(abs, 'utf-8'));
         },
+        /** 图片像素探针 —— 见 {@link probeImage} 的说明（「这图能不能染色」靠它一句话答） */
+        probe: (ref: unknown, options?: Record<string, unknown>) => probeImage(ref, options),
         helperNames: () => [...EDITOR_HELPER_SIGNATURES],
     };
 }
@@ -440,12 +693,17 @@ const SCENE_ONLY_MARKERS: Array<{ pattern: RegExp; name: string }> = [
     { pattern: /(^|[^A-Za-z0-9_$.])director\s*[.[(]/, name: 'director' },
     { pattern: /(^|[^A-Za-z0-9_$.])(nodeByPath|nodeByUuid|eachNode|contentChildren|isEditorNode|findViewCanvas)\s*\(/, name: '场景助手（nodeByPath 等）' },
     { pattern: /(^|[^A-Za-z0-9_$.])(tree|dump|captureView|loadFrame|worldRect)\s*\(/, name: 'tree/dump/captureView/loadFrame/worldRect' },
+    {
+        pattern: /(^|[^A-Za-z0-9_$.])(pick|labelFit|snapshotTree|diffTree)\s*\(/,
+        name: 'pick/labelFit/snapshotTree/diffTree',
+    },
 ];
 
 /** 「这段代码只能在 editor 跑」的判据。 */
 const EDITOR_ONLY_MARKERS: Array<{ pattern: RegExp; name: string }> = [
     { pattern: /(^|[^A-Za-z0-9_$.])Editor\s*[.[]/, name: 'Editor' },
     { pattern: /(^|[^A-Za-z0-9_$.])(resolveProjectPath|listDir|readJson|projectPath|extensionRoot)\s*\(?/, name: '编辑器助手（projectPath 等）' },
+    { pattern: /(^|[^A-Za-z0-9_$.])probe\s*\(/, name: 'probe（图片像素探针）' },
 ];
 
 /**
@@ -457,7 +715,7 @@ const EDITOR_ONLY_MARKERS: Array<{ pattern: RegExp; name: string }> = [
  * 所以 `Editor.Message.request('asset-db', …)` 那种代码不会被抢走。
  */
 const WEAK_SCENE_NAMES =
-    /\b(cc|cocos|director|nodeByPath|nodeByUuid|eachNode|contentChildren|isEditorNode|worldRect|loadFrame|captureView)\b/;
+    /\b(cc|cocos|director|nodeByPath|nodeByUuid|eachNode|contentChildren|isEditorNode|worldRect|loadFrame|captureView|pick|labelFit|snapshotTree|diffTree)\b/;
 
 /** 命中清单里的哪几个（给回执里的人话说明用）。 */
 function markersOf(code: string, markers: Array<{ pattern: RegExp; name: string }>): string[] {
@@ -601,11 +859,491 @@ function defaultCapturePath(format: string): string {
     return path.join(dir, `scene-view-${stamp}.${format === 'jpeg' ? 'jpg' : 'png'}`);
 }
 
+/** 截图失败时的统一回执（不抛，让模型看到可读的原因）。 */
+function captureFail(message: string, extra?: Record<string, unknown>): ToolReply {
+    const payload = { ok: false, error: message, ...(extra ?? {}) };
+    return { ok: false, text: JSON.stringify(payload, null, 2), error: message, data: payload };
+}
+
+/** 拿到图之后的标准下一句。 */
+const CAPTURE_READ_HINT = '用图片读取能力打开 path 看一眼画面，再决定下一步。';
+
 /**
- * 截一张**场景视图**并存成图片文件（`cocos_capture_view` 的实现）。
+ * 空图时**必须给退路**（不是"再试一次"）。
+ *
+ * 历史（2026-09-30 04:23 会话）：`capture_view` 老老实实回了 `blankRatio: 1`，
+ * 但只配了一句「接近 1 说明基本是空图」—— 模型于是自己往下试：重试 `waitMs` →
+ * `select`/`focus-camera` → `cc.RenderTexture` 离屏 → 最后用节点数据 + Canvas2D 手绘布局对照图，
+ * **整整 16 步**。这个坑现在由 Electron 通道从根上堵住（见 `capture.ts` 头部），
+ * 但真到这一步说明**连合成后的 surface 都是空的** —— 那时更不该重试。
+ */
+const CAPTURE_BLANK_HINT =
+    '这是空图（blankRatio≈1），**别再重试截图** —— Electron 通道已经 `invalidate()` 逼过一次重绘，' +
+    '换 waitMs / 重新聚焦 / 换 maxWidth 都不会变。先看 `view` 再决定，按顺序做：' +
+    '① `view.visibleMatchesDesign === false`：编辑器场景视图的**设备模拟被改过**（历史上是有人调了 `cc.view.setDesignResolutionSize`）—— 在场景视图工具栏重新选一次设备分辨率即可恢复，纯视图设置、不影响场景与预制件数据；' +
+    '② `view.visibleMatchesDesign === true` 却仍然空：说明**这个环境当下确实取不到画面**（编辑器最小化、场景视图面板被折叠或从未渲染）—— 不要自建离屏渲染器（历史上有人为此花了 16 步），直接转数值判据；' +
+    '③ 画面验收改用**数值判据**：`worldRect(node)` 拿真实世界矩形 / 自己算重叠与越界 / 逐节点读 color·contentSize；' +
+    '④ 确实需要肉眼确认时，按节点真实数据出一张布局对照图（历史做法：`worldRect` 导出行 → 脚本画 PNG → 图片读取），并在交付里**如实声明「真实渲染截图未完成」**。';
+
+/** Electron 通道给主进程回执用的入参。 */
+interface ElectronCaptureOptions {
+    savePath: string;
+    maxWidth: number;
+    format: 'png' | 'jpeg';
+    quality: number;
+    /** 节点 uuid 或路径；空串 = 截整张场景视图 */
+    nodeRef: string;
+    padding: number;
+    projectPath: string;
+    /** 取景要求：`auto`（默认）/ `scene` / `node` / `none`，语义见 {@link captureView} */
+    fit: FitMode;
+}
+
+/**
+ * 取景模式（`capture_view` 的 `fit` 参数）。
+ *
+ * - `auto`（默认）：**需要时才取景**。截整张视图时「内容没拍全」或「内容小得看不清」就取景；
+ *   截节点时只在**节点没被拍全**（裁出来会缺一块、或压根在图外）时取景。
+ * - `scene`：强制把**整个场景内容**框进画布再截。
+ * - `node`：强制把**目标节点**框进画布再截（要同时给 `node`）。
+ * - `none`：**不动相机**，就截现在这一帧（老行为；回执里仍会告诉你拍全没有）。
+ */
+type FitMode = 'auto' | 'scene' | 'node' | 'none';
+
+/**
+ * `auto` 模式下「内容小得看不清」的判据：内容与画布的交集面积占比低于它就顺手取景。
+ *
+ * 为什么要这一条：只在「没拍全」时取景是**不够**的 —— 用户缩到 10% 看全局时内容**确实全在画里**，
+ * 但截图里那一小块根本看不清（实测：720×1560 的设计分辨率缩到 10%，在画布里只有 72×156）。
+ * 0.15 是「小到勉强能认出轮廓」的量级，不是精确阈值；回执里如实报 `areaRatio`，
+ * 想按原样截就传 `fit:'none'`。
+ */
+const FIT_SMALL_RATIO = 0.15;
+
+/** 取景每一步之后等它落定（毫秒）—— `focus()` 可能带补间，`invalidate()` 也要等一帧。 */
+const FIT_SETTLE_MS = 200;
+
+/** 同一级取景最多量两次（第一次可能正赶上补间中间）。 */
+const FIT_MEASURES_PER_STEP = 2;
+
+/** 各级取景的说明（回执里 `framing.method` 用人话再讲一遍）。 */
+const FIT_METHOD_LABEL: Record<string, string> = {
+    focus: '编辑器自己的聚焦（cce.Camera.focus）',
+    adjust: '2D 控制器的适配内容（controller2D._adjustToCenter）',
+    manual: '手工摆相机（按量出来的「像素/世界单位」改 orthoHeight 与位置）',
+};
+
+/** 解析 `fit` 参数（不认的值回 `auto` 并留一句说明）。 */
+function normalizeFitMode(raw: unknown): { mode: FitMode; note?: string } {
+    if (raw === undefined || raw === null || raw === '') return { mode: 'auto' };
+    if (raw === 'auto' || raw === 'scene' || raw === 'node' || raw === 'none') return { mode: raw };
+    return { mode: 'auto', note: `fit 只认 auto/scene/node/none，收到 ${JSON.stringify(raw)}，按 auto 处理` };
+}
+
+/** 从一次几何回执里取出「拍全了没有」那几项。 */
+function pickCoverage(metrics: Record<string, any> | null): Record<string, any> | null {
+    const framing = metrics && metrics.framing;
+    if (!framing || typeof framing !== 'object') return null;
+    return {
+        covered: framing.covered === true,
+        areaRatio: framing.areaRatio ?? null,
+        edges: framing.edges ?? null,
+        targetPage: framing.targetPage ?? null,
+        viewport: framing.viewport ?? null,
+        target: framing.target ?? null,
+        note: framing.note,
+    };
+}
+
+/**
+ * 要不要取景。
+ *
+ * @param mode - 用户要的取景模式。
+ * @param before - 取景前的覆盖情况（`null` = 量不到，那就别乱动相机）。
+ * @returns `null` = 不取景；否则是要框的目标。
+ */
+function decideFit(mode: FitMode, nodeRef: string, before: Record<string, any> | null): 'scene' | 'node' | null {
+    if (mode === 'none') return null;
+    if (mode === 'scene') return 'scene';
+    if (mode === 'node') return nodeRef ? 'node' : null;
+    /** auto */
+    if (!before) return null;
+    if (nodeRef) {
+        /** 截节点：只有「节点没被拍全」才动相机 —— 节点在图里时按原样裁，不改用户视角 */
+        return before.covered === true ? null : 'node';
+    }
+    /** 截整张视图：没拍全，或者拍全了但小得看不清 */
+    const area = typeof before.areaRatio === 'number' ? before.areaRatio : 1;
+    return before.covered === true && area >= FIT_SMALL_RATIO ? null : 'scene';
+}
+
+/**
+ * 跑取景链：**摆一级 → 逼一帧 → 量一遍 → 验不过就降级**。
+ *
+ * 三级取景（编辑器 focus → 2D 控制器适配 → 手工摆相机）与「为什么是这个顺序」
+ * 写在 `source/scene.ts` 的「取景」一节；这里只管推进与记账。
+ *
+ * 判据是**量出来的**（`framing.covered` = 目标矩形整个落在画布里），所以不必知道
+ * 编辑器内部怎么算的 —— 第一级能成就不会用到第二级。
+ *
+ * ⚠ 相机动过之后**必须重算节点矩形**（相机变了，矩形就变了），所以返回的最后一次
+ * `metrics` 一定要拿回去用，不能再用取景前那份。
+ *
+ * @returns `{framing, metrics, fitNote}`。
+ */
+async function runFitChain(
+    kind: 'scene' | 'node',
+    nodeRef: string,
+    projectPath: string,
+    firstMetrics: Record<string, any>,
+    href: string,
+): Promise<{ framing: Record<string, any>; metrics: Record<string, any>; fitNote?: string }> {
+    const framing: Record<string, any> = {
+        applied: kind,
+        method: null,
+        step: null,
+        before: pickCoverage(firstMetrics),
+    };
+    let metrics = firstMetrics;
+    let fitNote: string | undefined;
+    let token = '';
+    /**
+     * 只要**尝试过**取景就要还原 —— 不能只在"成功"时还原：
+     * 第三级是**手工摆相机**（先写 `orthoHeight` 再挪位置），它可能写了一半才失败
+     * （`method` 仍然是 null），那时相机已经被动过了。还原一次是幂等的，多还一次不会有副作用。
+     */
+    let attempted = false;
+
+    /** 一次「摆 + 逼一帧 + 等落定 + 量」；`step === null` 表示只重量一遍（不重摆） */
+    const round = async (step: number | null): Promise<Record<string, any> | null> => {
+        if (step !== null) {
+            attempted = true;
+            const applied = await callSceneScript<Record<string, any>>(SCENE_METHOD.fitView, [
+                { action: 'fit', step, fit: { kind, ref: nodeRef }, node: nodeRef, projectPath },
+            ]);
+            token = typeof applied.token === 'string' ? applied.token : token;
+            framing.step = step;
+            framing.method = applied.method ?? null;
+            if (applied.detail) framing.detail = applied.detail;
+            if (applied.target) framing.target = applied.target;
+            if (applied.saved && applied.saved.signature) framing.savedCamera = applied.saved.signature;
+            if (applied.maxStep) framing.maxStep = applied.maxStep;
+            framing.nextStep = applied.nextStep ?? null;
+            if (applied.ok !== true) {
+                fitNote = applied.note || applied.error || `第 ${step} 级取景没做成`;
+                return null;
+            }
+            if (applied.note) fitNote = applied.note;
+        }
+        invalidateSceneView(href);
+        await sleep(FIT_SETTLE_MS);
+        const measured = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [
+            { node: nodeRef || undefined, fit: { kind, ref: nodeRef }, projectPath },
+        ]);
+        if (measured && measured.ok === true) metrics = measured;
+        return metrics;
+    };
+
+    let covered = false;
+    try {
+        for (let step = 0; step < 3; step += 1) {
+            let appliedOk = false;
+            for (let measure = 0; measure < FIT_MEASURES_PER_STEP; measure += 1) {
+                const measured = await round(measure === 0 ? step : null);
+                if (!measured) break;
+                appliedOk = true;
+                covered = Boolean(measured.framing && measured.framing.covered === true);
+                if (covered) break;
+            }
+            if (covered || !appliedOk) break;
+            if (framing.nextStep === null || framing.nextStep === undefined) break;
+        }
+
+        framing.methodLabel = framing.method ? FIT_METHOD_LABEL[framing.method] || framing.method : null;
+        framing.after = pickCoverage(metrics);
+        if (fitNote) framing.note = fitNote;
+        if (!covered) {
+            const prefix = framing.note ? `${framing.note}；` : '';
+            framing.note = `${prefix}⚠ 取景没能把目标整个装进画布（${
+                framing.method ? FIT_METHOD_LABEL[framing.method] || framing.method : '没有可用的取景手段'
+            }）—— 这张图**可能仍然不是全景**`;
+        }
+    } finally {
+        /**
+         * 还原视角：**只要动过（或可能动过）相机就一定要还**（用户视角不该被我们留在别处）。
+         * 放在 `finally` 里 —— 取景途中出任何岔子（IPC 断了、场景脚本抛了、写相机写了一半）也要还。
+         */
+        if (attempted) {
+            try {
+                const restored = await callSceneScript<Record<string, any>>(SCENE_METHOD.fitView, [
+                    { action: 'end', token },
+                ]);
+                /** 「压根没存过视角」（取景连第一步都没走到）不算失败 —— 相机本来也没动 */
+                const nothingToRestore = restored && restored.ok === false && /没有待还原的视角/.test(String(restored.error || ''));
+                framing.restored = nothingToRestore ? null : restored && restored.restored === true;
+                framing.restoreMethod = (restored && restored.method) || null;
+                if (restored && restored.after) framing.cameraAfterRestore = restored.after;
+                if (restored && restored.note) framing.restoreNote = restored.note;
+                if (nothingToRestore) framing.restoreNote = '没有存过视角（取景没走到会动相机的那一步），相机没动';
+                if (framing.restored === false) {
+                    const prefix = framing.note ? `${framing.note}；` : '';
+                    framing.note = `${prefix}⚠ **视角没有还原成功** —— 编辑器场景视图现在停在取景后的位置（按 F / 双击节点可以回去）`;
+                }
+            } catch (err) {
+                framing.restored = false;
+                framing.restoreNote = describe(err);
+                const prefix = framing.note ? `${framing.note}；` : '';
+                framing.note = `${prefix}⚠ 还原视角时出错：${describe(err)}（场景视图可能停在取景后的位置）`;
+            }
+        }
+    }
+
+    return { framing, metrics, fitNote };
+}
+
+/**
+ * **Electron 通道**：主进程自己把场景视图抓下来。
+ *
+ * 为什么主进程能抓：编辑器就是 Electron，本扩展的 `main` 跑在主进程里，
+ * 而场景视图是一个 `<webview>` 页（`builtin/scene/static/template/3d-webview.html`）——
+ * `webContents.getAllWebContents()` 会把它列出来，`capturePage()` 抓的是
+ * **合成后的 surface**（不受 `preserveDrawingBuffer: false` 影响）。
+ * 细节与坐标口径见 `source/capture.ts`。
+ *
+ * 场景脚本在这里干两件事：**量**（`viewMetrics`：页面 href / 画布几何 / 节点矩形 /
+ * 拍全了没有）与**摆相机**（`fitView`：取景 / 还原视角，见 {@link runFitChain}）。
+ *
+ * @returns 成功/失败都回 `{reply}`；**该退回老路时**回 `{fallback: 原因}`。
+ */
+async function captureViewViaElectron(
+    options: ElectronCaptureOptions,
+): Promise<{ reply: ToolReply } | { fallback: string }> {
+    if (!getElectron()) {
+        return { fallback: `本环境没有 Electron 的 webContents（${electronUnavailableReason() || '未知原因'}）` };
+    }
+
+    /** 取景要框谁：`kind` 是「场景内容」还是「这个节点」 */
+    const kind: 'scene' | 'node' = options.nodeRef ? 'node' : 'scene';
+
+    // ① 先问场景脚本要几何（顺带问「目标拍全了没有」）。它拿不到 = 场景进程不可用 →
+    //    退回老路，让老路去报那句「先打开一个场景」（两个通道的失败文案必须一致）。
+    let metrics: Record<string, any>;
+    try {
+        metrics = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [
+            {
+                node: options.nodeRef || undefined,
+                fit: { kind, ref: options.nodeRef || '' },
+                projectPath: options.projectPath,
+            },
+        ]);
+    } catch (err) {
+        return { fallback: `场景脚本 viewMetrics 不可用：${describe(err)}` };
+    }
+    if (!metrics || metrics.ok !== true) {
+        return { fallback: `场景脚本 viewMetrics 没给出几何：${describe((metrics && metrics.error) || '空返回')}` };
+    }
+
+    const page = (metrics.page || {}) as Record<string, any>;
+    let href = typeof page.href === 'string' ? page.href : '';
+
+    // ② 取景（`fit`）：用户缩放/平移过之后，屏幕上那一帧未必是「全景」——
+    //    按需要把目标框进画布，截完再还原视角（见 runFitChain）。
+    let framing: Record<string, any> = {
+        requested: options.fit,
+        applied: null,
+        method: null,
+        before: pickCoverage(metrics),
+        after: pickCoverage(metrics),
+    };
+    let fitNote: string | undefined;
+    const wanted = decideFit(options.fit, options.nodeRef, framing.before);
+    if (wanted) {
+        try {
+            const result = await runFitChain(wanted, options.nodeRef, options.projectPath, metrics, href);
+            framing = { requested: options.fit, ...result.framing };
+            /** ⚠ 相机动过 → 节点矩形必须用**新的**那一份（旧的已经不成立了） */
+            metrics = result.metrics;
+            fitNote = result.fitNote;
+            const newPage = (metrics.page || {}) as Record<string, any>;
+            if (typeof newPage.href === 'string' && newPage.href) href = newPage.href;
+        } catch (err) {
+            /** 取景是**加分项**：它失败不该让截图失败 —— 如实记一笔，继续按当前取景截 */
+            framing.requested = options.fit;
+            framing.applied = wanted;
+            framing.note = `取景没做成（${describe(err)}）—— 回执里这张图是**当前视角**那一帧`;
+            fitNote = framing.note;
+        }
+    } else if (options.fit === 'none' && framing.before && framing.before.covered !== true) {
+        framing.note = '`fit:"none"` 按原样截 —— 但量下来目标**没有被拍全**，想拍全就传 `fit:"scene"`';
+    } else if (options.fit === 'node' && !options.nodeRef) {
+        framing.note = '`fit:"node"` 需要同时给 `node`（这次没给）—— 按当前视角原样截';
+    } else if (options.fit === 'auto' && !options.nodeRef && framing.before) {
+        /**
+         * 「不用取景」是**正常情况**，所以不写 `note`（约定：`note` 非空 = 有事）——
+         * 把"为什么没动相机"记在 `why` 里，需要解释时看得到。
+         */
+        framing.why =
+            framing.before.covered === true
+                ? `内容已经整个在画布里（areaRatio ${framing.before.areaRatio} ≥ ${FIT_SMALL_RATIO}）—— 按原样截，没动相机`
+                : '量不到覆盖情况';
+    }
+
+    // ③ 抓图（空图会自动 invalidate 重抓一次，见 capture.ts）
+    const outcome = await captureSceneView(href);
+    if (!outcome.ok) {
+        return { fallback: outcome.error };
+    }
+
+    // ④ 要截节点就裁 —— 矩形来自编辑器相机的投影（页面 CSS 像素）
+    const nodeInfo = (metrics.node || null) as Record<string, any> | null;
+    const padding = options.padding;
+    let image = outcome.image;
+    let cropRect: { x: number; y: number; width: number; height: number } | null = null;
+    let cropNote: string | undefined;
+    if (options.nodeRef) {
+        if (!nodeInfo || nodeInfo.found !== true) {
+            cropNote = `没找到节点「${options.nodeRef}」${nodeInfo && nodeInfo.note ? `（${nodeInfo.note}）` : ''} —— 回执里给的是**整张场景视图**`;
+        } else if (!nodeInfo.rect) {
+            cropNote = `节点「${nodeInfo.name || options.nodeRef}」算不出矩形${nodeInfo.note ? `（${nodeInfo.note}）` : ''} —— 回执里给的是**整张场景视图**`;
+        } else {
+            const rect = nodeInfo.rect as { x: number; y: number; width: number; height: number };
+            cropRect = {
+                x: rect.x - padding,
+                y: rect.y - padding,
+                width: rect.width + padding * 2,
+                height: rect.height + padding * 2,
+            };
+        }
+    }
+
+    const pageCss = {
+        width: typeof page.cssWidth === 'number' && page.cssWidth > 0 ? page.cssWidth : outcome.sourceWidth,
+        height: typeof page.cssHeight === 'number' && page.cssHeight > 0 ? page.cssHeight : outcome.sourceHeight,
+    };
+    let appliedCrop: { x: number; y: number; width: number; height: number } | null = null;
+    if (cropRect) {
+        const cropped = cropToCssRect(image, cropRect, pageCss);
+        image = cropped.image;
+        appliedCrop = cropped.rect;
+        if (!appliedCrop) cropNote = '裁切失败（矩形退化或越界）—— 回执里给的是**整张场景视图**';
+    }
+
+    // ④ 缩到 maxWidth 再编码（等比；Electron 的 resize 只给 width 不是等比，见 capture.ts）
+    image = downscaleToWidth(image, options.maxWidth);
+    const finalSize = imageSizeOf(image);
+    let buffer: Buffer;
+    try {
+        buffer = encodeImage(image, options.format, options.quality);
+    } catch (err) {
+        return { reply: captureFail(`编码图片失败：${describe(err)}`, { target: outcome.target }) };
+    }
+
+    try {
+        const dir = path.dirname(options.savePath);
+        if (dir) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(options.savePath, buffer);
+    } catch (err) {
+        return { reply: captureFail(`写入截图文件失败：${describe(err)}`, { path: options.savePath, target: outcome.target }) };
+    }
+
+    let bytes = buffer.length;
+    try {
+        bytes = fs.statSync(options.savePath).size;
+    } catch {
+        /* 尺寸读不到不影响使用 */
+    }
+
+    const blank = outcome.blankRatio >= 0.95;
+    const payload: Record<string, unknown> = {
+        ok: true,
+        /**
+         * 这次是谁抓的图。`electron` = 主进程 `capturePage`（**当前的正路**）；
+         * `scene-gl` = 老路（场景进程 `gl.readPixels`，只在 Electron 通道不可用时用）。
+         */
+        method: 'electron',
+        path: options.savePath,
+        width: finalSize.width,
+        height: finalSize.height,
+        // 抓到的整页原图尺寸（未裁未缩），与老回执同一含义
+        sourceWidth: outcome.sourceWidth,
+        sourceHeight: outcome.sourceHeight,
+        format: options.format,
+        bytes,
+        blankRatio: outcome.blankRatio,
+        // 视图状态（visibleSize / designResolution / canvas / visibleMatchesDesign）
+        view: metrics.view ?? null,
+        // 抓的是哪一个 webContents —— 编辑器里可能同时有场景视图与游戏预览，抓错时靠它一眼看出来
+        contents: outcome.target,
+        matchedBy: outcome.matchedBy,
+        /** 第一张是空图、靠 `invalidate()` 逼出第二张时为 true */
+        useInvalidate: outcome.usedInvalidate,
+        transport: 'electron',
+        target: options.nodeRef
+            ? {
+                  kind: 'node',
+                  ref: options.nodeRef,
+                  uuid: nodeInfo && nodeInfo.uuid ? nodeInfo.uuid : null,
+                  name: nodeInfo && nodeInfo.name ? nodeInfo.name : null,
+                  /** 场景侧算出来的节点矩形（页面 CSS 像素）；给 padding 时这里是**未加 padding** 的原矩形 */
+                  rect: nodeInfo && nodeInfo.rect ? nodeInfo.rect : null,
+                  /** 真正拿去裁切的矩形（含 padding，已换算到图片像素） */
+                  crop: appliedCrop,
+                  worldRect: nodeInfo && nodeInfo.worldRect ? nodeInfo.worldRect : null,
+              }
+            : { kind: 'view' },
+        // 场景视图几何与编辑器相机：诊断「矩形为什么在那儿」用
+        page: metrics.page ?? null,
+        canvas: metrics.canvas ?? null,
+        camera: metrics.camera ?? null,
+        /**
+         * 取景账本：**这张图是全景还是当前视角**，看它就够。
+         * `before/after` 是「目标拍全了没有」的两次实测（`covered` / `areaRatio` / 四边余量）。
+         */
+        framing,
+    };
+    if (cropNote) payload.note = cropNote;
+    if (nodeInfo && nodeInfo.rect && nodeInfo.note) payload.nodeNote = nodeInfo.note;
+    /** 取景的说明优先落在 `framing.note` 里（它带着覆盖率数据）；这里只在它缺位时补一句 */
+    if (fitNote && !framing.note && !cropNote) payload.note = fitNote;
+    payload.hint = blank ? CAPTURE_BLANK_HINT : CAPTURE_READ_HINT;
+
+    return { reply: { ok: true, text: JSON.stringify(payload, null, 2), data: payload } };
+}
+
+/**
+ * 截一张**场景视图**（`cocos_capture_view` 的实现）。
  *
  * 为什么单独一条通道：图片是二进制/大字符串，塞不进 `execute_code` 的返回值上限
  * （单字符串 4000 字）—— 所以它必须是「工具 → 落盘 → 回路径」。
+ *
+ * ## 两条路，先好后老
+ *
+ * 1. **Electron 通道**（{@link captureViewViaElectron}，**正路**）：主进程
+ *    `webContents.capturePage()` 抓**合成后的 surface**，空图时 `invalidate()` 逼一次重绘。
+ *    老实现读的是 GL 后备缓冲、且**没法让编辑器重画**，于是实测恒回 `blankRatio: 1`
+ *    （`docs/agent-notes/UI与表现层.md`）—— 这条路就是从根上换掉那个读取源。
+ *    顺带支持**节点级截图**（`node` 参数，矩形由编辑器相机投影，见场景脚本 `viewMetrics`）
+ *    与**取景**（`fit` 参数：先把目标框进画布，截完还原视角，见 `runFitChain`）。
+ * 2. **场景进程读像素**（老的 `capture_view`，**兜底**）：Electron 拿不到 / 场景脚本
+ *    版本旧（没有 `viewMetrics`）/ 抓图失败时才走，保证这个工具在任何情况下都比"没有"强。
+ *    ⚠ 兜底路**不取景**（它读的是 GL 后备缓冲，`fit` 只对 Electron 那条路生效）。
+ *
+ * ## `fit` 是干什么的（**用户缩放过之后，屏幕上那一帧未必是全景**）
+ *
+ * `capturePage()` 抓的是屏幕上现在这一帧。用户把场景视图缩放/平移过之后，
+ * 抓到的就只是他当时看的那块地方。`fit` 会在抓之前把相机摆到「框住目标」的位置，
+ * 抓完**立刻还原**（回执 `framing.restored` 说明还原成功没有）：
+ *
+ * | fit | 行为 |
+ * |---|---|
+ * | `auto`（默认） | 截整张视图：内容没拍全 **或** 内容小得看不清（占比 < 0.15）才取景；截节点：只在节点没被拍全时取景 |
+ * | `scene` | 强制框住**整个场景内容** |
+ * | `node` | 强制框住**目标节点**（要同时给 `node`） |
+ * | `none` | 不动相机，就截现在这一帧（回执里仍会告诉你拍全没有） |
+ *
+ * @param params - `{savePath?, maxWidth?, format?, quality?, node?, padding?, fit?, waitMs?, timeoutMs?}`。
+ * @returns `data.path` 是图片绝对路径，可直接喂给图片读取工具；
+ *   `data.framing` 是取景账本（取景前/后的覆盖率、用了哪一级、还回去没有）。
  */
 export async function captureView(params: Record<string, unknown>): Promise<ToolReply> {
     const format = params.format === 'jpeg' || params.format === 'jpg' ? 'jpeg' : 'png';
@@ -620,23 +1358,63 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
             : 0.9;
     const waitMs = clampInt(params.waitMs, 0, 5000, 800);
     const timeoutMs = clampTimeout(params.timeoutMs, SANDBOX_DEFAULTS.timeoutMs);
+    /** 节点引用：uuid 或路径（`Canvas/skill_details`）。给了就只截这个节点。 */
+    const nodeRef = typeof params.node === 'string' ? params.node.trim() : '';
+    /** 节点截图时向外扩几像素（CSS 像素），默认 0 —— 描边/阴影贴边时用它留白。 */
+    const padding = clampInt(params.padding, 0, 400, 0);
+    /** 取景：见上面的表；不认的值按 auto 处理（回执里会说一声）。 */
+    const fit = normalizeFitMode(params.fit);
+
+    // ---- ① Electron 通道（正路）----
+    const viaElectron = await captureViewViaElectron({
+        savePath,
+        maxWidth,
+        format,
+        quality,
+        nodeRef,
+        padding,
+        projectPath: Editor.Project.path,
+        fit: fit.mode,
+    });
+    if ('reply' in viaElectron) {
+        /** fit 参数写错了就说一声（不阻断截图） */
+        if (fit.note && viaElectron.reply.data) {
+            const data = viaElectron.reply.data as Record<string, unknown>;
+            data.fitNote = fit.note;
+        }
+        return viaElectron.reply;
+    }
+
+    // ---- ② 兜底：老的场景进程读像素 ----
+    /**
+     * 兜底通道读的是场景进程的 GL 后备缓冲，**没法摆相机**（取景要靠主进程 `invalidate()` 逼帧配合），
+     * 所以 `fit` 在这条路上**不生效** —— 不管这一步成败都要说清，否则用户会以为拿到的是全景。
+     */
+    const withFitNote = (reply: ToolReply): ToolReply => {
+        if (fit.mode === 'none') return reply;
+        const data = reply.data;
+        if (!data || typeof data !== 'object' || (data as Record<string, unknown>).fitIgnored) return reply;
+        (data as Record<string, unknown>).fitIgnored =
+            '这条兜底通道（场景进程读像素）不取景 —— 回执里这张图是**当前视角**那一帧；想拍全就修好主通道（看 electronFallback），或先自己把视角调好再截';
+        return reply;
+    };
 
     const run = await runSceneCode(CAPTURE_VIEW_SCENE_CODE, { savePath, maxWidth, format, quality, waitMs }, timeoutMs, false);
-
-    const fail = (message: string, extra?: Record<string, unknown>): ToolReply => {
-        const payload = { ok: false, error: message, ...(extra ?? {}) };
-        return { ok: false, text: JSON.stringify(payload, null, 2), error: message, data: payload };
-    };
 
     const envelope = run.data as Record<string, unknown> | undefined;
     if (!envelope || envelope.ok !== true) {
         // 场景侧已经把原因说清楚了（没开场景 / 执行报错），原样传回去
-        return run;
+        return withFitNote(run);
     }
 
     const captured = envelope.result as Record<string, unknown> | undefined;
     if (!captured || captured.ok !== true) {
-        return fail(String((captured && captured.error) || '截图失败（场景侧没有返回图片）'), { scene: captured ?? null });
+        return withFitNote(
+            captureFail(String((captured && captured.error) || '截图失败（场景侧没有返回图片）'), {
+                scene: captured ?? null,
+                electronFallback: viaElectron.fallback,
+            }),
+        );
     }
 
     // 场景侧能落盘就落盘了（返回 path）；否则回传分块 base64，这里拼回来写盘 ——
@@ -645,13 +1423,13 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
     if (captured.transport !== 'file') {
         const chunks = Array.isArray(captured.chunks) ? captured.chunks.map((c) => String(c)) : [];
         const base64 = chunks.join('');
-        if (!base64) return fail('截图没有产出图片数据', { scene: captured });
+        if (!base64) return withFitNote(captureFail('截图没有产出图片数据', { scene: captured }));
         try {
             const dir = path.dirname(filePath);
             if (dir) fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
         } catch (err) {
-            return fail(`写入截图文件失败：${describe(err)}`, { path: filePath, scene: captured });
+            return withFitNote(captureFail(`写入截图文件失败：${describe(err)}`, { path: filePath, scene: captured }));
         }
     }
 
@@ -667,6 +1445,8 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
 
     const payload: Record<string, unknown> = {
         ok: true,
+        /** 见 captureView 的注释：这一条是**兜底路**（场景进程读 GL 后备缓冲） */
+        method: 'scene-gl',
         path: filePath,
         width: captured.width,
         height: captured.height,
@@ -679,26 +1459,15 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
         // 空白帧时用来判断「是不是编辑器场景视图的设备模拟被改过」
         view: captured.view ?? null,
         transport: captured.transport === 'file' ? 'scene' : 'editor',
+        /** Electron 通道为什么没接手 —— 只回「老路的图」，但必须说清为什么退回来了 */
+        electronFallback: viaElectron.fallback,
+        electronContents: getElectron() ? listContents() : null,
+        hint: blank ? CAPTURE_BLANK_HINT : CAPTURE_READ_HINT,
     };
-    /**
-     * ⚠ **空白帧不是「再试一次」能解决的**，所以必须给退路。
-     *
-     * 历史（2026-09-30 04:23 会话）：`capture_view` 老老实实回了 `blankRatio: 1`，
-     * 但只配了一句「接近 1 说明基本是空图」—— 模型于是自己往下试：重试 `waitMs` → `select`/`focus-camera`
-     * → `cc.RenderTexture` 离屏 → 最后用节点数据 + Canvas2D 手绘布局对照图，**整整 16 步**。
-     * 而真相是：两天前有人（就是它自己）用 `setDesignResolutionSize` 把场景视图的设备模拟弄坏了，
-     * 这个差异本来就在 `view` 里量得出来。
-     */
-    payload.hint = blank
-        ? '这是空图（blankRatio≈1），**别再重试截图**（换 waitMs / 重新聚焦 / 换 maxWidth 都不会变）—— 先看 `view` 再决定，按顺序做：' +
-          '① `view.visibleMatchesDesign === false`：编辑器场景视图的**设备模拟被改过**（历史上是有人调了 `cc.view.setDesignResolutionSize`）—— 在场景视图工具栏重新选一次设备分辨率即可恢复，纯视图设置、不影响场景与预制件数据；' +
-          '② `view.visibleMatchesDesign === true` 却仍然空：说明**这个环境当下确实取不到画面**（实测在编辑器最小化/被遮挡、场景视图未渲染时就是这样）—— 不要自建离屏渲染器（历史上有人为此花了 16 步），直接转数值判据；' +
-          '③ 画面验收改用**数值判据**：`worldRect(node)` 拿真实世界矩形 / 自己算重叠与越界 / 逐节点读 color·contentSize；' +
-          '④ 确实需要肉眼确认时，按节点真实数据出一张布局对照图（历史做法：`worldRect` 导出行 → 脚本画 PNG → 图片读取），并在交付里**如实声明「真实渲染截图未完成」**。'
-        : '用图片读取能力打开 path 看一眼画面，再决定下一步。';
     if (captured.saveError) payload.sceneWriteError = captured.saveError;
+    if (fit.note) payload.fitNote = fit.note;
 
-    return { ok: true, text: JSON.stringify(payload, null, 2), data: payload };
+    return withFitNote({ ok: true, text: JSON.stringify(payload, null, 2), data: payload });
 }
 
 /** 探活：场景进程里本扩展的脚本加载了吗（`cocos_editor_state` 用它说明「能不能动场景」）。 */

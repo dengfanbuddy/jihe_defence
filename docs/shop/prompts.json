@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "generated_by": "tools/shop-prompts/gen-prompts.mjs",
+    "version": 2,
+    "target": "商城（全屏页 · Scene_Menu）：每日免费 1 次 + 6 个广告商品（金币 / 英雄经验 / 账号经验 / 局外遗物抽取次数 / 本局增益券 / 局内广告券）",
+    "prompt_scope": "提示词只描述\"要显示什么内容\"与\"这是全屏页\"；布局/分区/尺寸由 AI 自行分析（不写施工级坐标）",
+    "style": "flat single-colour white stencil (hero/skill/difficulty icon family), slate-grey keyed background",
+    "gen_size": 512,
+    "gen_ratio": "1:1",
+    "deliver": 64,
+    "icon_base": "textures/shop/（礼盒 / 增益券）+ textures/common/（广告券）",
+    "contract": "docs/shop/README.md（卖什么 / 数值依据 / 数据出口 / 待接线清单）",
+    "note": "items[] 走 make-hero-icons.py（色键/拍平白/正方形包围盒）；page 是效果图，只做缩放、绝不要跑那个脚本",
+    "goods": [
+      "F1｜每日补给｜金币 ×200 ＋ 通用英雄经验 ×100（**连续登录 3 天起 ×1.5 → 300 / 150**）｜**每天 1 次 · 不看广告**｜日任务合计 ≈810 金 / 550 经验；100 经验 ≈ 1.25 局通关；**界面上显示的是乘完之后的数**",
+      "A1｜金币袋｜金币 ×300｜每天 3 次｜**遗物抽取的燃料**（当日 1~2 抽，见 `docs/meta-growth/README.md` §1.3）；顺带补解锁英雄的缺口（第 2 位 675）",
+      "A2｜英雄经验瓶｜通用英雄经验 ×120｜每天 3 次｜≈1.5 局通关；Lv12→13 需 347 ★**主推**",
+      "A3｜账号经验册｜账号经验 ×150｜每天 2 次｜等级 1→2 需 100、2→3 需 120；升级另发金币，**并解锁局内等级加成**",
+      "A4｜遗物抽取次数｜**+1 次局外遗物抽取次数**（免费抽，不花金币）｜每天 **2** 次｜与局外抽取同一套管线（品质权重 6:2.5:1:0.5、档内优先未收集），**不抬高当日价格阶梯** ★**主推**",
+      "A5｜开局增益券｜随机 1 张**本局增益**（10 条现成效果）｜每天 2 次｜发放时**排除已达上限**的效果 ★**主推**",
+      "A6｜局内广告券｜**+1 张局内广告券**（局内免看广告）｜每天 2 次｜局内抽卡/补选遗物时**代替**看广告；⚠ **不增加**局内次数上限（`docs/meta-growth/README.md` §3）"
+    ],
+    "no_art": [
+      "页面底 / 卡片底 / 圆角 / 描边 → `common/rect_rd_20` · `rect_rd_10` · `rect_rd_5` · `rect_board_rd_*`（九宫格贴图 + 运行时染色；**不要出\"底纹/背景图\"**（风格禁止材质））",
+      "金币 / 英雄经验 / 账号经验 / 广告 / 加号 / 关闭 → `common/gold`（**染 `c-gold #D38C1E`**）· `common/exp_icon`（青绿本色，**不染**）· `common/player_exp` · `common/ad` · `common/add` · `common/close`（全部现成；金币图标染色这条踩过坑（\"两态色把金币图标染了\"当过 bug 记））",
+      "遗物图形 / 品质片 → `relics` 图集（走 `common/AtlasIcon.ts` 三级降级）+ 品质 4 档纯色 #DDDDDD / #5096FF / #CF68FF / #FF6464（37 件局外遗物的图都已有；品质片是纯色块，不是图）",
+      "进度条 / 分隔线 / 倒计时的细刻度条 → `rect_rd_20` 九宫格 + `Sprite.color` · `cc.Graphics`（填充 `#70ACB3`、轨道 `#D8D8D8`；线是代码画的（倒计时**文字**用 Label，不配时钟图标））",
+      "**所有文字与数字** → **`cc.Label`**（**绝不出图**：商品名 / 数量 / 次数 / 倒计时 / 说明文案 —— 出了就不可本地化、不可改字号、不可染色）"
+    ],
+    "content": [
+      "形态｜**全屏页**：占满 750×1334，打开时主界面整块被盖住｜与 `ui_difficulty` / `ui_hero_detail` **不同时开**（三个都是全屏/模态）",
+      "返回入口｜左上角返回箭头｜全屏页的唯一出口（views 形态下页面自己关自己）",
+      "金币读数｜圆金币图形 + 「1,240」（暖金 `#D38C1E`）｜`itemData.getCurrency(Gold)`；用途两条：**解锁英雄** + **局外遗物抽取**",
+      "通用英雄经验读数｜青绿徽记 + 「760」｜`heroData.getSharedExp()`；**只用于英雄升级**，一局通关才发",
+      "每日免费块（**页面主角**）｜礼盒图形 + 「每日补给」+「金币 300 + 通用英雄经验 150」（**已含连续登录加成**）｜每天 1 次，**不看广告**；日键 `YYYYMMDD` 跨日重置；基础量是 200/100，×1.5 之后才是 300/150",
+      "连续登录加成｜「连续登录 4 天 · 今日 ×1.5」｜`PlayerInfo.loginStreak`；3~6 天 ×1.5（300/150）、≥7 天 ×2（400/200）并加送 1 张增益券 —— **格子上显示的是乘完之后的数**",
+      "唯一的主按钮｜青绿实心药丸「免费领取」（`c-accent-action #3F9E9B`）｜当日已领 = 灰药丸「明天再来」（`c-disabled-pill #B9C1C1`）。⚠ **全屏页只有这一颗实心按钮**",
+      "重置倒计时｜「距重置 07:12:33」｜次日本地 0 点；**不是**\"距上次 24 小时\"",
+      "6 个广告商品格｜金币袋 +300 金币 · 英雄经验瓶 +120 通用英雄经验 · 账号经验册 +150 账号经验 · 遗物抽取次数（+1 次局外抽取）· 开局增益券（随机 1 张本局增益）· **局内广告券（+1 张，局内免看广告）**｜每格：图形 + 名称 + 数量 + 广告角标 + 「今日 N/M」；**权重不相等**（前两格更重）；⚠ **两种券必须一眼分开**（判别靠**孔洞语义**：增益券斜箭头孔 / 广告券播放三角孔，见 §2 的实测口径）",
+      "遗物格的图鉴进度｜「已收集 12/37」+ 小品质色片｜局外遗物共 37 件、**只能靠局外金币抽取获得**（`docs/meta-growth/README.md` §1）；广告这一格给的是**一次免费抽**（每天 2 次），不花金币也不抬高当日价格",
+      "**免广告卡**（唯一的长线目标）｜图形 + 「免广告卡」+「累计观看广告 42/84」+ 细进度条 + 「攒满 84 次可领 · 生效 24 小时」+ **描边**按钮「领取」｜攒满 = **84 次**（= 每日上限 14 × 6 天），领了给 **24 小时免广告**（局内那两个广告位直接放行）。口径见 `docs/shop/README.md` §2.3；⚠ 按钮是**环**不是实心（全屏页只有一颗实心按钮）",
+      "底部账本与说明｜「今日广告 6/14」+「看完一段视频即可领取 · 每天 0 点重置」｜跨商品共用一个每日广告总上限（3+3+2+**2**+2+**2** = **14**）",
+      "本页的定价声明｜「本页商品全部通过观看激励视频获得，不需要付费」｜这一屏**只做广告变现**，没有任何付费点"
+    ]
+  },
+  "items": [
+    {
+      "key": "shop_daily_gift",
+      "code": "daily_gift",
+      "hero": "商城图标 · 每日免费补给（礼盒）",
+      "group": "shop",
+      "name": "商城图标 · 每日免费补给（礼盒）",
+      "where": "商城全屏页「每日补给」块的图形（40×40）；顶栏 `add` 入口若用同一语义也可复用",
+      "optional": false,
+      "slot": "icon",
+      "size": 64,
+      "gen_size": 512,
+      "wh_ratio": "1:1",
+      "out_png": "shop_daily_gift.png",
+      "icon_path": "textures/shop/daily_gift",
+      "prompt_t2i": "This is a small interface icon for a mobile game: a single object treated as a bold graphic sign rather than as an illustration, and no character, no lettering and no background scene of any kind is included. A single upright gift box standing at the centre of the square, built from two plain rectangular slabs: a wider flat lid sitting across the top and a slightly narrower body under it, with one clear even horizontal gap cut clean through between the two so the lid and the body read as separate pieces. Two straight bands of open space are cut clean through the front of the body — one running vertically down the middle and one running horizontally across it — so the crossing ribbons are expressed as holes rather than as drawn lines. One small round hole is punched through the middle of the lid, and above the lid two short symmetrical loops stand to the left and to the right of that hole like the two halves of a tied bow. The box is squared off at the bottom, and its total width and its total height come out very nearly equal. The picture is a flat single-colour emblem made in the manner of a paper cut-out or a spray-paint stencil. Every part of the subject is filled with one uniform white tone, so the whole figure reads as one connected white shape, and all of its detail — every opening, every division between neighbouring parts, every inner edge — is expressed purely as holes cut clean through that shape rather than as drawn lines. There is exactly one white tone in the whole subject: the shape carries no second shade, no outline in another colour, no shading inside its masses and no surface pattern of any kind. Every part of the icon is a plain four-sided, round or triangular form, all of its edges are either dead straight or evenly curved, and every opening is wide enough to stay clean when the whole icon is shown very small. Light and shadow play no part in the picture at all: because the whole subject is one flat white tone, every part of the shape is equally bright, from its outermost edge to its innermost gap. The icon is built to be recognised instantly at the size of a small square chip of about twenty pixels: its silhouette is unmistakable at a single glance, and it holds its own next to simple filled shapes such as a heart, a shield, a dagger and a pair of concentric rings without being mistaken for any of them. The overall silhouette fills the square frame evenly, its total width and its total height coming out very nearly equal, with simple angular masses arranged around the subject to square the shape off like the backing plate of a heraldic badge. No ground plane, no horizon, no sky and no second object appear anywhere in the picture, and the mass is centred in the square with its weight spread evenly so it sits squarely inside the frame. The emblem sits alone on a completely plain uniform field of one solid deep slate grey that covers the entire frame edge to edge, the same tone everywhere, and that field is left completely empty with nothing else drawn upon it, so the white shape and the grey field are the only two things in the picture and they meet along one clean crisp edge. The subject is centred in a square frame with generous even margins all round, the full shape sitting well inside the edges, and the picture is calm, simple and easy to read at a glance.",
+      "prompt_zh": "每日礼盒图标：一个正立的方礼盒，盒盖略宽于盒身、与盒身之间留一条横向的缝，盒身正面挖两条十字交叉的缎带缝（一竖一横），盒盖正中挖一个小圆孔，盒盖上方左右各一个对称的短耳（打结的缎带）。"
+    },
+    {
+      "key": "shop_boost_ticket",
+      "code": "boost_ticket",
+      "hero": "商城图标 · 本局增益券（票券）",
+      "group": "shop",
+      "name": "商城图标 · 本局增益券（票券）",
+      "where": "商城全屏页「开局增益券」格的图形（40×40）",
+      "optional": false,
+      "slot": "icon",
+      "size": 64,
+      "gen_size": 512,
+      "wh_ratio": "1:1",
+      "out_png": "shop_boost_ticket.png",
+      "icon_path": "textures/shop/boost_ticket",
+      "prompt_t2i": "This is a small interface icon for a mobile game: a single object treated as a bold graphic sign rather than as an illustration, and no character, no lettering and no background scene of any kind is included. A single ticket standing at the centre of the square, its body cut as a plain square, as wide as it is tall, its four corners each sliced off by one small straight cut so they read as blunt notches rather than sharp points, and one plain rectangular stub joined under its bottom end, cut a little narrower than the body and clearly separated from it by one narrow horizontal line of open space with a small round hole punched at each end of that line. In the middle of the square body one broad arrowhead with a short thick shaft behind it is cut clean through as a single solid piece of open space, pointing diagonally up and to the right, chunky and generous so that the arrow reads as one bold solid hole rather than as a thin outline, with one short thin slot cut down each side of the body. The picture is a flat single-colour emblem made in the manner of a paper cut-out or a spray-paint stencil. Every part of the subject is filled with one uniform white tone, so the whole figure reads as one connected white shape, and all of its detail — every opening, every division between neighbouring parts, every inner edge — is expressed purely as holes cut clean through that shape rather than as drawn lines. There is exactly one white tone in the whole subject: the shape carries no second shade, no outline in another colour, no shading inside its masses and no surface pattern of any kind. Every part of the icon is a plain four-sided, round or triangular form, all of its edges are either dead straight or evenly curved, and every opening is wide enough to stay clean when the whole icon is shown very small. Light and shadow play no part in the picture at all: because the whole subject is one flat white tone, every part of the shape is equally bright, from its outermost edge to its innermost gap. The icon is built to be recognised instantly at the size of a small square chip of about twenty pixels: its silhouette is unmistakable at a single glance, and it holds its own next to simple filled shapes such as a heart, a shield, a dagger and a pair of concentric rings without being mistaken for any of them. The overall silhouette fills the square frame evenly, its total width and its total height coming out very nearly equal, with simple angular masses arranged around the subject to square the shape off like the backing plate of a heraldic badge. No ground plane, no horizon, no sky and no second object appear anywhere in the picture, and the mass is centred in the square with its weight spread evenly so it sits squarely inside the frame. The emblem sits alone on a completely plain uniform field of one solid deep slate grey that covers the entire frame edge to edge, the same tone everywhere, and that field is left completely empty with nothing else drawn upon it, so the white shape and the grey field are the only two things in the picture and they meet along one clean crisp edge. The subject is centred in a square frame with generous even margins all round, the full shape sitting well inside the edges, and the picture is calm, simple and easy to read at a glance.",
+      "prompt_zh": "本局增益券图标：**方票身 + 下票根**——票身切成正方形（四角各切一个小缺角），底下的方形票根比票身略窄、由一条水平缺口线分开（两端各挖一个小圆孔），票身正中挖一个斜向朝右上的实心箭头形孔，票身左右各挖一条短竖缝。"
+    },
+    {
+      "key": "ad_ticket",
+      "code": "ad_ticket",
+      "hero": "局内广告券图标（免看广告的票）",
+      "group": "shop",
+      "name": "局内广告券图标（免看广告的票）",
+      "where": "商城全屏页「局内广告券」格（40×40）**＋ 局内 HUD**（`RefreshButtonView` 第三态「用 券」，20×20）",
+      "optional": false,
+      "slot": "icon",
+      "size": 64,
+      "gen_size": 512,
+      "wh_ratio": "1:1",
+      "out_png": "ad_ticket.png",
+      "icon_path": "textures/common/ad_ticket",
+      "prompt_t2i": "This is a small interface icon for a mobile game: a single object treated as a bold graphic sign rather than as an illustration, and no character, no lettering and no background scene of any kind is included. A single ticket lying at the centre of the square, its body cut as a plain square, as tall as it is wide, its four corners each sliced off by one small straight cut so they read as blunt notches rather than sharp points, and one plain rectangular stub joined to its left-hand end, cut a little narrower than the body and clearly separated from it by one narrow vertical line of open space with a small round hole punched at each end of that line. In the right-hand part of the square body one broad triangle is cut clean through as open space with its sharp point facing right, taking up most of the height of the body so it reads at a glance as a triangle rather than as a small nick, with one short thin slot cut along the top edge of the body and one along its bottom edge. The picture is a flat single-colour emblem made in the manner of a paper cut-out or a spray-paint stencil. Every part of the subject is filled with one uniform white tone, so the whole figure reads as one connected white shape, and all of its detail — every opening, every division between neighbouring parts, every inner edge — is expressed purely as holes cut clean through that shape rather than as drawn lines. There is exactly one white tone in the whole subject: the shape carries no second shade, no outline in another colour, no shading inside its masses and no surface pattern of any kind. Every part of the icon is a plain four-sided, round or triangular form, all of its edges are either dead straight or evenly curved, and every opening is wide enough to stay clean when the whole icon is shown very small. Light and shadow play no part in the picture at all: because the whole subject is one flat white tone, every part of the shape is equally bright, from its outermost edge to its innermost gap. The icon is built to be recognised instantly at the size of a small square chip of about twenty pixels: its silhouette is unmistakable at a single glance, and it holds its own next to simple filled shapes such as a heart, a shield, a dagger and a pair of concentric rings without being mistaken for any of them. The overall silhouette fills the square frame evenly, its total width and its total height coming out very nearly equal, with simple angular masses arranged around the subject to square the shape off like the backing plate of a heraldic badge. No ground plane, no horizon, no sky and no second object appear anywhere in the picture, and the mass is centred in the square with its weight spread evenly so it sits squarely inside the frame. The emblem sits alone on a completely plain uniform field of one solid deep slate grey that covers the entire frame edge to edge, the same tone everywhere, and that field is left completely empty with nothing else drawn upon it, so the white shape and the grey field are the only two things in the picture and they meet along one clean crisp edge. The subject is centred in a square frame with generous even margins all round, the full shape sitting well inside the edges, and the picture is calm, simple and easy to read at a glance.",
+      "prompt_zh": "局内广告券图标：**方票身 + 左票根**——票身切成正方形（四角切掉小缺角），左边的方形票根比票身略窄、由一条竖直缺口线分开（两端各挖一个小圆孔），票身右侧正中挖一个**大而饱满、朝右的播放三角**孔（占满票身大半个高度），票身上下各挖一条短横缝。"
+    }
+  ],
+  "page": {
+    "key": "shop_fullscreen",
+    "code": "shop",
+    "ratio": "9:16",
+    "size": 0,
+    "name": "商城全屏页效果图（每日免费可领 + 6 个广告商品）",
+    "install": "不进工程（只给评审/施工参考，落 docs/shop/shop.png）",
+    "optional": false,
+    "words": [
+      340,
+      680
+    ],
+    "zh": "商城全屏页效果图：竖屏，整屏铺满（不是弹窗、不是浮层），暖米白纸面底；顶部一条细的资源行（返回箭头 + 金币 1,240 + 通用英雄经验 760）；页内最重的一块是「每日补给」—— 礼盒图形 + 「金币 300 + 通用英雄经验 150」+ 「连续登录 4 天 · 今日 ×1.5」+ 青绿实心主按钮「免费领取」+ 「距重置 07:12:33」；另有六个广告商品格（金币袋 +300 / 英雄经验瓶 +120 / 账号经验册 +150 / 遗物抽取次数 +1·已收集 12/37 / 开局增益券 / 局内广告券），每格带广告角标与「今日 2/3」次数；**每格的图形都落在一块小青绿方块上**（白描图贴浅色纸面会看不见）；再往下是「免广告卡」那一块（累计观看广告 42/84 + 一条细进度条 + 一句「攒满 84 次可领 · 生效 24 小时」+ 一颗**描边**按钮「领取」）；底部一行「今日广告 6/14」+「看完一段视频即可领取 · 每天 0 点重置」+「本页商品全部通过观看激励视频获得，不需要付费」。**布局如何分区、每块多大、留白怎么留，全部由 AI 自己分析决定**。",
+    "prompt": "This is a flat layout concept for a full-screen page in a mobile game, drawn face-on as it would appear on a vertical phone screen, with no device frame, no perspective and no drop shadow. The page covers the entire screen edge to edge on one flat warm off-white paper field, and no part of any earlier screen shows through anywhere, so this is a whole page of its own rather than a panel floating over a dark backdrop. How the page is divided into sections, how large each block is and how the whitespace is used are all left open, so the page simply has to show everything listed here in whatever grouping reads most clearly. Across the top a thin quiet row carries a small back arrow at its left end and two read-outs spread along it: a round gold coin glyph with the number \"1,240\" beside it in warm gold and a pale teal emblem with the number \"760\" beside it. The heaviest block on the page is the free daily crate: a flat white gift-box glyph on a teal tile, the heading \"每日补给\", the line \"金币 300 + 通用英雄经验 150\" underneath it, a small line of grey text reading \"连续登录 4 天 · 今日 ×1.5\", one filled teal pill button with the white label \"免费领取\", and the faint small text \"距重置 07:12:33\". Six smaller product cells follow, each one holding a flat white glyph standing on a small teal tile, the name of the goods, the amount it gives, a small advertising badge, and a small counter line: \"金币袋 +300 金币\" with \"今日 2/3\", \"英雄经验瓶 +120 通用英雄经验\" with \"今日 1/3\", \"账号经验册 +150 账号经验\" with \"今日 2/2\", \"遗物抽取次数 +1 次局外抽取\" with a small flat epic-purple quality chip and the wide grey text \"已收集 12/37\", \"开局增益券 随机 1 张本局增益\" with \"今日 0/2\", and lastly \"局内广告券 +1 张 局内免看广告\" with \"今日 2/2\". These six cells are not all equally weighted: the first two carry more visual weight than the rest, and each one simply shows how many of its daily views are left in a small quiet counter line. Below them one more flat white card holds the long-running goal: a flat white ticket glyph on a teal tile, the heading \"免广告卡\", a small grey line reading \"累计观看广告 42/84\", a very thin flat progress bar with its left part filled in teal, and the faint grey text \"攒满 84 次（按今日上限约 6 天）可领 · 生效 24 小时\", with one outlined teal pill button carrying the dark label \"领取\". Along the bottom of the page one quiet line of small grey text reads \"今日广告 6/14\", \"看完一段视频即可领取 · 每天 0 点重置\" and \"本页商品全部通过观看激励视频获得，不需要付费\". The palette is deliberately narrow: one family of cool slate inks for every word and glyph, one teal for buttons, tiles and progress, one warm gold used only for the coin read-outs, and one flat chip in the epic quality colour on the relic cell, and nothing else. Every surface is a flat tone with a thin clean outline and rounded corners, and no gradient, no drop shadow, no glow and no surface texture appears anywhere in the picture.",
+    "promptShort": "Flat minimal mobile game page, portrait, filling the whole screen as a page of its own and not as a popup: one warm off-white paper field with a thin top row carrying a back arrow, a round gold coin glyph with \"1,240\" and a pale teal emblem with \"760\". Below that the heaviest block is a free daily crate: a flat white gift-box glyph on a teal tile, the heading \"每日补给\", the line \"金币 300 + 通用英雄经验 150\", a small grey line \"连续登录 4 天 · 今日 ×1.5\", one filled teal pill button labelled \"免费领取\", and the faint text \"距重置 07:12:33\". Six smaller product cells follow, each with a flat white glyph standing on a small teal tile, a name, an amount, a small advertising badge and a counter: \"金币袋 +300 金币 · 今日 2/3\", \"英雄经验瓶 +120 通用英雄经验 · 今日 1/3\", \"账号经验册 +150 账号经验 · 今日 2/2\", \"遗物抽取次数 +1 次局外抽取 · 已收集 12/37\", \"开局增益券 随机 1 张本局增益 · 今日 0/2\", \"局内广告券 +1 张 局内免看广告 · 今日 2/2\". Below them a seventh flat white card holds the long goal: a flat white ticket glyph on a teal tile, the heading \"免广告卡\", the small grey line \"累计观看广告 42/84\", a very thin flat progress bar with its left part filled teal, the faint grey line \"攒满 84 次（按今日上限约 6 天）可领 · 生效 24 小时\", and one outlined teal pill button with the dark label \"领取\". A quiet line of small grey text along the bottom reads \"今日广告 6/14\" and \"看完一段视频即可领取 · 每天 0 点重置\" and \"本页商品全部通过观看激励视频获得，不需要付费\". How the page is divided and how large each part is are left open. Everything is one flat tone with thin outlines and no gradient, no shadow, no glow and no texture, in a palette of one slate ink family, one teal, one warm gold used only for coins, and one quality chip.",
+    "variants": [
+      "**每日已领态**：主按钮变灰药丸「明天再来」+ 保留「距重置 07:12:33」（没有第二次领取）",
+      "**免广告卡生效态**：进度区整块收起，只留一行「免广告生效中 · 剩 23:12:45」，按钮整颗收起",
+      "**免广告卡可领态**：细进度条填满 + 按钮字色转深墨（「领取」）",
+      "⚠ **广告不可用态不画**（2026-11 决策，见 `docs/shop/README.md` §3.4）：六格不做置灰，由宿主给一行提示"
+    ]
+  }
+}

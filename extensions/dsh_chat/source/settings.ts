@@ -6,7 +6,7 @@
  */
 
 /** 设置的内存镜像类型（定义在 constants，面板也要用同一份）。 */
-import type { DshChatSettings, PanelTheme } from './constants';
+import type { DshChatSettings, PanelPalette, PanelTheme } from './constants';
 
 export type { DshChatSettings };
 
@@ -26,8 +26,10 @@ export const DEFAULT_SETTINGS: DshChatSettings = {
     maxTokens: 0,
     workdir: '',
     showStderrNotes: false,
-    // 面板外观：默认跟随（能认出编辑器主题就跟编辑器，认不出跟系统），字号用 token 默认的 14px
+    // 面板外观：默认跟随（能认出编辑器主题就跟编辑器，认不出跟系统），配色用 DSH 官方色板，
+    // 字号用 token 默认的 14px
     theme: 'auto',
+    palette: 'dsw',
     fontSize: 0,
 };
 
@@ -54,6 +56,9 @@ export function normalizeSettings(raw: unknown): DshChatSettings {
     };
     const theme = (value: unknown): PanelTheme =>
         value === 'dark' || value === 'light' || value === 'auto' ? value : DEFAULT_SETTINGS.theme;
+    /** 配色：只认这两个值，其余（含被手改坏的值）回落默认 —— 覆盖层靠这个值命中，写错就是静默不生效。 */
+    const palette = (value: unknown): PanelPalette =>
+        value === 'editor' || value === 'dsw' ? value : DEFAULT_SETTINGS.palette;
     return {
         autoStart: typeof input.autoStart === 'boolean' ? input.autoStart : DEFAULT_SETTINGS.autoStart,
         nodePath: str(input.nodePath, DEFAULT_SETTINGS.nodePath),
@@ -65,6 +70,7 @@ export function normalizeSettings(raw: unknown): DshChatSettings {
         workdir: str(input.workdir, DEFAULT_SETTINGS.workdir),
         showStderrNotes: typeof input.showStderrNotes === 'boolean' ? input.showStderrNotes : DEFAULT_SETTINGS.showStderrNotes,
         theme: theme(input.theme),
+        palette: palette(input.palette),
         fontSize: fontSize(input.fontSize),
     };
 }

@@ -15,6 +15,7 @@
   --c-accent-600:#67999A;
   --c-accent-500:#689B9B;   /* todo：建议并入 600 */
   --c-accent-400:#70ACB3;
+  --c-accent-action:#3F9E9B; /* 可点/可领取的操作按钮（2026-10 登记） */
   --c-accent-ring:#6FA9A7;  /* 只存在于贴图 rect_board_rd_20.png */
   --c-range-line:#C0CCD1;
   --c-range-line-2:#8CA8B3;
@@ -41,6 +42,12 @@
   --c-damage-outline:#14181B;
   --c-hit-hero:#FF4C4C;
   --c-warn:#FF0000;         /* todo：建议 #C0392B */
+  --c-gold:#D38C1E;         /* 金币 / 经济 Boss 专用金（待成体系，见 §9-13） */
+  --c-disabled-pill:#B9C1C1; /* 不可点的药丸/按钮底（2026-10 登记） */
+  /* 档位色 · 成就铜/银/金（2026-11 登记；只做刻度条 + 档位名，不铺卡面） */
+  --c-tier-bronze:#C98B5E;
+  --c-tier-silver:#B9C4CC;
+  --c-tier-gold:#F2C14E;
   /* 品质 */
   --c-q-common:#DDDDDD;
   --c-q-rare:#5096FF;
@@ -407,6 +414,13 @@ footer{color:var(--c-ink-400);font-size:12px;border-top:1px solid var(--page-lin
     <h3>语义色</h3>
     <div class="swatches" id="sw-semantic"></div>
 
+    <h3>档位色 · 成就铜/银/金</h3>
+    <div class="swatches" id="sw-tier"></div>
+    <div class="hint">
+      <b>只许两点式使用</b>：成就卡左缘的刻度条（<code>tier_bar</code>）+ 档位名文字。<b>不许铺成卡面底色</b> —— 浅底上金档 <code>#F2C14E</code> 压白底只有 1.5:1，读不出来；
+      它和品质色同族（回答"到第几档"），不回答"能不能点"（<code>c-accent-action</code>）也不回答"属于谁"（<code>c-identity</code>）。
+    </div>
+
     <h3>单位配色（原型期口径，待主美裁决）</h3>
     <p class="sub">来源 <code>assets/scripts/game/common/EntityVisualConfig.ts</code> —— 唯一的单位配色来源，逻辑与表现共用（体型倍率同时是碰撞半径倍率）。</p>
     <table>
@@ -619,6 +633,7 @@ footer{color:var(--c-ink-400);font-size:12px;border-top:1px solid var(--page-lin
   --c-accent-600:#67999A;   /* 品牌主色：主按钮 / 转场 / 进度环 */
   --c-accent-500:#689B9B;   /* 次按钮（待收敛：并入 600） */
   --c-accent-400:#70ACB3;   /* 大面积填充：格子 / 数值条 */
+  --c-accent-action:#3F9E9B; /* 可点/可领取的操作按钮（2026-10 登记） */
   --c-accent-ring:#6FA9A7;  /* 选中描边环（只存在于贴图） */
   --c-range-line:#C0CCD1;   /* 范围圈 */
   --c-range-line-2:#8CA8B3; /* 第二层范围圈 */
@@ -634,6 +649,12 @@ footer{color:var(--c-ink-400);font-size:12px;border-top:1px solid var(--page-lin
   --c-surface:#FFFFFF; --c-surface-sunken:#D8D8D8; --c-scrim:rgba(0,0,0,.70);
   /* 语义 */
   --c-damage-outline:#14181B; --c-hit-hero:#FF4C4C; --c-warn:#FF0000;
+  --c-gold:#D38C1E;          /* 金币 / 经济 Boss 专用金（待成体系） */
+  --c-disabled-pill:#B9C1C1; /* 不可点的药丸/按钮底（2026-10 登记） */
+  /* 档位色 · 成就铜/银/金（2026-11 登记；只做刻度条 + 档位名，不铺卡面） */
+  --c-tier-bronze:#C98B5E;
+  --c-tier-silver:#B9C4CC;
+  --c-tier-gold:#F2C14E;
   /* 品质 */
   --c-q-common:#DDDDDD; --c-q-rare:#5096FF; --c-q-epic:#CF68FF; --c-q-legendary:#FF6464;
   /* 形状 */
@@ -652,6 +673,7 @@ export const UiTheme = {
     accent600: 0x67999a,   // 品牌主色：主按钮 / 转场 / 进度环
     accent500: 0x689b9b,   // 次按钮（待收敛：并入 600）
     accent400: 0x70acb3,   // 大面积填充：格子 / 数值条
+    accentAction: 0x3f9e9b, // 可点/可领取的操作按钮（2026-10 登记）
     accentRing: 0x6fa9a7,  // 选中描边环（贴图烘焙色，勿在代码里新用）
     rangeLine: 0xc0ccd1,   // 战场范围圈
     rangeLine2: 0x8ca8b3,  // 第二层范围圈
@@ -664,6 +686,7 @@ export const UiTheme = {
     canvasMenu: 0xefeeed, canvasBattle: 0xebf4fb, surface: 0xffffff,
     /** 语义 */
     damageOutline: 0x14181b, hitHero: 0xff4c4c, warn: 0xff0000,
+    disabledPill: 0xb9c1c1, // 不可点的药丸/按钮底（2026-10 登记）
     /** 品质 4 档 */
     quality: [0xdddddd, 0x5096ff, 0xcf68ff, 0xff6464],
 } as const;</textarea>
@@ -696,6 +719,7 @@ const PALETTE = {
     ['--c-accent-600','#67999A','品牌主色：主按钮底、转场动画、进度环、选中文字','Top_ChangeScene.ts mainColor','ok'],
     ['--c-accent-500','#689B9B','次按钮底（选择难度）','Scene_Menu .../game/info/select','todo'],
     ['--c-accent-400','#70ACB3','大面积填充：技能/武器格底、HP·EXP 条','工程 30+ 处','ok'],
+    ['--c-accent-action','#3F9E9B','可点/可领取的**操作按钮**底或环（"这里能点"）：英雄卡解锁·升级、成就页领取','HeroCard.BTN_ENABLED_BG / 成就卡 unlock / 任务页','ok'],
     ['--c-accent-ring','#6FA9A7','选中描边环（只存在于贴图 rect_board_rd_20）','贴图烘焙色','ok'],
     ['--c-range-line','#C0CCD1','战场范围圈（攻击半径 / 刷怪圈）','Scene_Game_Stage.prefab Graphics','todo'],
     ['--c-range-line-2','#8CA8B3','第二层范围圈','Scene_Game_Stage.prefab 覆写','ok']
@@ -719,13 +743,20 @@ const PALETTE = {
     ['--c-canvas-menu','#EFEEED','局外纸面底（暖米白）','截图 31% 占比 / 预制件','ok'],
     ['--c-canvas-battle','#EBF4FB','局内战场底（冷蓝白）','Scene_Game_Stage 全屏 Sprite','ok'],
     ['--c-surface','#FFFFFF','卡片、面板、浮层','截图 16.85%','ok'],
-    ['--c-surface-sunken','#D8D8D8','侧边导航底、分组底','截图 20.93%','ok']
+    ['--c-surface-sunken','#D8D8D8','侧边导航底、分组底','截图 20.93%','ok'],
+    ['--c-scrim','rgba(0,0,0,.70)','转场遮罩、模态遮罩','Top_ChangeScene 设计稿','ok']
   ],
   'sw-semantic': [
     ['--c-damage-outline','#14181B','飘字描边（浅底白字必须压边）','DamageTextConfig.outlineColor','ok'],
     ['--c-hit-hero','#FF4C4C','英雄受击闪 + 英雄飘字色','EntityVisualConfig Hero.hitColor','ok'],
     ['--c-warn','#FF0000','金币不足（现状纯红，建议 #C0392B）','HeroSelectPanel / ShopRelicsPanel','todo'],
-    ['--c-gold','#D38C1E','金币 / 经济 Boss 专用金（唯一暖色强调）','textures/common/gold_boss_icon.png','todo']
+    ['--c-gold','#D38C1E','金币 / 经济 Boss 专用金（唯一暖色强调）','textures/common/gold_boss_icon.png','todo'],
+    ['--c-disabled-pill','#B9C1C1','不可点的药丸/按钮底（配白字）','HeroCard.BTN_DISABLED_BG / AchievementItem / TaskItem','ok']
+  ],
+  'sw-tier': [
+    ['--c-tier-bronze','#C98B5E','成就**铜**档（只做刻度条 + 档位名，不铺卡面）','AchievementTierColor.ts [1]','ok'],
+    ['--c-tier-silver','#B9C4CC','成就**银**档（与 c-disabled-pill #B9C1C1 差 3 个灰阶，别混用）','AchievementTierColor.ts [2]','ok'],
+    ['--c-tier-gold','#F2C14E','成就**金**档（与 c-gold #D38C1E 不是一个用途）','AchievementTierColor.ts [3]','ok']
   ]
 };
 

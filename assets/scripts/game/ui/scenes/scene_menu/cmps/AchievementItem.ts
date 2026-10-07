@@ -1,7 +1,7 @@
 import { _decorator, Button, Color, Label, Node, Sprite } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { AtlasIcon } from '../../../../common/AtlasIcon';
-import { ACH_TIER_BG_ALPHA, tierColor, tierName } from '../../../../common/AchievementTierColor';
+import { tierColor, tierName } from '../../../../common/AchievementTierColor';
 import { achEffectLabel, achEffectMeta } from '../../../../common/AchievementEffectMeta';
 import { AchievementConfig } from '../../../../data/configs/AchievementConfig';
 import { AchScopeEvents } from './AchievementScope';
@@ -33,28 +33,45 @@ const UNKNOWN_DESC = '未知的挑战';
  *
  * 职责只有两件（与 `TaskItem` 同分工）：
  *   ① 渲染：把宿主下发的 `AchGroupState` 画到预制件的节点上（档位色 / 图标 / 描述进度 /
- *      领取区 / 2 个效果槽 / 4 行效果明细）；
+ *      领取区 / 2 个效果槽 / 效果明细行）；
  *   ② 通知：点「领取」时 `scope.emit(AchScopeEvents.Claim, group)` —— 领奖、发奖、刷新都由宿主做。
  *
  * 节点契约（与 `Scene_Menu.prefab` 的 `content/right/achivements/lists/card` 一致，见设计稿 §7.4）：
  * ```
  * card
- * ├── bg            底图（按当前档位染色，低透明度）
+ * ├── bg            底图（**纯白 `c-surface` + `rect_rd_20` 大圆角**，运行期不再染色）
+ * ├── tier_bar      档位刻度条（卡左缘 10×158 竖条，**卡面上唯一的档位色彩载体**）
  * ├── icon          图标槽 → inner(成就图标) / lock(未达成遮罩)
- * ├── name          成就名
- * ├── lv            档位（铜/银/金，文字色 = 档位色）
- * ├── detail/Label  描述 + 当前档进度（两行）
+ * ├── name          成就名（`c-ink-900`）
+ * ├── lv            档位（铜/银/金，`c-ink-900` —— 颜色由 `tier_bar` 回答）
+ * ├── detail/Label  描述 + 当前档进度（最多 3 行：描述折 2 行 + 进度 1 行）
  * ├── unlock        领取区 → Label / icon(金币) / value(金币数, 缩写)
  * ├── weapon(-001)  2 个效果槽（末档效果生效才亮）
- * └── property(-00N) 4 行效果明细（末档效果生效才显示，v1 只会用到第 1 行）
+ * └── property(-001) 2 列效果明细（末档效果生效才显示，v1 只会用到第 1 列）
  * ```
  * 所有子节点引用都按名字兜底解析（`@property` 没拖也能跑），与 `TaskItem.resolveRefs` 同一套路。
+ *
+ * ⚠ **2026-11 卡面改版（对齐 `docs/美术风格预设.md`）**：改版前卡面是「`rect_rd_5` + 整块档位色
+ * 低透明度晕染」，且 `unlock` 用的是 `rect_board_rd_10`（**只描边不填充的空心环**）配白字 ——
+ * 白字写在白卡面上根本读不出来（旧版之所以能读，是因为卡面被铜色晕染成了中明度底）。
+ * 现在：卡面纯白 `rect_rd_20`、档位色收敛到左缘 `tier_bar`、`unlock` 换成**实底药丸**
+ * （`rect_rd_20`，40 高 → 正好是胶囊形），白字这才成立。
+ *
+ * ⚠ **同一次改版顺带修掉的两条「文字被裁」**（都是布局宽度/高度不够，编辑器里预览看不出来）：
+ *   ① `detail` 原来只有 2 行高（44px）—— 6 字以上的描述折成 2 行就**把进度行挤掉了**
+ *      （最长的描述 24 字，实测 `20/20` 整行消失）。现在按 1.5 倍行距给足 3 行（210×72）。
+ *   ② 效果明细原来是 4 列 × 86px —— 14px 字号下 6 字的效果名（如「局内初始金币」）要 84px，
+ *      再塞 20px 图标必然被裁。现在收成 **2 列 × 176px**，与 2 个效果槽一一对应
+ *      （配表侧一条成就最多 1 个效果、契约侧 2 个槽 → 4 列里后两列永远是死节点，已删）。
  */
 @ccclass('AchievementItem')
 export class AchievementItem extends UIWidget {
 
     @property(Sprite)
     bgSprite: Sprite = null;
+    /** 档位刻度条（卡左缘竖条）—— 卡面上**唯一**的档位色彩载体 */
+    @property(Sprite)
+    tierBarSprite: Sprite = null;
     @property(Sprite)
     iconSprite: Sprite = null;
     @property(Node)
@@ -77,7 +94,7 @@ export class AchievementItem extends UIWidget {
     weaponNode: Node = null;
     @property(Node)
     weaponNode2: Node = null;
-    /** 4 行效果明细（v1 只会用到第 1 行） */
+    /** 效果明细列（2 列，与 2 个效果槽一一对应；v1 只会用到第 1 列） */
     @property([Node])
     propertyNodes: Node[] = [];
 
@@ -150,18 +167,16 @@ export class AchievementItem extends UIWidget {
         this.applyEffects(s);
     }
 
-    /** 底图按当前档位染色（低透明度，见 AchievementTierColor 的口径说明）+ 档位文字 */
+    /**
+     * 档位：**只染左缘的刻度条**，卡面（`bg`）保持纯白、`lv` 保持墨色。
+     *
+     * 口径见 `AchievementTierColor` 的文件头：档位色是「品质色」那一轴的点缀，
+     * 不该铺满卡面（浅底上会与正文的深色文字抢对比度，金档尤其）,也不该同时出现在两处。
+     */
     private applyBgAndTier(s: AchGroupState): void {
         const hex = tierColor(s.tier);
-        if (this.bgSprite) {
-            const c = new Color().fromHEX(hex);
-            c.a = ACH_TIER_BG_ALPHA;
-            this.bgSprite.color = c;
-        }
-        if (this.tierLabel) {
-            this.tierLabel.string = tierName(s.tier);
-            this.tierLabel.color = new Color().fromHEX(hex);
-        }
+        if (this.tierBarSprite) this.tierBarSprite.color = new Color().fromHEX(hex);
+        if (this.tierLabel) this.tierLabel.string = tierName(s.tier);
     }
 
     /** 成就图标（配表 `icon` 是 resources 相对路径、不带扩展名；空/加载失败都保持预制件里的占位图） */
@@ -219,8 +234,8 @@ export class AchievementItem extends UIWidget {
     }
 
     /**
-     * 效果槽 + 效果明细行：**只有「末档效果已生效」才亮**（铜/银档阶段整块收起）。
-     * v1 一条成就最多 1 个效果，所以第 2 个槽与第 2~4 行明细一律收起。
+     * 效果槽 + 效果明细列：**只有「末档效果已生效」才亮**（铜/银档阶段整块收起）。
+     * v1 一条成就最多 1 个效果，所以第 2 个槽与第 2 列明细一律收起。
      */
     private applyEffects(s: AchGroupState): void {
         const unlocked = s.effectUnlocked && !!s.effect;
@@ -273,6 +288,7 @@ export class AchievementItem extends UIWidget {
         const detail = n.getChildByName('detail');
 
         this.bgSprite = this.bgSprite ?? n.getChildByName('bg')?.getComponent(Sprite);
+        this.tierBarSprite = this.tierBarSprite ?? n.getChildByName('tier_bar')?.getComponent(Sprite);
         this.iconSprite = this.iconSprite ?? icon?.getChildByName('inner')?.getComponent(Sprite);
         this.lockNode = this.lockNode ?? icon?.getChildByName('lock');
         this.nameLabel = this.nameLabel ?? n.getChildByName('name')?.getComponent(Label);
@@ -287,7 +303,8 @@ export class AchievementItem extends UIWidget {
 
         if (!this.propertyNodes.length) {
             const rows: Node[] = [];
-            for (const name of ['property', 'property-001', 'property-002', 'property-003']) {
+            // 只有 2 列（与 `weapon` / `weapon-001` 两个效果槽一一对应）；名字不在 = 该列不存在，跳过不报错
+            for (const name of ['property', 'property-001']) {
                 const row = n.getChildByName(name);
                 if (row) rows.push(row);
             }
