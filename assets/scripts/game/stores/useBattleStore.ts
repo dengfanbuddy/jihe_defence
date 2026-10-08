@@ -31,6 +31,7 @@
 
 import { defineStore } from '../../platform/store'
 import { ref } from '../../platform/reactivity'
+import { DEFAULT_GAME_MODE } from '../common/GameModeConfig'
 
 /**
  * 每击杀一只怪得到的**击杀数**（击杀商店货币）。
@@ -77,6 +78,18 @@ export const useBattleStore = defineStore('battle', () => {
    * HUD 的 `info/name` 靠它显示「难度 N」，局内缩放全部走 `DifficultyConfig` 现算（不再读这个字段）。
    */
   const difficulty = ref(1)
+
+  /**
+   * **本局的游戏模式**（`GameModeConfig.GameMode`：`stage` 阶段模式 / `no_ending` 无尽模式）。
+   *
+   * 投影值，真源在 `DataCenter.ins.levelData`（主界面模式卡点一下就落盘）；
+   * 场景在换局（`resetRun`）时读一次写进来，本局全程不变 ——
+   * HUD 的 `info/mode` 靠它显示模式名（**原来那一格是预制件里的死文案「阶梯模式」，全工程没有写入方**）。
+   *
+   * ⚠ **模式还没有分玩法规则**：无尽模式目前仍会走到最终 Boss 阶段结束（见 `GameModeConfig` 文件头）。
+   *   落地时在 `Scene_Game_Stage.checkStage` 一处消费这个字段即可。
+   */
+  const mode = ref<string>(DEFAULT_GAME_MODE)
 
   // ── 统计 ──
   /** 本局**累计**击杀数（统计口径：结算 / 成就 `kill_in_run`；**花掉不会减少**） */
@@ -171,6 +184,7 @@ export const useBattleStore = defineStore('battle', () => {
     exp.value = 0
     expToNext.value = 60
     difficulty.value = 1
+    mode.value = DEFAULT_GAME_MODE
   }
 
   function togglePause(): void {
@@ -186,6 +200,7 @@ export const useBattleStore = defineStore('battle', () => {
     gold,
     level, exp, expToNext,
     relicBag,
-    difficulty
+    difficulty,
+    mode
   }
 })

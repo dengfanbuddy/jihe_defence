@@ -1,6 +1,6 @@
 ---
 name: cocos-editor-ops
-description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表——时使用。含 13 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图仍可能整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段、Widget 单边对齐回写漂移、预制件编辑模式下「改完立刻存」会存到改动前、`query-dirty` 不是护栏、**截图里的东西不一定是场景节点**、**Label 会不会裁字是能算的**）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实），另含 4 条铁律（先查 API / 只 return 结论 / 改场景登记撤销 / 别手调生命周期钩子）。插件已封好 6 个「别再手搓」的助手：loadFrame / worldRect / pick（这个点是哪个节点）/ labelFit（框放不放得下字，可问反事实）/ snapshotTree+diffTree（我到底改了什么）/ probe（图片像素与「能不能染色」）。
+description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Cocos Creator 3.8.6 编辑器与场景：查/建/改场景节点与组件、批量改资源、存预制件、读工程日志、**截图 / 点按 / 冻结运行画面**、跑通后固化成 recipe。当用户要求「在编辑器里做点什么」——建场景/预制件、批量改节点、按契约搭 UI 骨架、查资源引用、读配表、验证某个按钮点下去有没有反应——时使用。含 13 条实测踩过的坑（gizmo 污染场景树、cc.find 找不到含斜杠的节点、存预制件的两条路子与副作用、EditBox 把节点撑成贴图尺寸、截图仍可能整帧空白、`cc is not defined` = context 选错、三个静默改数据的 UI 组件、编辑态两个不可信的查询手段、Widget 单边对齐回写漂移、预制件编辑模式下「改完立刻存」会存到改动前、`query-dirty` 不是护栏、**截图里的东西不一定是场景节点**、**Label 会不会裁字是能算的**）与 6 条纪律（增量改/别在真实场景实验/别动全局视图状态/失败别静默/别硬啃编辑器安装目录/丢代码前先榨事实），另含 4 条铁律（先查 API / 只 return 结论 / 改场景登记撤销 / 别手调生命周期钩子）。插件已封好 6 个「别再手搓」的助手：loadFrame / worldRect / pick（这个点是哪个节点）/ labelFit（框放不放得下字，可问反事实）/ snapshotTree+diffTree（我到底改了什么）/ probe（图片像素与「能不能染色」）。
 ---
 
 # Cocos Creator 编辑器操作（dsh_chat 的 cocos_* 工具 / Code Mode）
@@ -27,8 +27,8 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 
 **不适用**：纯 TS 代码改动（那直接改源码）。
 
-## 工具面：只有 5 个 tool
-<!-- fact: tool-count | verify: script:tool-count-is-5 | 断言 bridge 里 ctx.tools.register 正好 5 次 -->
+## 工具面：只有 8 个 tool
+<!-- fact: tool-count | verify: script:tool-count-is-8 | 断言 bridge 里 ctx.tools.register 正好 8 次 -->
 
 编辑器执行能力由 **`dsh_chat` 扩展自带**（沙箱与场景脚本都在它里面，见
 `extensions/dsh_chat/source/core/engine.ts` + `source/scene.ts`）。
@@ -38,13 +38,68 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 | `cocos_execute_code` | 主工具。写 JS，跑在指定上下文，返回它 `return` 的值 |
 | `cocos_describe_api` | 按需查编辑器/引擎 API，**不要猜** |
 | `cocos_editor_state` | 会话开头/卡住时探一次：在哪个工程、选中什么、能不能动场景 |
-| `cocos_capture_view` | 把**编辑器场景视图**（或**指定的某一个节点**）截成图片文件、回路径。默认会**先取景再截**（`fit`）—— 屏幕上那一帧未必是全景（见「取景」一节） |
+| `cocos_capture_view` | 把**编辑器那块画布**（或**指定的某一个节点**）截成图片文件、回路径。默认会**先取景再截**（`fit`）；`view` 说明要的是**编辑器场景**还是**跑着的游戏**（见「取景」一节） |
 | `cocos_logs` | 读**工程里的日志文件**（路径 + 行号 + 原文）。控制台里的字代码拿不到，只能另开一条通道（见「日志」一节） |
+| `cocos_click_node` | 在节点/坐标上**真点一下**（真鼠标事件）—— 按钮回调、列表选中这类"光看数据验不出来"的事靠它（见「点与跑」一节） |
+| `cocos_send_keys` | **真发键盘**：按一下某个键（快捷键/方向键/Esc）、或往输入框里打字 |
+| `cocos_runtime` | 运行预览（编辑器内 game view）**只读**状态：`state`。⚠ 开关（`play`/`stop`/`pause`/`resume`/`step`）**已撤掉**（见坑 17） |
 
 **每个回执的结尾可能带一段 `refs`**（结果里出现过的全形 uuid / `db://` 路径，去重后列出）。
 这是省往返用的：下一步要「用刚才那个节点/那张图」时，**直接抄 `refs` 里的值**，
 不要重查一遍、更不要凭记忆编 —— 本文多条坑（尤其 uuid）都出在「猜」上。
 它只搬运事实：抽的是压缩型 uuid 的话会误报，所以**只有全形 uuid 与 `db://` 会被列出来**。
+
+### 点与跑：把「整屏交互只能人肉验收」变成可复现的判据
+<!-- fact: interaction-tools-wired | verify: script:interaction-tools-wired | 断言三件都在（bridge 注册 + 发的帧名 + cocos-tools 分发表 + input.ts/preview.ts 的关键实现） -->
+
+改完 UI 光截图只能看「长得对不对」，**点下去有没有反应**是另一件事。三件合起来才闭环：
+
+| 想干什么 | 怎么调 |
+|---|---|
+| 点一下某个节点 | `cocos_click_node({ node: 'Canvas/panel/btn' })` —— 按投影算节点中心，**编辑态**才成立 |
+| 点一个坐标（运行态只能这样） | `cocos_click_node({ x: 0.5, y: 0.8, space: 'uv' })` —— `uv` 是**截图比例**，图被缩过也不用自己换算 |
+| 双击 / 右键 / 组合键点击 | `clickCount: 2` / `button: 'right'` / `modifiers: ['shift']` |
+| 按一下键（Esc、方向键、快捷键） | `cocos_send_keys({ key: 'Escape' })`（`key` 是 Electron 加速键名，不是 `event.key`） |
+| 往输入框打字 | 先 `cocos_click_node` 点那个输入框，再 `cocos_send_keys({ text: 'abc' })` |
+| 现在是不是运行态 | `cocos_runtime({ action: 'state' })` —— 判据是 `scene.previewState`，**不是** `mode` |
+| 开始 / 停止运行预览 | ⛔ **本工具不做**（2026-10-08 撤掉，见坑 17）—— 请**人在编辑器工具栏上按那颗播放键**；跑起来之后 `state` 照样能看，`view:'game'` 照样能截 |
+
+<!-- fact: editor-input-not-dom | verify: script:editor-input-not-dom | 断言 bridge 的 click/keys 描述里写着"引擎在编辑器构建里不注册 DOM 监听"，且 scene.ts 的 readSceneMode 仍以 _state 为判据 -->
+**⚠ 真机实测（2026-11，两轮）：合成点击/按键到不了引擎，但**引擎级注入能**。** `sendInputEvent`
+确实发到了场景视图那一页（`target` / `matchedBy` / `window.focused` 全对），但**引擎收不到** ——
+全屏拦截节点 0 条事件，连页面里自己 `dispatchEvent` 也不进引擎。原因是引擎源码里的一行：
+编辑器构建**不注册 DOM 监听**（`pal/input/web/mouse-input.ts`：`// In Editor, we receive mouse event from manually event dispatching.`
++ `if (!EDITOR) { this._registerEvent(); }`）—— 真人的点击是**编辑器自己转发**进去的。
+**✅ 第 2 轮把换路证成了**：在场景进程直调引擎给编辑器留的六个口子
+（`cc.input._dispatchMouse*` / `_dispatchKeyboard*`）**真能进引擎** —— 全屏探针收到
+`touch-start`/`touch-end`、两点差值 ÷ `Δclient` **逐位等于 `scaleX`/`scaleY`**、画布外的点 **0 命中**；
+坐标就是**页面 CSS 像素**（引擎的公式是 `clientX - canvasRect.x`）。
+所以现在：**"点一下 → 看游戏逻辑有没有反应"这条闭环要等换路接完**（`transport` 还没接），
+在那之前别把 `ok:true` 当成"游戏收到了"；`probe` 仍然有用（它证明坐标算得对）。
+
+**顺带一条手法上的提醒**：**重起预览会重载运行场景** —— 运行期挂上去的探针节点会**跟着消失**
+（第 2 轮收尾时删探针回 `removed:false` 就是这个原因），所以探针的"生命周期"是**一次预览**，
+不是一次会话；同一次预览里用完就删。
+
+四条口径（都是踩过才知道的边界）：
+
+- **运行态下节点投影不成立**：那一页画的是**跑着的游戏**，由**游戏自己的相机**渲染，而节点矩形是用
+  **编辑器相机**投的 —— 所以运行态给 `node` 会**被拒**（刻意拒，不是"算不准"），
+  按节点裁图也不做。这时只有坐标能用（`x`/`y` 或 `uv`）。
+  ⚠ 这条判据现在是 `cce.PreviewPlay._state`：**facade 那几条判不出运行态**（实测预览跑着时
+  `facadeMode` / `queryMode` 仍是 `general`、`isPreviewProcess` 恒 `false`）—— 2026-11 之前这条拒绝
+  其实**从来没触发过**。
+- **`probe` 与"真的点到了"是两件事**：回执里的 `probe`（`pick(x,y)` 的结果）只证明
+  「这个坐标在页面上确实是那个节点」；**证明 Chromium 把那一下送到了**，只有
+  **点前后各截一张图对比**。别拿 `probe` 当"点成功了"。
+- **焦点不抢**：`cocos_send_keys` 不会替你把焦点抢过去（那会打断用户打字），
+  回执里的 `focused` 是**如实报**的。要打字先点一下那个输入框。
+- **只认编辑器内预览**：浏览器 / 模拟器预览是另一个应用的另一个进程，点击、截图都够不着。
+- **`cocos_runtime` 只剩只读**：`state` 把两条来源摆出来（编辑器消息 `query-scene-mode` + 场景进程
+  `cce.PreviewPlay._state`）—— 后者才是**运行态的真判据**（facade 那两条实测判不出来）。
+  改状态的那五个动作**已经撤掉**：它们与两次「场景面板画面停住 / 黑掉」同一条时间线（见坑 16 / 坑 17），
+  而且在本工程里编辑器内预览根本跑不进游戏（卡在 `Loading` 的 `loadBundle('scripts')`，`0%`）。
+
 
 ### 日志：控制台里的字怎么拿到
 <!-- fact: logs-tool-wired | verify: script:logs-tool-wired | 断言 bridge 注册了 cocos_logs、真发 read_logs 帧、cocos-tools 分发表有条目、logs.ts 有通用候选目录表与 clear 确认口令 -->
@@ -295,9 +350,18 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 
 **先说 2026-11 的改动**：截图的正路已经换成**主进程的 Electron** ——
 `cocos_capture_view` 现在由扩展主进程 `webContents.capturePage()` 抓**编辑器合成后的画面**
-（老路读的是场景进程里的 GL 后备缓冲，合成后即失效、且**没法让编辑器重画**，
-所以那时实测恒回 `blankRatio: 1`）。空图时主通道会自己 `invalidate()` **逼一次重绘**再抓。
+（老路读的是场景进程里的 GL 缓冲，合成后即失效、且**没法让编辑器重画**，
+所以那时实测恒回 `blankRatio: 1`）。**抓图这一步是纯读**：一次 `capturePage()`，
+**不排重绘、不重试**（2026-10-08 口径，理由见坑 16 / 坑 17：本扩展一处 `invalidate()` 都不调）。
 回执里的 `method` 会告诉你是谁抓的：`electron`（正路）/ `scene-gl`（兜底老路）。
+
+> ⚠ **"旧帧"比"空帧"更坑**（2026-11 真机实测）：预览跑过之后连抓三次截图
+> **字节完全相同**、画面还是上一段预览的最后一帧，而同一时刻 `framing` 报的相机
+> **已经回到编辑态** —— 「图是旧的、量是新的」，照它下结论必错。
+> **判据**：若你怀疑图是旧的，改一处**可见**的东西（挪个节点）再截一次，字节没变就是旧的。
+> **怎么办**：现在**没有"逼一帧"这个旋钮了**（`forceRepaint` 已随坑 16 一起撤掉）——
+> 如实把它当"这一帧可能不是最新的"处理：要么换个**数值判据**（`worldRect` / 直接读属性），
+> 要么**如实声明"这张图可能不是最新那一帧"**。别再指望工具替你把合成器推一下。
 
 **所以现在 `blankRatio ≈ 1` 的含义变了**：不是"读缓冲读晚了"，而是
 **连合成后的画面都是空的**（场景视图面板被折叠 / 从没渲染过 / 编辑器最小化）。
@@ -341,7 +405,20 @@ node.getComponent(cc.UITransform).setContentSize(w, h);
 **取景会临时动一下用户的编辑器视角**（截完自动还原，`restored:true`）——这是刻意的：
 不摆相机就拍不到视口外的东西。所以别为了"拍全"自己去调 `cc.view` / 相机（见纪律 3）。
 
-**已知边界**：兜底通道（`method: "scene-gl"`）**不取景**（回执里 `fitIgnored` 会说明）；
+### `view`：同一块画布，两种画面
+<!-- fact: capture-view-mode | verify: script:capture-view-mode | 断言模式有来源（scene.ts 的 readSceneMode **以 `PreviewPlay._state` 为判据**、facade 只作原值报出）也有出口（engine.ts 回执的 mode.requested/actual/paused），且工具参数在 -->
+
+编辑器那块画布**同一时刻只画一样东西**：编辑态的编辑器场景，
+或者运行预览（编辑器工具栏那颗播放键，编辑器自己叫 game view）**跑着的游戏** —— 两者用**不同的相机**：
+
+- `view:"game"` 要跑着的那一帧（战斗画面、结算面板）；`view:"scene"` 要编辑器场景；默认 `auto` 不管，
+  但回执里 `mode.actual` **照样会说清截到的是哪一种**（要的和拿的不一致时 `note` 直接写出来）。
+- **运行态下 `fit` 被忽略、`node` 不裁图**（两者都建立在编辑器相机上，而那一刻在渲染的是游戏相机）——
+  回执里会明说，不会给你一块错位的图。
+- **浏览器 / 模拟器预览够不着**（另一个应用的另一个进程）。`view:"preview"` 按 `game` 理解并附说明。
+
+**已知边界**：兜底通道（`method: "scene-gl"`）**不取景**（回执里 `fitIgnored` 会说明），
+**也判断不了画的是场景还是游戏**（回执里 `viewMode.actual = "unknown"`）；
 3D 视图只有 `focus` 一级（手工那级只实现了 2D 正交）。
 
 ---
@@ -619,6 +696,82 @@ labelFit({ text: '…', fontSize: 16, width: 210, height: 72, lineHeight: 24 });
 
 ---
 
+## 坑 15：`open-scene` 传 `db://` 路径**不是"打开那个场景"**，是开一个**新的空场景**
+<!-- fact: pit-15-open-scene-needs-uuid | verify: script:open-scene-uuid | 断言 cocos-tools.ts 的 editor_state「下一步」提示里写着 open-scene 要用资源 uuid，且 engine/README 仍把这条边界写在明面上 -->
+
+**症状**（2026-11 真机实测）：`Editor.Message.request('scene','open-scene','db://assets/scenes/Main.scene')`
+之后，`query-node-tree` 的根变成了 **`scene-2d`**，而且**根 uuid 每次都不一样**
+（先后见到两个不同的 uuid），磁盘上 `assets/scenes/scene-2d.scene` 的 mtime **没变** ——
+也就是说它开出来的是一个**新的未命名 2D 场景**，不是你要的那个。
+
+**正解**：传**资源 uuid**（`open-scene('ba018ca9-f91c-4330-9f72-44fd7e7af77f')`）才是开 Main。
+uuid 从 `cocos_execute_code({code:"return (await Editor.Message.request('asset-db','query-assets',{pattern:'db://assets/scenes/*.scene'})).map(a=>({url:a.url,uuid:a.uuid}))"})` 拿。
+
+**为什么危险**：它**不报错**，节点树看着也正常（只是里面是空的）—— 接着往下做就会在错误的场景里改东西。
+判据：改完场景之后 `editor_state` 里的**当前场景名/uuid 与你以为的那个对不上**，先怀疑这一条。
+
+---
+
+## 坑 16：⚠「场景」面板的**画面停住 / 黑掉**了 —— 引擎还在跑，是**呈递**停了；只能重启编辑器
+<!-- fact: pit-16-scene-frozen | verify: script:scene-frozen-recipe | 断言 SKILL 与 docs/冻结诊断.md 都还在，且 capture.ts / engine.ts / scene.ts 里**一处 `invalidate()` 调用都没有**（2026-10-08 之后的硬口径） -->
+
+**症状**（2026-10-08 两次真机现场）：编辑器中间的**「场景」面板**画面**不更新**（切到别的场景也一样，
+画布上还是**切场景之前**那一帧），或者干脆**一片黑**；而**编辑器其余部分完全正常**（层级/属性点了会变、能切场景、能点菜单）。
+
+**判据（先量，再下结论）**——这条最反直觉的地方是：**看起来像"卡死了"，其实引擎一切正常**：
+
+| 量 | 当时的值 | 说明 |
+|---|---|---|
+| `cc.director.getTotalFrames()` 隔 2 秒读两次 | `21540 → 21659`（**+119 ≈ 59fps**） | 循环**一直在跑**，而且从编辑器启动起**一帧没少** |
+| `cc.game.isPaused()` / `cc.director.isPaused()` | `false` / `false` | 不是被暂停 |
+| `cce.Camera.camera`（编辑器相机） | `active:true`、`enabled:true` | **不是"相机被藏了"**（`PreviewPlay.start()` 会 `hideEditorCamera()`，`stop()` 才还回来 —— 但这次不是它） |
+| `document.visibilityState` | `"visible"` | Chromium 眼里这一页可见 |
+| `cc.director.getScene().name` | `"Main"` | 引擎里装着的是新场景，**画布上是旧的** |
+
+⇒ **画面停在这一层（那一页的呈递），不在引擎里**。所以"再点一下节点/再切一次场景"都不会好。
+
+**恢复配方（**只有第 3 步管用**，前两步实测无效，但值得先试 —— 它们的成败本身就是判据）**：
+1. 点一下编辑器窗口置顶 / **最小化再还原** / 拖一下面板分隔条（让那块 surface 重新分配尺寸）；
+2. 菜单里把「场景」面板**关掉再打开**（重建这一页）；
+3. `Ctrl+S` → **重启编辑器**（实测**只有这条**能把画面接回来；场景数据不会丢，
+   `query-dirty` 通常是 `false`）。
+
+**为什么会这样 / 我们能做什么**：两个候选**都还没被单变量实验钉死**——
+① Chromium 把这一页的呈递停了（与本扩展无关）；② 我们**碰合成器**的两类操作
+（抓图前 `webContents.invalidate()` 逼重绘 **与** 从编辑器内部开关运行预览 `cce.PreviewPlay`）。
+**现在两条都整体撤掉了**（2026-10-08 口径）：
+- 本扩展**一处 `invalidate()` 都不调**（抓到的图是空的就是空的，如实报 `blankRatio`，退路是换数值判据）；
+- **再也不能从工具里开关运行预览**（见坑 17）。
+
+也就是说：**能做的是"把发生的条件撤掉"，不是"修好了"** —— 因果没证实时，写死一个结论比留着不确定性更危险。
+完整判定、逐字回执与对照实验：**`docs/冻结诊断.md`**（§1 只读诊断代码 / §2 判读表 / §3 解法 / §5 判定 / §5.4.1 落地改动）。
+
+**遇到它时你要做的**：① 先按上表**量一遍**（别猜"是不是卡死了"）；② **如实告诉用户**"这是画面呈递停了、
+要重启编辑器"并给出上面三条；③ 别反复重试各种工具调用 —— 它们都会"成功"（引擎是好的），但什么都不会变。
+
+---
+
+## 坑 17：⛔ 本工具**不会替你开关运行预览**（编辑器内 game view）—— 要看画面请人在工具栏上按
+<!-- fact: pit-17-preview-removed | verify: script:preview-control-removed | 断言 `cocos_runtime` 只剩只读 `state`：bridge 的 enum 只有 state、cocos-tools 里五个动作被拒、package.json 的 scene methods 没有 runtimeControl、scene.ts 里不再直调 PreviewPlay 的开关方法 -->
+
+**症状/边界**：`cocos_runtime({action:'play'})` 这类调用会**明确被拒**（`ok:false` + 说清为什么）。
+它**不是参数写错了**，别再换个写法重试。
+
+**撤掉的三个理由**（前两条写进回执里，第三条是收益账）：
+1. **它与两次画布事故同一条时间线**（见坑 16）：`cce.PreviewPlay.start()/stop()` 是**换掉那块画布的渲染相机**
+   （`start` 藏编辑器相机、`stop` 再还回来）——这是"我们主动改过用户眼前那块画布"的少数几个动作之一；
+2. **它让"谁干的"永远说不清**：重启编辑器之后没人能复盘是哪一步把画面弄停的；
+   撤掉之后，画面出问题就只剩"环境 / Chromium"这一类解释；
+3. **在本工程里它本来就没用**：编辑器内跑起来会卡在首场景 `Loading` 的 `loadBundle('scripts')`
+   （进度 `0%`，既不成功也不失败；`cc.assetManager.bundles` 里只有 `internal`）——
+   即"编辑器内预览进不了游戏"，收益是零。
+
+**要看游戏画面怎么办**：请**人在编辑器工具栏上按那颗播放键**（那是编辑器自己的能力，与本扩展无关），
+然后回来用 `cocos_capture_view({view:'game'})` 截图 / `cocos_runtime({action:'state'})` 看状态 ——
+**只读那一条仍然在**：`running:true` 时按节点投影/裁图/点击都不成立（它们建立在编辑器相机上），要交互就用坐标。
+
+---
+
 ## 纪律（比技巧更省时间；每条都对应一次真实事故）
 
 1. **增量改，别全量重建。** 改一个属性不要重灌整棵树的构建脚本 —— 实测一次任务里
@@ -773,14 +926,31 @@ vs `archive/build-login-ui-tree`（结构写死 + 按用途命名，❌ 已退�
   **再加上事实门禁**：`node scripts/verify-skill-facts.js`（或 `npm run verify:skill`）——
   **本文件里每条事实都挂了一条 `<!-- fact: … | verify: … -->` 声明**，改错了它会当场红。
   新写一条坑时必须同时声明它怎么被验证（能算的写 `script:<锚点名>`，只能人验的写 `manual` + 一句「人在哪看什么」）。
-- **`cocos_capture_view` 仍可能整帧空白**（`blankRatio ≈ 1`）：截图正路已经换成主进程的
-  Electron（读合成后的画面 + 空图时逼一次重绘），所以到这个地步就是**真的没画面可抓**。
+- **`cocos_capture_view` 仍可能整帧空白**（`blankRatio ≈ 1`）：截图正路是主进程的
+  Electron（读**合成后的画面**，纯只读、**不逼重绘**），所以到这个地步就是**真的没画面可抓**。
   先按坑 5 量视图状态，**不要反复重试、不要自建离屏渲染器**；这一项没做成要如实说。
 - **取景（`fit`）的边界**：它靠 `cce.Camera.focus` / `controller2D._adjustToCenter` / 手工摆相机
   三级里**能覆盖的那一级**，逐级都是**量着验**的；三级都不行时会**照常给图但如实标「可能不是全景」**。
   兜底通道（`method:"scene-gl"`）不取景；3D 视图只有 `focus` 一级。
   **取景会临时动用户的编辑器视角**（截完自动还原，`restored:false` 时会写进回执）——
   真机上「哪一级生效、还原成不成功」还没实测过，第一次用**先看 `framing.method` / `restored`**。
+- **点按与运行态的三条边界**（都是刻意的、回执里会明说的）：
+  ① **运行态（game view）下节点投影/裁节点不成立**（那一刻是**游戏相机**在渲染，节点矩形是**编辑器相机**投的）——
+  这时只能用坐标（`x`/`y` 或 `uv`），给 `node` 会被拒；② **`probe` 不等于"点成功了"** ——
+  它只证明"这个坐标在页面上是那个节点"，证明 Chromium 真送到了只有**点前后截图对比**；
+  ③ **`cocos_send_keys` 不抢焦点**，回执里的 `focused: false` 就是"打字多半不会进输入框"的判据。
+- **运行态**只与编辑器**内部**那个 game view 有关（浏览器 / 模拟器预览是另一个应用的另一个进程，
+  够不着）。**`cocos_runtime` 只剩只读的 `state`**：开关那五个动作 2026-10-08 撤了（见坑 17），
+  要跑游戏请**人在编辑器工具栏上按播放键**。**没有 `timeScale`**：编辑器没给入口，
+  硬拧引擎私有状态属于"看着像能用"。
+  只读那条的判据是 `scene.previewState`（`cce.PreviewPlay._state`）+ `paused` + `frames`；
+  ⚠ 别拿 `applied.by` 当判据了 —— 那三格（`direct-previewplay` / `editor-message`）**已经不存在**。
+  原记录的 `docs/真机验收-结果.md` / `docs/真机验收2-结果.md` 原文仍在（它们是**撤掉之前**的实测）。
+- ⚠ **点按 / 按键：真机实测（2026-11）到不了引擎** —— 详见上面「点与跑」那节的 `editor-input-not-dom`。
+  所以现在的用法是：**点/按键可以改编辑器里的界面与选中，但别拿它当"游戏逻辑有反应"的证据**；
+  换路（`cc.input._dispatchMouse*`）在做，第 2 轮真机验收（`docs/真机验收2.md`）就是为它准备的。
+  ✅ 已验的是**认页与焦点**那一段：`target` / `matchedBy: 'href'` / `window.focused` / `events` 四项都对。
+- **`open-scene` 用资源 uuid，别给 `db://` 路径**（坑 15：给路径会开出**一个新的空场景**且不报错）。
 - **超时掐不断已在跑的异步代码**：`vm` 的 `timeout` 只管同步段，Node 没有抢占式取消。
   超时后那段代码可能还在跑（所以别写 `await new Promise(()=>{})` 这种不可结束的等待）。
   默认超时 **15 秒** —— 别把一整棵 UI 树塞进一次调用，超时后你不知道它死在哪。

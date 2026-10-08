@@ -13,11 +13,26 @@
  *    兜底的 `setTimeout` 读到的是被清掉的缓冲。本工程实测就是这个：
  *    `blankRatio=1` 而 `visibleMatchesDesign=true`（见 `docs/agent-notes/UI与表现层.md`）。
  *
- * Electron 这条路换了个**读取源**，两个问题一起消掉：
+ * Electron 这条路换了个**读取源**，第一个问题直接消掉：
  *
  * - `webContents.capturePage()` 读的是 **Chromium 合成后的 surface**，不是 GL 后备缓冲
- *   —— `preserveDrawingBuffer` 与它无关，抓到的就是屏幕上那一帧（含网格与 gizmo）；
- * - `webContents.invalidate()` 能**排一次重绘** —— 缺的「逼它画一帧」补上了。
+ *   —— `preserveDrawingBuffer` 与它无关，抓到的就是屏幕上那一帧（含网格与 gizmo）。
+ *
+ * ## ⛔ 本模块**一次 `invalidate()` 都不调**（2026-10-08 之后，硬口径）
+ *
+ * 曾经这里有第二件「补能力」：`webContents.invalidate()` 排一次重绘，用来把**旧帧**顶掉
+ * （「逼它画一帧」）。它换来的代价是**编辑器的场景面板黑掉/画面停住**，两次现场都只能重启编辑器：
+ *
+ * | 时间 | 现场 |
+ * |---|---|
+ * | 2026-10-08 04:48 | `真机验收2.md` 的 R6：两次带重绘的抓图之后，场景面板画面停住、切场景也不更新（`docs/冻结诊断.md`） |
+ * | 2026-10-08 14:59 | 面板 agent 加 `Cmp_Game` 那次：同一块画布抓回来的是**一张全空的图**（`blankRatio 0.988`），用户看到的就是黑屏 |
+ *
+ * 当时把「抓图前一律排重绘」改成**要了才排**（`forceRepaint` 参数，默认 false）—— **这一改没救回来**：
+ * 那次会话里编辑器跑的仍是**旧构建**（回执里 `forcedRepaint:true` 只有旧实现才这么恒报），
+ * 也就是「靠一个默认值把危险动作关掉」在**模块级 require 缓存**面前是**不可验证的**。
+ * ⇒ 现在只剩一条规则：**这个扩展不碰合成器**。抓到的图是空的就是空的（如实报 `blankRatio`），
+ * 不再用"逼一帧"去救 —— 救不救得回来没证据，而代价是用户的编辑器黑屏。
  *
  * 顺带还多了个能力：**按矩形抓**（节点级截图）。`capturePage(rect)` / `crop(rect)`
  * 都在 DIP（= CSS 像素）里算，而「节点 → CSS 像素」由场景进程用编辑器相机算
@@ -85,8 +100,6 @@ export interface CaptureOutcome {
     sourceWidth?: number;
     sourceHeight?: number;
     blankRatio?: number;
-    /** 第一张是空图、靠 `invalidate()` 逼出第二张时为 true */
-    usedInvalidate?: boolean;
     target?: ContentInfo;
     matchedBy?: SceneViewHit['matchedBy'];
     /** 失败原因 */
@@ -103,11 +116,6 @@ function describe(error: unknown): string {
     }
     return String(error);
 }
-
-const sleep = (ms: number): Promise<void> =>
-    new Promise((resolve) => {
-        setTimeout(resolve, Math.max(0, Math.min(5000, ms)));
-    });
 
 // ---------------------------------------------------------------------------
 // Electron 的取用
@@ -303,18 +311,15 @@ export function imageSizeOf(image: NativeImage): { width: number; height: number
 const imageSize = imageSizeOf;
 
 /**
- * 抓一张场景视图。
+ * 抓一张场景视图 —— **只读**：一次 `capturePage()`，不排重绘、不重试、不碰合成器。
  *
- * 两步走，且**只在必要时才多花一次**：
- * 1. 直接 `capturePage()`（屏幕上现在就是这样）；
- * 2. 若基本是空图（`blankRatio >= 0.98`）→ `invalidate()` 排一次重绘 → 再抓一次。
- *
- * 第 2 步就是老实现缺的那一件：**它没法让编辑器重画**。
+ * 抓到的是空图（`blankRatio` 接近 1）就是空图，**如实报**（文件头那条硬口径：
+ * 本扩展不调 `invalidate()`；"逼一帧"救不救得回来没有证据，而代价是用户的编辑器黑屏）。
+ * 空图的退路不是重试，而是**换判据**（`worldRect(node)` 这类数值判据）。
  *
  * @param href 场景脚本报来的 `location.href`（首选判据，见 {@link findSceneView}）。
- * @param invalidationWaitMs 逼重绘后等多久再抓（默认 150ms，够一帧）。
  */
-export async function captureSceneView(href?: string, invalidationWaitMs = 150): Promise<CaptureOutcome> {
+export async function captureSceneView(href?: string): Promise<CaptureOutcome> {
     const hit = findSceneView(href);
     if (!hit) {
         const reason = electronUnavailableReason();
@@ -329,20 +334,7 @@ export async function captureSceneView(href?: string, invalidationWaitMs = 150):
 
     const contents = hit.contents;
     try {
-        let image = await contents.capturePage();
-        let usedInvalidate = false;
-
-        if (blankRatioOf(image) >= 0.98) {
-            contents.invalidate();
-            await sleep(invalidationWaitMs);
-            const retry = await contents.capturePage();
-            /** 只有在真的更好用时才换成第二张（否则保留第一张，别越抓越差） */
-            if (blankRatioOf(retry) < blankRatioOf(image)) {
-                image = retry;
-                usedInvalidate = true;
-            }
-        }
-
+        const image = await contents.capturePage();
         const size = imageSize(image);
         return {
             ok: true,
@@ -350,7 +342,6 @@ export async function captureSceneView(href?: string, invalidationWaitMs = 150):
             sourceWidth: size.width,
             sourceHeight: size.height,
             blankRatio: blankRatioOf(image),
-            usedInvalidate,
             target: hit.info,
             matchedBy: hit.matchedBy,
         };
@@ -360,27 +351,6 @@ export async function captureSceneView(href?: string, invalidationWaitMs = 150):
             error: `capturePage 失败：${describe(err)}`,
             contents: listContents(),
         };
-    }
-}
-
-/**
- * 排一次重绘（**取景之后必须调**）。
- *
- * 为什么：`capturePage()` 抓的是 Chromium **当前合成好的那一帧**。场景进程改了相机
- * （`focus` / 改 orthoHeight）之后，如果这一页没有重新合成，抓到的还是**旧取景**。
- * `invalidate()` 就是「排一次重绘」——这正是老实现（场景进程 `gl.readPixels`）缺的那一件。
- *
- * @param href 场景脚本报来的 `location.href`（首选判据，见 {@link findSceneView}）。
- * @returns 找到了并成功排上重绘时为 true；找不到/已经销毁时为 false（不抛）。
- */
-export function invalidateSceneView(href?: string): boolean {
-    const hit = findSceneView(href);
-    if (!hit) return false;
-    try {
-        hit.contents.invalidate();
-        return true;
-    } catch {
-        return false;
     }
 }
 

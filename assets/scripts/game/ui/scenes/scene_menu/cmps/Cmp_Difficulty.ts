@@ -2,6 +2,7 @@ import { _decorator, Button, instantiate, Label, Node } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { DataCenter } from '../../../../data';
 import { DIFFICULTY_MAX, levelLabel } from '../../../../common/DifficultyConfig';
+import { gameModeDifficultyCount, gameModeDifficultyTitle } from '../../../../common/GameModeConfig';
 import { Cmp_DifficultyCell } from './Cmp_DifficultyCell';
 import type { DifficultyCellState } from './Cmp_DifficultyCell';
 import { DifficultyScopeEvents } from './DifficultyScope';
@@ -21,6 +22,7 @@ const CELL_PREFIX = 'cell_';
 /** 节点名（弹窗子树的节点契约；改预制件里的名字要同步这里） */
 const NODE = {
     content: 'panel/list/content',
+    title: 'panel/header/title',
     count: 'panel/header/count',
     closeBtn: 'panel/header/btn_close',
     detailTitle: 'panel/detail/title',
@@ -43,7 +45,7 @@ function cellName(level: number): string {
  * ui_difficulty                 ← 本组件挂这里（`@property` 已在预制件里拖好）
  * ├── mask                      全屏遮罩（纯视觉，**不接点击**：理由见下）
  * └── panel
- *     ├── bg / header           header: title(难度选择) / count(共 100 关) / btn_close
+ *     ├── bg / header           header: title(阶段模式 · 选难度) / count(共 100 关) / btn_close
  *     ├── legend                三态图例（纯展示，代码不碰）
  *     ├── detail                title(关卡 09) / btn_start(确定)
  *     └── list(ScrollView) → content(GRID Layout) → cell   ← 模板（DifficuteCell 实例）
@@ -78,6 +80,9 @@ export class Cmp_Difficulty extends UIWidget {
     /** 网格容器（`panel/list/content`）—— 留 `@property` 只为编辑器里能拖，不拖就按名字解析 */
     @property(Node)
     contentNode: Node = null;
+    /** 顶部标题（`panel/header/title`，写「阶段模式 · 选难度」—— 点名当前模式） */
+    @property(Label)
+    titleLabel: Label = null;
     /** 详情条标题（`panel/detail/title`，显示「关卡 09」） */
     @property(Label)
     detailTitle: Label = null;
@@ -107,12 +112,13 @@ export class Cmp_Difficulty extends UIWidget {
         this.bindButtons();
         // 格子的点击冒泡上来 → 只改"待确认的档位"（格子不知道选中规则，弹窗不知道存档）
         this.scope.on(DifficultyScopeEvents.Pick, this.onPickCell, this);
-        console.log(`[难度选择] onInit：content=${!!this.contentNode} 详情标题=${!!this.detailTitle} `
-            + `确定按钮=${!!this.startBtnNode} 关闭按钮=${!!this.closeBtnNode}`);
+        console.log(`[难度选择] onInit：content=${!!this.contentNode} 标题=${!!this.titleLabel} `
+            + `详情标题=${!!this.detailTitle} 确定按钮=${!!this.startBtnNode} 关闭按钮=${!!this.closeBtnNode}`);
     }
 
     /** 每次打开都按**最新进度**重画（进度只可能在局内变，所以不需要 watch） */
     protected onShow(): void {
+        // 默认落点 = **当前模式**上次准备打的那一档（档位按模式各记一份，见 `LevelData` 文件头）
         this.pending = DataCenter.ins.levelData.getSelectedLevel();
         this.buildGrid();
         this.render();
@@ -142,6 +148,7 @@ export class Cmp_Difficulty extends UIWidget {
     private resolveRefs(): void {
         const n = this.node;
         this.contentNode = this.contentNode ?? n.getChildByPath(NODE.content);
+        this.titleLabel = this.titleLabel ?? n.getChildByPath(NODE.title)?.getComponent(Label);
         this.detailTitle = this.detailTitle ?? n.getChildByPath(NODE.detailTitle)?.getComponent(Label);
         this.countLabel = this.countLabel ?? n.getChildByPath(NODE.count)?.getComponent(Label);
         this.closeBtnNode = this.closeBtnNode ?? n.getChildByPath(NODE.closeBtn);
@@ -151,6 +158,9 @@ export class Cmp_Difficulty extends UIWidget {
             ezgame.warn('[难度选择] 子节点契约不完整（需要 panel/list/content、panel/detail/title、'
                 + `panel/detail/btn_start）：${this.node.name}，找到 content=${!!this.contentNode} `
                 + `title=${!!this.detailTitle} start=${!!this.startBtnNode}`);
+        }
+        if (!this.titleLabel) {
+            ezgame.warn(`[难度选择] 找不到顶部标题（${NODE.title}）→ 弹窗标题不会点名当前模式`);
         }
     }
 
@@ -232,9 +242,14 @@ export class Cmp_Difficulty extends UIWidget {
      * =================================================================== */
 
     private render(): void {
-        const unlocked = DataCenter.ins.levelData.getUnlockedLevel();
+        const data = DataCenter.ins.levelData;
+        const unlocked = data.getUnlockedLevel();
 
-        if (this.countLabel) this.countLabel.string = `共 ${DIFFICULTY_MAX} 关`;
+        // 标题**点名当前模式**：弹窗是"点开始游戏先展示**此模式**要玩的难度"，
+        // 不写模式名玩家看不出自己正要开哪一套（文案与框宽口径见 GameModeConfig）。
+        // ⚠ count 那一格保持「共 100 关」不加模式名 —— 它右边 24px 就是关闭按钮，加了会盖上去。
+        if (this.titleLabel) this.titleLabel.string = gameModeDifficultyTitle(data.getMode());
+        if (this.countLabel) this.countLabel.string = gameModeDifficultyCount(DIFFICULTY_MAX);
         if (this.detailTitle) this.detailTitle.string = levelLabel(this.pending);
 
         for (const cell of this.cells) {

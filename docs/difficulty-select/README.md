@@ -8,23 +8,27 @@
 ## 1. 一句话流程
 
 ```
-主界面「开始游戏」(bottom/right/enter_game)
-   └─ Scene_Menu.onClickEnterGame()             → setupDifficultyPanel() + ui_difficulty.active = true
-        └─ Cmp_Difficulty.onShow()              → 首次照模板铺 100 格，每次按最新进度重画三态 + 详情条「关卡 09」
-             ├─ 点格子                          → Cmp_DifficultyCell scope.emit(Pick) 冒泡上来
-             │                                     → 只改弹窗自己的 pending（**不落盘**）
-             ├─ 点「确定」                      → scope.emit(DifficultyScopeEvents.Confirm, level)
-             │                       └─ Scene_Menu.enterGame(level)
-             │                            ├─ LevelData.selectLevel(level)   ← 落盘（必须在跳场景之前）
-             │                            └─ UIManager.showUI(Scene_Game_Stage)
-             └─ 点「关闭 ×」                    → scope.emit(DifficultyScopeEvents.Close) → 收起弹窗（数据不动）
+主界面「游戏」页先选模式（content/right/game 的模式卡 → LevelData.selectMode）
+  └─ 主界面「开始游戏」(bottom/right/enter_game)
+       └─ Scene_Menu.onClickEnterGame()          → setupDifficultyPanel() + ui_difficulty.active = true
+            └─ Cmp_Difficulty.onShow()           → 首次照模板铺 100 格，每次按**当前模式**的进度重画
+                 │                                三态 + 详情条「关卡 09」+ 标题「<模式> · 选难度」
+                 ├─ 点格子                        → Cmp_DifficultyCell scope.emit(Pick) 冒泡上来
+                 │                                   → 只改弹窗自己的 pending（**不落盘**）
+                 ├─ 点「确定」                    → scope.emit(DifficultyScopeEvents.Confirm, level)
+                 │                       └─ Scene_Menu.enterGame(level)
+                 │                            ├─ LevelData.selectLevel(level, mode) ← 落盘（必须在跳场景之前）
+                 │                            └─ UIManager.showUI(Scene_Game_Stage)
+                 └─ 点「关闭 ×」                  → scope.emit(DifficultyScopeEvents.Close) → 收起弹窗（数据不动）
 
-局内：Scene_Game_Stage.resetRun() 读 LevelData.getSelectedLevel() → this.difficulty（本局全程不变）
+局内：Scene_Game_Stage.resetRun() 读 LevelData.getSelectedLevel()（当前模式那一份）→ this.difficulty
       → 怪物属性 / 刷怪间隔 / 击杀奖励三处按 DifficultyConfig 的倍率生效
       → 通关（endRun('victory')）→ LevelData.markCleared(N) → **解锁第 N+1 档**
 ```
 
 **分层**（与工程其它界面一致）：弹窗只渲染 + 上报；**落盘与跳场景在宿主 `Scene_Menu`**（那是"流程归谁管"的问题）。
+**档位是按模式各记一份的**（`LevelData.modes[]`），而**解锁阶梯是全局的**（`cleared`）——模式那张卡与这条口径的完整说明见
+[`docs/game-mode/README.md`](../game-mode/README.md)。
 
 ---
 
@@ -33,8 +37,10 @@
 | 文件 | 角色 |
 |---|---|
 | `assets/scripts/game/common/DifficultyConfig.ts` | **曲线唯一真源**（纯 TS）：`enemyHpMul` / `bossHpMul` / `enemyAtkMul` / `rewardMul` / `spawnGapMul` / 段名 / 档位文案 |
-| `assets/scripts/game/data/funcs/LevelData.ts` | 进度存档：`cleared`（已通关最高档）/ `selected`（当前选择）/ `lastPlayed`；**唯一解锁判据** |
-| `assets/scripts/game/ui/scenes/scene_menu/cmps/Cmp_Difficulty.ts` | 弹窗控制器（铺格 + 算三态 + 选择 + 两条向上通知） |
+| `assets/scripts/game/common/GameModeConfig.ts` | **模式唯一真源**（纯 TS）：支持哪几个模式 / 默认哪个 / 名字与卡面文案 / **本弹窗标题那行文案**（`gameModeDifficultyTitle`） |
+| `assets/scripts/game/data/funcs/LevelData.ts` | 进度存档：`cleared`（已通关最高档，**全局**）/ `mode`（当前模式）/ `modes[]`（**每个模式各一份** `selected` · `lastPlayed`）；**唯一解锁判据** |
+| `assets/scripts/game/ui/scenes/scene_menu/cmps/Cmp_Game.ts` | 「游戏」页控制器：模式卡选中 + 顶部「最高通过 / 上次玩过」 |
+| `assets/scripts/game/ui/scenes/scene_menu/cmps/Cmp_Difficulty.ts` | 弹窗控制器（铺格 + 算三态 + 选择 + 两条向上通知 + 标题点名当前模式） |
 | `assets/scripts/game/ui/scenes/scene_menu/cmps/Cmp_DifficultyCell.ts` | **一格**（`DifficuteCell.prefab` 的根组件）：只画三态 + 点一下往上冒泡 `Pick` |
 | `assets/resources/prefabs/ui/scenes/scene_menu/cmps/DifficuteCell.prefab` | 格子的预制件（ring / bg / num / unlock / mark）；`content` 里放一个实例当模板 |
 | `assets/scripts/game/ui/scenes/scene_menu/cmps/DifficultyScope.ts` | 弹窗内部的 scope 事件键（格子 `Pick` / 弹窗 `Confirm` · `Close`） |
@@ -54,12 +60,17 @@ Scene_Menu
     │                             挂上监听会让"点标题/图例"也关窗）
     └── panel
         ├── bg
-        ├── header                title(难度选择) / count(共 100 关) / btn_close
+        ├── header                title(阶段模式 · 选难度) / count(共 100 关) / btn_close
         ├── legend                三态图例（纯展示，代码不碰）
         ├── detail                title(关卡 09) / btn_start(确定)
         └── list(ScrollView) → content(GRID Layout, 10 列) → cell   ← 模板（DifficuteCell 预制件实例）
                                                                     └── ring / bg / num / unlock / mark
 ```
+
+* **标题与计数两格分开写**（2026-11 加模式之后的口径，**改文案前先用 `labelFit` 量一遍**）：
+  `title` 写 `gameModeDifficultyTitle(mode)` = 「阶段模式 · 选难度」（实测 237px → `[-310, -74]`，面板 `[-320, 320]` 内）；
+  `count` 仍写「共 100 关」。**不要把模式名塞进 `count`** —— 那个框只有 93px、右边 24px 就是关闭按钮，
+  「阶段模式 · 共 100 关」实测 200px 会**盖住关闭按钮**。
 
 * **铺格**：模板 = `content` 里作者摆的那一个 `DifficuteCell` 实例（节点名 `cell`）。运行期照它克隆
   `DIFFICULTY_MAX` 个，**模板自己当第 1 格** —— 不留模板节点：多一个不可见的模板也会被 GRID Layout
@@ -68,7 +79,8 @@ Scene_Menu
   `cell_001` 这种名字只用于排查（`DIFFICULTY_MAX` 100 → 10 列 × 10 行，**一行 = 一个段**，
   与设计稿「10 段 × 10 档」同构）。
 * 首次打开铺一次，之后每次打开**只重画状态**（100 个节点的增删没必要每次做）。
-* `count` 写「共 100 关」（档数取自 `DIFFICULTY_MAX`，**不是**写死的文案）。
+* `count` 写「共 100 关」（档数取自 `DIFFICULTY_MAX`，**不是**写死的文案）；
+  **模式名写在标题上**（"这是哪个模式的难度"），两格的框宽约束见上面那条。
 
 ### 3.1 三态
 
@@ -92,6 +104,9 @@ Scene_Menu
 
 **通关第 N 档 → 解锁第 N+1 档**（`LevelData.getUnlockedLevel() = min(cleared + 1, 100)`）：
 一档没通关时只有档 1 可玩；首次游玩默认难度 1。脏存档（选择 > 已解锁）在**读取时**收敛，不写盘。
+
+**解锁阶梯是全局的**：两个模式共用（「无尽模式 = 在已解锁难度上无限阶段」）。
+「当前选择 / 上次玩过」才是**按模式各记一份**（`LevelData.modes[]`）—— 见 §5 与 `docs/game-mode/README.md`。
 
 > 设计稿里还有两条**尚未落地**的表现（预制件里没有对应节点，做的时候再补）：
 > ① 每 10 档一个**段末"头目门槛"档**（略宽 + `diff_boss_gate` 小标）；
@@ -141,21 +156,27 @@ Scene_Menu
 
 ## 5. 主界面上的其它接线
 
-* 「阶段模式」卡的两个数值标签（原来写死 `99`）：**最高通过** = `cleared`，**上次玩过** = `lastPlayed`
-  （`Scene_Menu.refreshLevelProgress`，只在 `init` / `show` / watcher 里写）。
+* **模式**：`content/right/game` 上的 `Cmp_Game`（模式卡 + 点一下落盘 + 顶部信息）。
+  完整契约见 [`docs/game-mode/README.md`](../game-mode/README.md)。
+* 顶部**「最高通过」** = `LevelData.getClearedLevel()`（**全局**），
+  **「上次玩过」** = `LevelData.getLastPlayedLevel()`（**按当前模式**）——
+  两个格子原来写死 `99`，2026-11 起由 `Cmp_Game` 画。
+  ⚠ 它们**不在 `Scene_Menu` 里写了**：那两格在本页的子树上，越过页面去写它的子节点会变成
+  "宿主和页面各写一份"，现已连同 watcher 一起搬进 `Cmp_Game`（宿主只保留 `setupGamePage()`）。
 * 局内 HUD 左上角 `info/name`（原来写死「难度 99」）：本局难度 = `battleStore.difficulty`
   （`View_Game_Stage.refreshDifficulty`）。
-  ⚠ 旁边的 `info/mode` 仍写着预制件里的死文案「阶梯模式」，与主界面的「阶段模式」不一致 ——
-  没在本轮改动范围内，要统一就改预制件那一条 Label。
+  旁边的 `info/mode`（原来写死「阶梯模式」）现在跟 `battleStore.mode` 走，显示**模式名**
+  （`View_Game_Stage.refreshMode`）。
 
 ## 6. 验收清单
 
-- [ ] 主界面点「开始游戏」→ 弹出难度弹窗（**不再直接进游戏**）。
+- [ ] 主界面点「开始游戏」→ 弹出难度弹窗（**不再直接进游戏**），**标题点名当前模式**（「阶段模式 · 选难度」）。
 - [ ] 一档都没通关时：只有档 1 可点（深青绿 + 选中环 + 白字 + 白菱形），2~100 全是深灰底 + 白锁。
 - [ ] 点已解锁的格子 → 选中环搬过去、详情条变「关卡 NN」，原来那格变回浅灰底墨字。
 - [ ] 100 格排成 **10 列 × 10 行**（`content` 上有 GRID Layout），整屏不用滚动。
-- [ ] 点「确定」→ 弹窗收起 + 进战斗；HUD 左上角显示「难度 N」；控制台有一行 `[难度] 本局难度：…`。
+- [ ] 点「确定」→ 弹窗收起 + 进战斗；HUD 左上角显示「难度 N」+ **模式名**；控制台有 `[难度] …` 与 `[模式] …` 各一行。
 - [ ] 控制台 `[奖励] 击杀 …` 的 `x` 系数随档位变大（档 1 与档 5 对比）。
 - [ ] 通关一局 → 回主界面，「最高通过」= 该档、「上次玩过」= 该档，再开弹窗时**下一档已解锁**。
 - [ ] 中途退出（HUD 退出按钮）→ **不算通关**（不解锁下一档），但「上次玩过」已更新。
 - [ ] 反复开关弹窗：格子不会越铺越多（控制台 `[难度选择] 铺格完成：100/100` 只出现一次）。
+- [ ] 在 A 模式选了档 7 → 切到 B 模式开弹窗：**B 停在它自己那一档**（不是 7）；切回 A 仍是 7。

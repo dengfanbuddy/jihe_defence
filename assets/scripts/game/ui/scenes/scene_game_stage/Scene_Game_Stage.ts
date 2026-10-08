@@ -44,6 +44,7 @@ import { GraphCircle } from '../../../common/GraphCircle';
 import {
   bossHpMul, describeLevel, enemyAtkMul, enemyHpMul, levelLabel, rewardMul, spawnGapMul,
 } from '../../../common/DifficultyConfig';
+import { gameModeName } from '../../../common/GameModeConfig';
 import AudioMgr from '../../../../platform/audio/AudioMgr';
 import { clampBattleDt, hitFeelSfxKeys } from '../../../common/HitFeelConfig';
 import { TAP_SELECT } from '../../../common/TargetSelectConfig';
@@ -361,7 +362,8 @@ export class Scene_Game_Stage extends BaseView {
   /**
    * **本局的难度档位**（1 ~ `DifficultyConfig.DIFFICULTY_MAX`）。
    *
-   * 真源是 `DataCenter.ins.levelData.selected`（难度选择弹窗「确定」时落盘），
+   * 真源是 `DataCenter.ins.levelData` 里**当前模式**那一份的 `selected`（难度选择弹窗「确定」时落盘；
+   * 档位按模式各记一份，见 `LevelData` 文件头），
    * 在 `resetRun()` 里**读一次、本局全程不变** —— 局内所有缩放都取自这一个数：
    *   · 怪物/Boss 的基础属性（`monsterPool.statScaleHook` → `applyDifficultyScale`）
    *   · 刷怪间隔（`getSpawnInterval`）
@@ -743,6 +745,12 @@ export class Scene_Game_Stage extends BaseView {
     DataCenter.ins.levelData.markPlayed(this.difficulty);
     this.battleStore.difficulty = this.difficulty;
     console.log(`[难度] 本局难度：${describeLevel(this.difficulty)}`);
+    // ── 本局模式（主界面模式卡「点一下就落盘」，与难度同一个读法）──
+    //   同样必须写在 `battleStore.reset()` 之后（reset 会把它归默认）。
+    //   ⚠ 目前**只做投影 + 日志**：无尽模式还没有自己的局内规则（见 GameModeConfig 文件头），
+    //     要分岔就在 `checkStage` 一处按 `this.battleStore.mode` 走（别在别处零散判模式）。
+    this.battleStore.mode = DataCenter.ins.levelData.getMode();
+    console.log(`[模式] 本局模式：${gameModeName(this.battleStore.mode)}`);
     // 换局：三个功能的界面状态整体复位（面板收起、槽位清空、抽数与广告次数归零）——规则在功能类里
     this.heroSelect?.reset();
     this.relicShop?.reset();

@@ -16,15 +16,21 @@
  * **不走 loopback HTTP、不占端口、不需要 MCP**（对比：`dsh-mcp-client` + streamable-http）。
  * 也因此，工具名是干净的 `cocos_execute_code`，而不是 `mcp__cocos__execute_code`。
  *
- * ## 五个工具 = 编辑器能力面（工具部分）
+ * ## 八个工具 = 编辑器能力面（工具部分）
  *
  * | 工具 | 干什么 |
  * |---|---|
  * | `cocos_execute_code` | 在编辑器主进程（vm 沙箱）或引擎场景进程里跑一段代码 |
  * | `cocos_describe_api` | 渐进式披露：查编辑器/引擎 API，**别猜** |
  * | `cocos_editor_state` | 自检：我在哪个工程/场景、选中了什么、沙箱能不能动场景 |
- * | `cocos_capture_view` | 场景视图 / **某个节点**截图 → 图片文件（像素塞不进返回值，只能落盘回路径） |
+ * | `cocos_capture_view` | 场景视图 / **某个节点**截图 → 图片文件（像素塞不进返回值，只能落盘回路径）；`view` 说明要的是**编辑器场景**还是**跑着的游戏** |
  * | `cocos_logs` | 读工程里的**日志文件**（路径 + 行号 + 原文）。控制台里的字代码拿不到，只能另开一条通道 |
+ * | `cocos_click_node` | **真点一下**（真鼠标事件，走 Chromium 输入管线）—— 按钮回调/列表选中这类"光看数据验不出来"的事靠它 |
+ * | `cocos_send_keys` | **真发键盘**（快捷键 / 往输入框打字） |
+ * | `cocos_runtime` | 运行预览（编辑器内 game view）的状态与开关：play / stop / **pause 冻住** / resume / step |
+ *
+ * 后三件是同一批（"让 agent 自己验收界面"）：截图看得见、点得动、还能把画面冻住再截图 ——
+ * 三者合起来才把"整屏交互只能人肉验收"变成可复现的判据。实现在 `source/input.ts` 与 `source/preview.ts`。
  *
  * 每个工具的回执里还会带一段 `refs`（结果里出现过的全形 uuid / `db://` 路径，去重后列在文案结尾）
  * —— 由编辑器侧的 `withRefs` 统一补，见 `source/cocos-tools.ts`。它只做搬运，不做判断。
@@ -1406,43 +1412,54 @@ const EXECUTE_CODE_DESCRIPTION = [
 ].join('\n');
 
 const CAPTURE_VIEW_DESCRIPTION = [
-    '把**编辑器场景视图**当前一帧截成图片文件，返回文件路径；也可以只截**某一个节点**。',
+    '把**编辑器那块场景视图**当前一帧截成图片文件，返回文件路径；也可以只截**某一个节点**。',
     '',
     '## 什么时候用',
     '- 你刚在 scene 上下文里搭完/改了节点树、布局、UI，想知道**看起来对不对**（叠字、错位、贴图空白、一屏只剩个角……）。坐标数字看不出这些，一张图能。',
     '- 用户说「画面不对」「看不见」「位置偏了」时，**先截一张自己看**再决定改什么；不要拿一串 rect 去猜，也不要把用户当验图工具。',
     '- 想单独确认某个控件（一个按钮、一张卡、一段文字）时传 `node` —— 比截整张视图再自己数像素准得多，也省得图太大看不清。',
+    '- 游戏跑起来之后想看**跑着的那一帧**（战斗画面、结算面板）：传 `view: "game"`。',
     '',
-    '## 截的是什么',
-    '编辑器**场景视图**（你正开着的那块），所见即所得：含网格与 gizmo。**不是**运行时/游戏预览画面。',
-    '传了 `node` 时，截的是**那个节点在视图里占据的那块**（按相机投影算出来的矩形，不是在整图上瞎裁）。',
+    '## 截的是什么：**同一块画布，两种画面**',
+    '编辑器那块场景视图**同一时刻只画一样东西**，而且两者用的是**不同的相机**：',
+    '- **编辑态**：编辑器场景，所见即所得（含网格与 gizmo）—— 这是默认那种。',
+    '- **运行态**（编辑器工具栏那颗播放键，编辑器自己叫 game view / 编辑器预览）：**跑着的游戏画面**。',
+    '`view` 就是"我要哪一种"：`auto`（默认，不管）/ `scene`（要编辑器场景）/ `game`（要跑着的游戏）。',
+    '回执里的 `mode` 会说清**实际截到的是哪一种**（`requested` / `actual` / `running`）—— 要的和拿的不一致时 `note` 里会直接写出来。',
+    '传了 `node` 时，截的是**那个节点在视图里占据的那块**（按相机投影算出来的矩形，不是在整图上瞎裁）。⚠ **运行态下不按节点裁**：那一刻的节点矩形是用编辑器相机投的，而画面是游戏相机画的，按它裁会给你一块错位的图 —— 这时会退回整张画面并说明。',
     '',
-    '## `fit`：用户缩放过之后，屏幕上那一帧**未必是全景**',
+    '⚠ **浏览器 / 模拟器预览够不着**：那是编辑器之外的另一个应用、另一个进程，本工具只能截编辑器内那块画布。`view:"preview"` 按 `game` 理解（并会附一句说明）。',
+    '',
+    '## `fit`：用户缩放过之后，屏幕上那一帧**未必是全景**（只对编辑态有意义）',
     '截图抓的是「屏幕上现在这一帧」，所以用户把场景视图缩放/平移过之后，只截到他当时看的那块地方。`fit` 会在截之前先把相机摆到「框住目标」的位置，**截完立刻还原**（回执 `framing.restored` 说明还原成功没有）：',
     '- `auto`（默认）：截整张视图时，**内容没拍全** 或 **内容小得看不清**（占画布面积 < 0.15）才取景；截节点时只在**节点没被拍全**（会缺一块或压根在图外）时取景——节点本来就在画里就按原样裁，不动用户视角。',
     '- `scene`：强制框住**整个场景内容**（想「看一眼全景」就传它）。',
     '- `node`：强制框住**目标节点**（要同时给 `node`）。',
     '- `none`：**不动相机**，就截现在这一帧；回执里照样会告诉你拍全没有（`framing.before.covered`）。',
+    '⚠ **运行态下一律不取景**（`fit` 被忽略，回执里会说）：`fit` 摆的是编辑器相机，而运行态画面由游戏相机渲染 —— 摆了也不会改变这张图。',
     '',
     '## 参数',
     '- `savePath`：存到哪（绝对路径）。默认写系统临时目录 `dsh-cocos-captures/`。',
     '- `node`：**只要这一个节点**。给节点 `uuid` 或路径（`Canvas/skill_details`）。算不出矩形时会**如实说明原因并退回整张视图**（不会给你一张瞎裁的图）。',
     '- `padding`：`node` 模式下向外扩几像素（默认 0）—— 描边/阴影贴边时留点白。',
-    '- `fit`：见上一节，默认 `auto`。',
+    '- `fit`：见上一节，默认 `auto`（只在编辑态生效）。',
+    '- `view`：`auto`（默认）/ `scene` / `game`，见上一节。',
     '- `maxWidth`：缩放到最大宽度，默认 640。看清布局足够，也回传得快。',
     '- `format` / `quality`：`png`（默认，无损）或 `jpeg`；`quality` 只对 jpeg 生效。',
-    '- `waitMs`：**只有兜底通道**用得上（等下一帧的上限，默认 800ms）；主通道自己会在空图时逼一次重绘。',
+    '- `waitMs`：**只有兜底通道**用得上（等下一帧的上限，默认 800ms）。',
     '',
     '## 动手前先想清楚',
     '改完布局再截，**一次就能看出问题**；反过来"先截图看看现在什么样"通常没必要 —— 视图可能是空的、也可能停在你上次离开的位置（后者现在由 `fit:auto` 兜住了：没拍全就会自己取景）。',
     '',
     '## 返回',
-    '`{ ok, method, path, width, height, sourceWidth, sourceHeight, format, bytes, blankRatio, target, framing, contents, view }`。',
+    '`{ ok, method, path, width, height, sourceWidth, sourceHeight, format, bytes, blankRatio, mode, target, framing, contents, view }`。',
     '- 拿 `path` 用你的图片读取能力**看一眼** —— 这才是本工具的用途。',
+    '- `mode`：**这张图到底画的是哪一种画面** —— `{requested, actual, running, sources, note}`；`actual` 是 `general`（编辑器场景）/ `preview`（运行态游戏）/ `unknown`（判不了，`note` 说为什么）。',
+    '  · 判据是 `sources.previewState`（`cce.PreviewPlay._state`：`stop`/`play`/`pause`）—— 真机实测预览**跑着**时 `facadeMode`/`queryMode` **仍是 `general`**，所以那两条只用来认"预制件/动画"。`sources` 里还带 `totalFrames` / `directorPaused` / `gamePaused`。',
     '- `target`：`{kind:"view"}` 或 `{kind:"node", ref, uuid, name, rect, crop}`；`rect` 是场景侧算出来的矩形（页面 CSS 像素），`crop` 是**真正拿去裁的**那个（含 padding、已换算到图片像素）。',
     '- `framing`：**这张图是不是全景，看它**。`before` / `after` 各是一次实测（`covered` 目标是否整个在画布里、`areaRatio` 占比、`edges` 四边余量），`method` 是哪一级取景生效（`focus` / `adjust` / `manual`），`restored` 是视角还原成功没有。`framing.note` 里会明说「这张图可能仍然不是全景」或「视角没还原」。',
-    '- `blankRatio` 接近 1 = 抓到的确实是一张空图。**别再重试**（换 `waitMs` / `maxWidth` / 重新聚焦都不会变）：先看 `view.visibleMatchesDesign` 是不是 `false`（场景视图的设备模拟被改过），然后改用**数值判据**（`worldRect(node)` 等），并把「真实渲染截图未完成」如实说出来。',
-    '- `method`：`electron` = 主通道（读编辑器**合成后的画面**，空图时会 `invalidate()` 逼一次重绘）；`scene-gl` = 兜底通道（老路，读 GL 后备缓冲，**不会取景**）。若回执里有 `electronFallback`，那是**主通道为什么没接手**的原因。',
+    '- `blankRatio` 接近 1 = 抓到的确实是一张空图。**别再重试**（换 `waitMs` / `maxWidth` / 重新聚焦都不会变，本工具也**不会**去 `invalidate()` 逼重绘 —— 那个动作 2026-10-08 已按"不碰合成器"的口径整体撤掉，见 `docs/冻结诊断.md`）：先看 `view.visibleMatchesDesign` 是不是 `false`（场景视图的设备模拟被改过），然后改用**数值判据**（`worldRect(node)` 等），并把「真实渲染截图未完成」如实说出来。',
+    '- `method`：`electron` = 主通道（读编辑器**合成后的画面**，**只读**，一次抓图）；`scene-gl` = 兜底通道（老路，读 GL 后备缓冲，**不会取景**）。若回执里有 `electronFallback`，那是**主通道为什么没接手**的原因。',
     '',
     '## 前置条件',
     '需要**开着场景**（场景进程里加载了扩展脚本）。没开场景时会明确说要先打开一个场景。',
@@ -1480,6 +1497,91 @@ const LOGS_DESCRIPTION = [
     '- **`temp/logs/project.log` 是 0 字节是正常的**（编辑器还没往这份日志里写过东西）。这时用 `list: true` 看看还有哪些文件。',
     '',
     '⚠ 它**不是** `cocos_execute_code` 回执里的 `logs` —— 那个是你这段代码自己的 `console.*` 输出。',
+].join('\n');
+
+const CLICK_NODE_DESCRIPTION = [
+    '在一个节点（或一个坐标）上**真的点一下** —— 真鼠标事件，走 Chromium 自己的输入管线。',
+    '',
+    '## 什么时候用',
+    '- 改完 UI / 接线之后，要验证「**点下去有没有反应**」：按钮的回调、列表的选中、开关的切换、拖拽的开始。这些东西光是改节点数据**验不出来**。',
+    '- 用户说「点了没反应」「按钮点不动」时，自己先点一下拿到事实，不要把用户当点按工具。',
+    '',
+    '## 那个点怎么来（两种给法）',
+    '- `node`：节点 uuid 或路径（如 `Canvas/panel/btn`）。工具按**编辑器相机**的投影算出节点中心在页面上的位置。⚠ **只在编辑态成立**（那时画面就是编辑器相机画的）。',
+    '- `x` / `y`：直接给坐标。`space:"view"`（默认）= 页面 CSS 像素；`space:"uv"` = 0~1 的比例 —— **截图被缩过就用它**（截图上量到的像素 ÷ 图宽 = u，不用自己管页面到底多大）。运行态（game view 跑着游戏）下只有这两种能用。',
+    '',
+    '⚠ **运行态下给 `node` 会被拒**，而且是**刻意的**：那一刻画面由**游戏自己的相机**渲染、编辑器相机被藏起来了 —— 节点矩形不成立。按错的投影点下去比点不动更坏（会点到别的东西上，回执还看着像成功了）。被拒时回执里会给出两条可用路。',
+    '',
+    '## ⚠ 真机实测：这条路在编辑器里**目前点不动 Cocos 节点**（2026-11）',
+    '实测（`docs/真机验收-结果.md` 原文）：合成的 `mouseDown`/`mouseUp` 确实发到了场景视图那一页（`target` / `matchedBy` / `window.focused` 三项都对），但**引擎收不到** —— 全屏拦截节点 0 条事件；连**页面里自己 dispatch DOM 事件**也不会进引擎。',
+    '原因在引擎源码里：编辑器构建**不注册 DOM 监听**（`pal/input/web/mouse-input.ts`：`// In Editor, we receive mouse event from manually event dispatching.` + `if (!EDITOR) { this._registerEvent(); }`）—— 真人的点击是**编辑器自己转发**进引擎的，而合成事件不会经过那条转发。',
+    '所以现在：**编辑态用来改编辑器选中/编辑器 UI 是有效的**（那本来就是 DOM 的事），但**别拿它当"点了节点就会触发游戏逻辑"的证据** —— 换路在做（引擎给编辑器留了 `cc.input._dispatchMouse*` / `_dispatchKeyboard*` 六个口子）。',
+    '',
+    '## 它告诉你什么（全是事实，不做判断）',
+    '- `events`：**真发出去的那几条**（类型 / 坐标 / 按键 / 连击次数 / 修饰键）—— 发了什么一目了然，不用猜。',
+    '- `window`：**装这一页的那个窗口有没有焦点** —— ⚠ 这一格是"到底送没送进去"的前提：Electron 明说 `sendInputEvent` 需要窗口有焦点，所以 `focused:false` 时回执会直说「这一下可能根本没被送达」（默认会把窗口提到前台并记 `focusedByUs:true`；`focusWindow:false` 可关掉）。',
+    '- `probe`：点**之前**问一次编辑器自己的命中测试（`pick(x, y)`）「这个点是哪个节点」（只有编辑态会给）。它与 `node` 对不上，就说明投影或节点选错了。',
+    '- `focused`：目标页当时有没有**键盘焦点**（**本工具不抢网页内的焦点**）。',
+    '',
+    '⚠ `probe` 只能证明「这个坐标在页面上确实是那个节点」，**证明不了 Chromium 把那一下送到了那里**。要证明生效：**点前后各截一张图对比**（`cocos_capture_view`）。这是唯一能证明"那一下真落地了"的办法。',
+    '',
+    '## 参数',
+    '- `node` 与 `x`/`y` **二选一**（同时给会被拒）。',
+    '- `space`：`view`（页面 CSS 像素，默认）/ `uv`（0~1）。',
+    '- `button`：`left`（默认）/ `right` / `middle`。',
+    '- `clickCount`：1（默认）~ 3；2 = 双击（第二次按下带 `clickCount:2`，Chromium 据此合成 `dblclick`）。',
+    '- `modifiers`：`shift` / `control` / `alt` / `meta`（写错会被拒，不会静默丢掉）。',
+    '- `probe`：给 `false` 可关掉点之前那次命中探测（默认开，只有给 `node` 时才跑）。',
+    '- `pressMs`：按下与抬起之间等多久（毫秒），默认 40。',
+    '- `focusWindow`：窗口没焦点时是否把它提到前台（**默认 true**，因为 Electron 的 `sendInputEvent` 需要窗口有焦点）。做没做都写在回执的 `window` 里。',
+    '',
+    '## 前置条件',
+    '需要**开着场景** —— 被打的就是那块场景视图网页。',
+    '⚠ 它打的是**编辑器里那一页**：编辑态点下去会操作编辑器里的界面/选中；运行态点下去名义上是打跑着的游戏，但**引擎在编辑器构建里不注册 DOM 监听**（见上面那条真机实测），所以**节点级反应目前拿不到** —— 别把 `ok:true` 当成"游戏收到了这一下"。',
+].join('\n');
+
+const SEND_KEYS_DESCRIPTION = [
+    '给编辑器那一页**发键盘事件**（真事件）：按一下某个键，或往聚焦的输入框里输入一段字。',
+    '',
+    '## 两种用法（可以一起给）',
+    '- `key`：发**按下 + 抬起** —— 快捷键、方向键、`Escape`、`Enter` 这类「按一下」的动作。取值是 Electron 的加速键名（`A` / `Enter` / `Escape` / `Space` / `F5` / `Tab`…），不是 DOM 的 `event.key`。',
+    '- `text`：逐字发 `char` —— **真的往输入框里打字**（`cocos_click_node` 点不出来的那件事）。上限 200 字。',
+    '- `modifiers`：`shift` / `control` / `alt` / `meta`，与 `key` 一起就是组合键（例如 `{key:"S", modifiers:["control"]}`）。',
+    '',
+    '## ⚠ 焦点这件事（最常踩的一脚）',
+    '两件事分开看：',
+    '- **窗口焦点**（`window.focused`）：Electron 明说 `sendInputEvent` 需要**装这一页的窗口**有焦点，所以没焦点时**发出去也不生效**。默认会把窗口提到前台（回执里 `window.focusedByUs:true`），`focusWindow:false` 可关掉 —— 关掉时若仍没焦点，回执会直说「可能没被送达」。',
+    '- **网页内的键盘焦点**（`focused`）：本工具**不抢**（那会打断用户正在别处打字），只如实报。要往输入框打字而 `focused` 为 `false`：先 `cocos_click_node` 点一下那个输入框（真点击会把焦点带过去）再发字。',
+    '',
+    '## 返回',
+    '`{ ok, key, text, target, matchedBy, focused, events, hrefSource }` —— `events` 是真发出去的那几条。',
+    '和点击一样：**要证明生效，用前后的截图或状态对比**，别拿"发成功"当"生效了"。',
+    '',
+    '⚠ **真机实测的一条边界**（同 `cocos_click_node`）：引擎在编辑器构建里**不注册 DOM 监听**，所以"按键进游戏引擎"（游戏自己的快捷键、`input.on(KEY_DOWN)`）**目前拿不到**；而"往网页里的输入框打字"（`text` 那条）本来就是 DOM 的事，仍然有效。',
+].join('\n');
+
+const RUNTIME_DESCRIPTION = [
+    '看**运行预览**（编辑器工具栏那颗播放键，编辑器自己叫 game view / 编辑器预览）的状态。**只读**。',
+    '',
+    '## 只有一个 action：`state`',
+    '- `state`（默认，也是唯一认的）：现在是不是运行态、游戏是不是被暂停、编辑器自己怎么说的（两条独立来源都摆出来）。',
+    '',
+    '## ⛔ 原来的 `play` / `stop` / `pause` / `resume` / `step` 已于 2026-10-08 **撤掉**',
+    '那五个动作会**从编辑器内部**起动那块画布上的游戏画面。撤掉的理由有两条，都写在工具回执里：',
+    '1. **它与两次「编辑器场景画布黑屏 / 画面停住」同一条时间线**（`docs/冻结诊断.md`）：04:48 跑完预览起停之后场景面板画面停住、切场景也不更新，只能重启编辑器；14:59 面板 agent 加 `Cmp_Game` 那次，同一块画布抓回来的是**全空的一张图**（`blankRatio 0.988`），用户看到的就是黑屏。因果没被单变量实验钉死，但**代价不对称**：留着它用户随时可能再黑一次屏。',
+    '2. **在本工程里它本来就跑不起来**：编辑器内跑起来后卡在首场景 `Loading` 的 `loadBundle(\'scripts\')`（进度 `0%`，既不成功也不失败；`cc.assetManager.bundles` 里只有 `internal`）—— 收益是零，风险是真的。',
+    '',
+    '⇒ 要看游戏画面，请**人在编辑器工具栏上按那颗播放键**（那条路与本扩展无关，画面出问题也不会有人以为是工具干的）。',
+    '⚠ 用户自己按了播放键之后，`state` 会如实报 `running: true` —— 那一刻**按节点投影/裁图/点击都不成立**（它们建立在编辑器相机上），要交互就用坐标（`cocos_click_node({x, y, space:"uv"})`）。',
+    '',
+    '## 运行态的判据（**别再信 facade 那两条**）',
+    '判据是 `scene.previewState`（`cce.PreviewPlay._state`：`stop` / `play` / `pause`，私有字段**原样报出**）。',
+    '真机实测：预览**跑着**的时候 `facadeMode` / `queryMode` **仍然是 `general`**、`isPreviewProcess` 恒 `false` —— 所以那几条只用来认「预制件 / 动画」这类**非运行**模式；读不到 `_state` 时回执 `note` 会直说，那时模式判定不可信。',
+    '',
+    '## 返回',
+    '`{ ok, action, editorMessage, scene, before, after, readOnly:true, hint }`。',
+    '`scene.previewState` = `stop` / `play` / `pause`（**运行态判它**）；`scene.mode` = `general` / `preview` / `prefab` / `animation` / `unknown`。',
+    '`before` / `after` 各是一次**真实状态探针**（只读，两者同值）：`frames`（帧计数）、`paused`（预览自己暂停了没有）、`directorPaused` / `gamePaused`（引擎那两面）、`running` / `mode`。',
 ].join('\n');
 
 const EDITOR_STATE_DESCRIPTION = [    '看一眼编辑器现在是什么状态：工程路径、编辑器版本、当前场景、当前选中的节点/资源、已启用的相关扩展。',
@@ -1609,7 +1711,13 @@ export function apply(ctx) {
                     type: 'string',
                     enum: ['auto', 'scene', 'node', 'none'],
                     description:
-                        '取景：auto（默认，需要时才动相机）/ scene（强制框住整个场景内容）/ node（强制框住目标节点）/ none（不动相机，就截现在这一帧）。取景在截图后自动还原视角。',
+                        '取景：auto（默认，需要时才动相机）/ scene（强制框住整个场景内容）/ node（强制框住目标节点）/ none（不动相机，就截现在这一帧）。取景在截图后自动还原视角；**运行态下一律忽略**（那时画面由游戏相机渲染）。',
+                },
+                view: {
+                    type: 'string',
+                    enum: ['auto', 'scene', 'game'],
+                    description:
+                        '要哪一种画面：auto（默认，不管，截现在这一帧）/ scene（编辑器场景）/ game（跑着的游戏，即编辑器内预览）。回执里的 mode 会说清**实际截到的是哪一种**。',
                 },
                 maxWidth: { type: 'number', description: '缩放到的最大宽度，默认 640。越小越快。' },
                 format: { type: 'string', enum: ['png', 'jpeg'], description: '图片格式，默认 png。' },
@@ -1626,6 +1734,7 @@ export function apply(ctx) {
                         node: args.node,
                         padding: args.padding,
                         fit: args.fit,
+                        view: args.view,
                         maxWidth: args.maxWidth,
                         format: args.format,
                         quality: args.quality,
@@ -1645,10 +1754,150 @@ export function apply(ctx) {
                 title: (() => {
                     const what = args && args.node ? `截节点 ${args.node}` : '截场景视图';
                     const fit = args && args.fit && args.fit !== 'auto' ? ` · fit:${args.fit}` : '';
-                    return `Cocos: ${what}${fit}`;
+                    const view = args && args.view && args.view !== 'auto' ? ` · view:${args.view}` : '';
+                    return `Cocos: ${what}${fit}${view}`;
                 })(),
                 kind: 'other',
                 rawInput: args && args.savePath ? String(args.savePath) : '',
+            }),
+        }),
+    );
+
+    ctx.tools.register(
+        defineTool({
+            name: 'cocos_click_node',
+            description: CLICK_NODE_DESCRIPTION,
+            parameters: {
+                node: {
+                    type: 'string',
+                    description: '要点哪个节点：uuid 或路径（如 Canvas/panel/btn）。与 x/y 二选一。只在编辑态成立（运行态会被拒，理由见描述）。',
+                },
+                x: { type: 'number', description: '横坐标：space:"view" 时是页面 CSS 像素，space:"uv" 时是 0~1 的比例。' },
+                y: { type: 'number', description: '纵坐标，含义同 x。' },
+                space: {
+                    type: 'string',
+                    enum: ['view', 'uv'],
+                    description: 'view（默认，页面 CSS 像素）/ uv（0~1 比例；截图缩过就用它）。给 node 时忽略。',
+                },
+                button: { type: 'string', enum: ['left', 'right', 'middle'], description: '鼠标键，默认 left。' },
+                clickCount: { type: 'number', description: '连击次数 1~3，默认 1；2 = 双击。' },
+                modifiers: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '修饰键：shift / control / alt / meta 的组合。',
+                },
+                probe: { type: 'boolean', description: '点之前跑一次命中探测（pick），默认 true；只有给 node 时才跑。' },
+                pressMs: { type: 'number', description: '按下与抬起之间等多久（毫秒），默认 40。' },
+            },
+            output: OUTPUT,
+            async execute(args, exec) {
+                const result = await ipcCall(
+                    'click_node',
+                    {
+                        node: args.node,
+                        x: args.x,
+                        y: args.y,
+                        space: args.space,
+                        button: args.button,
+                        clickCount: args.clickCount,
+                        modifiers: Array.isArray(args.modifiers) ? args.modifiers : undefined,
+                        probe: args.probe === false ? false : undefined,
+                        pressMs: args.pressMs,
+                    },
+                    exec?.signal,
+                );
+                return {
+                    ok: result.ok !== false,
+                    text: typeof result.text === 'string' ? result.text : String(result.text ?? ''),
+                    ...(result.data === undefined ? {} : { data: result.data }),
+                };
+            },
+            presentCall: (args) => ({
+                card: 'generic',
+                title: (() => {
+                    const at = args && args.node ? String(args.node) : `坐标 ${args && args.x},${args && args.y}${args && args.space === 'uv' ? '（uv）' : ''}`;
+                    const times = args && Number(args.clickCount) > 1 ? ` ×${args.clickCount}` : '';
+                    return `Cocos: 点 ${at}${times}`;
+                })(),
+                kind: 'other',
+                rawInput: args && args.node ? String(args.node) : '',
+            }),
+        }),
+    );
+
+    ctx.tools.register(
+        defineTool({
+            name: 'cocos_send_keys',
+            description: SEND_KEYS_DESCRIPTION,
+            parameters: {
+                key: { type: 'string', description: "按一下哪个键：Electron 加速键名（'A' / 'Enter' / 'Escape' / 'Space' / 'Tab' / 'F5' …）。" },
+                text: { type: 'string', description: '要输入的一段文字（逐字发 char，最多 200 字）—— 用来真往输入框里打字。' },
+                modifiers: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '修饰键：shift / control / alt / meta（与 key 一起就是组合键）。',
+                },
+                pressMs: { type: 'number', description: '按下与抬起之间等多久（毫秒），默认 40。' },
+            },
+            output: OUTPUT,
+            async execute(args, exec) {
+                const result = await ipcCall(
+                    'send_keys',
+                    {
+                        key: args.key,
+                        text: args.text,
+                        modifiers: Array.isArray(args.modifiers) ? args.modifiers : undefined,
+                        pressMs: args.pressMs,
+                    },
+                    exec?.signal,
+                );
+                return {
+                    ok: result.ok !== false,
+                    text: typeof result.text === 'string' ? result.text : String(result.text ?? ''),
+                    ...(result.data === undefined ? {} : { data: result.data }),
+                };
+            },
+            presentCall: (args) => ({
+                card: 'generic',
+                title: (() => {
+                    const mods = args && Array.isArray(args.modifiers) && args.modifiers.length > 0 ? `${args.modifiers.join('+')}+` : '';
+                    if (args && args.text) return `Cocos: 输入文字（${String(args.text).slice(0, 12)}…）`;
+                    return `Cocos: 按键 ${mods}${args && args.key ? args.key : ''}`;
+                })(),
+                kind: 'other',
+                rawInput: args && args.key ? String(args.key) : '',
+            }),
+        }),
+    );
+
+    ctx.tools.register(
+        defineTool({
+            name: 'cocos_runtime',
+            description: RUNTIME_DESCRIPTION,
+            parameters: {
+                action: {
+                    type: 'string',
+                    enum: ['state'],
+                    description: '只认 state（默认，只读）。原来的 play / stop / pause / resume / step 已于 2026-10-08 撤掉（理由见工具说明）。',
+                },
+            },
+            output: OUTPUT,
+            async execute(args, exec) {
+                const result = await ipcCall(
+                    'runtime',
+                    { action: args.action },
+                    exec?.signal,
+                );
+                return {
+                    ok: result.ok !== false,
+                    text: typeof result.text === 'string' ? result.text : String(result.text ?? ''),
+                    ...(result.data === undefined ? {} : { data: result.data }),
+                };
+            },
+            presentCall: () => ({
+                card: 'generic',
+                title: 'Cocos: 看运行态（只读）',
+                kind: 'other',
             }),
         }),
     );
@@ -1811,6 +2060,6 @@ export function apply(ctx) {
     // ⚠ 一律走 stderr（console.warn）：SDK profile 的 **stdout 专属于 JSON-RPC 帧**，
     // 任何 console.log 都会插进协议流里（实测踩过一次）。
     console.warn(
-        '[cocos-bridge] 已注册原生工具：cocos_execute_code / cocos_describe_api / cocos_editor_state / cocos_capture_view / cocos_logs',
+        '[cocos-bridge] 已注册原生工具：cocos_execute_code / cocos_describe_api / cocos_editor_state / cocos_capture_view / cocos_logs / cocos_click_node / cocos_send_keys / cocos_runtime',
     );
 }

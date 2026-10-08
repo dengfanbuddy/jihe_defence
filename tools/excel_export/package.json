@@ -9,6 +9,7 @@
     "import": "node src/cli.ts json2excel",
     "check": "node src/cli.ts excel2json --check",
     "verify": "node src/cli.ts verify",
+    "diff:prefab": "node ../prefab-diff/diff.mjs",
     "check:shop": "node scripts/check-shop-draw.mjs",
     "check:affix": "node scripts/check-affix-gating.mjs",
     "migrate:affix": "node scripts/migrate-affix-gating.mjs",

@@ -595,6 +595,148 @@ function editorCamera(): { manager: any; cam: any; is2D: boolean | null; note?: 
 }
 
 /**
+ * 场景进程现在处在哪个模式 —— **编辑器场景 / 运行预览 / 预制件编辑 / 动画编辑**。
+ *
+ * ## 为什么要在场景进程里问一次
+ *
+ * 「运行预览」（编辑器工具栏那颗播放键，编辑器自己的叫法是 game view / `i18n:preview.gameView`）
+ * 时，画面由**游戏自己的相机**渲染，编辑器相机被 `PreviewPlay.hideEditorCamera()` 藏起来
+ * （`@types/cce/3d/manager/preview-play/index.d.ts`）。于是「按编辑器相机投出来的节点矩形」
+ * 在那一刻**不成立** —— 截图/裁节点/点节点都会落到错的地方。
+ * 本函数就是把这件事**在唯一一处**说清楚：谁要动坐标，先问它。
+ *
+ * ## 判据顺序（**2026-11 真机实测之后重定的**，改之前请先读 `docs/对照-cocos-extensions.md` §9.7）
+ *
+ * | 序 | 来源 | 真机上的实情 |
+ * |---|---|---|
+ * | ① | `cce.PreviewPlay._state`（`'stop' / 'play' / 'pause'`） | **唯一会随运行态变的来源** —— 运行态只有它判得出来 |
+ * | ② | `SceneFacadeManager.getCurrentFacade().modeName` | 预览**跑着**的时候它仍然是 `'general'`（实测），所以只能用来认「预制件/动画」这类**非运行**模式 |
+ * | ③ | `SceneFacadeManager.queryMode()` | 同上 |
+ * | ④ | `globalThis.isPreviewProcess` | 真机上恒 `false`（实测），当不了判据 |
+ *
+ * ⚠ `_state` 是**私有字段**：`preview-play/index.d.ts` 里公开的只有 `isPause()`。
+ * 之所以还是用它 —— 真机上只有它说话算数；而**读不到时不许猜**：回退到旧口径，
+ * 并把「读不到 `_state`」写进 `note`（编辑器哪天改了字段名，回执里立刻看得见）。
+ *
+ * ## 附带报出的量（判「冻住没有」只有帧计数能说话）
+ *
+ * `sources.totalFrames` / `directorPaused` / `gamePaused` —— 实测：`pause(true)` 之后
+ * `frames` 1.5s 内 **+0**，`step()` **恰好 +1**。
+ */
+function readSceneMode(cc?: any): Record<string, unknown> {
+    const out: Record<string, unknown> = { mode: 'unknown', running: false, paused: null, sources: {} };
+    const sources = out.sources as Record<string, unknown>;
+    const cceAny = (globalThis as any).cce;
+
+    /** ① PreviewPlay —— 运行态的唯一可信来源 */
+    let previewState: string | null = null;
+    try {
+        const play = cceAny && cceAny.PreviewPlay;
+        sources.previewPlayPresent = Boolean(play);
+        if (play) {
+            try {
+                const rawState = play._state;
+                previewState = typeof rawState === 'string' ? rawState : null;
+                sources.previewState = previewState;
+            } catch (err) {
+                sources.previewStateError = errorInfo(err).message;
+            }
+            try {
+                sources.previewIsPause = typeof play.isPause === 'function' ? play.isPause() : null;
+            } catch (err) {
+                sources.previewIsPauseError = errorInfo(err).message;
+            }
+        }
+    } catch (err) {
+        sources.previewPlayError = errorInfo(err).message;
+    }
+
+    /** ②③ facade 两条 —— 只用来认非运行模式（真机实测：预览跑着时它们是 general） */
+    try {
+        const manager = cceAny && cceAny.SceneFacadeManager;
+        if (!manager) {
+            out.note = '这个进程里没有 cce.SceneFacadeManager（场景页才有）';
+        } else {
+            try {
+                const facade = typeof manager.getCurrentFacade === 'function' ? manager.getCurrentFacade() : null;
+                sources.facadeMode = facade && typeof facade.modeName === 'string' ? facade.modeName : null;
+            } catch (err) {
+                sources.facadeModeError = errorInfo(err).message;
+            }
+            try {
+                sources.queryMode = typeof manager.queryMode === 'function' ? manager.queryMode() : null;
+            } catch (err) {
+                sources.queryModeError = errorInfo(err).message;
+            }
+        }
+    } catch (err) {
+        out.note = `读 cce.SceneFacadeManager 失败：${errorInfo(err).message}`;
+    }
+
+    /** ④ 预览进程标志（真机恒 false；留着只为「原样报出」） */
+    try {
+        const flag = (globalThis as any).isPreviewProcess;
+        sources.isPreviewProcess = typeof flag === 'boolean' ? flag : null;
+    } catch {
+        sources.isPreviewProcess = null;
+    }
+
+    /** ⑤ 主循环的两面 + 帧计数 */
+    if (cc) {
+        try {
+            sources.totalFrames = cc.director.getTotalFrames();
+        } catch {
+            /* 引擎还没起来就算了 */
+        }
+        try {
+            sources.directorPaused = cc.director.isPaused();
+        } catch {
+            /* 同上 */
+        }
+        try {
+            sources.gamePaused = cc.game.isPaused();
+        } catch {
+            /* 同上 */
+        }
+    }
+
+    const known = ['general', 'prefab', 'animation', 'preview'];
+    const raw = [sources.facadeMode, sources.queryMode].filter((value): value is string => typeof value === 'string');
+    const hit = raw.find((value) => known.indexOf(value) >= 0);
+
+    if (previewState === 'play' || previewState === 'pause') {
+        out.mode = 'preview';
+        out.running = true;
+        out.paused = previewState === 'pause';
+    } else if (previewState === 'stop') {
+        out.running = false;
+        out.paused = false;
+        if (hit && hit !== 'preview') {
+            out.mode = hit;
+        } else if (raw.length > 0) {
+            out.note = `模式串认不出来（${JSON.stringify(raw)}）—— 原值已如实报出，这里不猜`;
+        }
+    } else {
+        /**
+         * 读不到 `_state`（编辑器改了字段名 / 这台机器上没有 PreviewPlay）—— **退回旧口径**，
+         * 并明说这条判据可信度低：真机实测 facade 那几条判不出预览在跑。
+         */
+        out.paused = null;
+        if (hit) {
+            out.mode = hit;
+            out.running = hit === 'preview';
+        } else if (raw.length > 0) {
+            out.note = `模式串认不出来（${JSON.stringify(raw)}）—— 原值已如实报出，这里不猜`;
+        }
+        const why = sources.previewPlayPresent
+            ? '读不到 cce.PreviewPlay._state（编辑器可能改了字段名）'
+            : '这个进程里没有 cce.PreviewPlay';
+        out.note = `${why} —— 运行态只能按 facade 那几条猜，而真机实测它们**判不出预览在跑**（见 docs/对照-cocos-extensions.md §9.7）`;
+    }
+    return out;
+}
+
+/**
  * 节点的矩形 —— **页面 CSS 像素、左上角为原点**。
  *
  * 做法：把节点世界矩形的 4 个角喂给编辑器相机的 `worldToScreen`，取包围盒。
@@ -1408,6 +1550,11 @@ function collectViewMetrics(cc: any, payload: ViewMetricsPayload): Record<string
         page: pageGeometry(),
         canvas: canvasGeometry(canvas),
         view: canvas ? readViewState(cc, canvas) : null,
+        /**
+         * 现在这一页画的是**编辑器场景**还是**跑着的游戏**（见 `readSceneMode`）。
+         * 截图/点节点/裁矩形都要先看它：运行态下编辑器相机不是那台在渲染的相机。
+         */
+        runtime: readSceneMode(cc),
         camera: {
             available: Boolean(cam),
             is2D: camera.is2D,
@@ -3191,7 +3338,15 @@ function makeHelpers(cc: any, options?: { projectPath?: string }): HelperBundle 
 
         const tree = { root: String(start.name || 'scene'), at: new Date().toISOString(), nodes };
         const json = JSON.stringify(tree);
-        const record = { label, tree, hash: hashOf(json), bytes: json.length, at: tree.at };
+        /**
+         * ⚠ 哈希**只取内容**（`root` + `nodes`），**不含 `at` 时间戳**。
+         *
+         * 原来是 `hashOf(json)` —— 连 `at` 一起哈希，于是"同一棵树连拍两次哈希相同"只在
+         * **两次落在同一毫秒**时才成立（2026-11 被 verify 的计时抖动抓了个正着：
+         * `{"same":false,"bytes":true,"nodeCount":6}`）。一个会随时间变的哈希当不了内容指纹，
+         * 而"拍一次 → 改 → 再拍 → 比哈希"正是这个助手存在的理由。
+         */
+        const record = { label, tree, hash: hashOf(JSON.stringify({ root: tree.root, nodes })), bytes: json.length, at: tree.at };
 
         // 淘汰最旧的（Map 保持插入序）
         snapshotStore.set(label, record);
@@ -4018,14 +4173,17 @@ export const methods: { [key: string]: (...args: any[]) => any } = {
         }
     },
 
+
     /**
      * 取景 / 还原视角 —— **截图链路里「摆相机」的那一半**（见文件里「取景」一节）。
      *
-     * 为什么由主进程驱动而不是这里一把梭：取景之后**必须让页面重画一帧**
-     * （相机动了但画面没重画的话，`capturePage()` 抓到的还是旧取景），
-     * 而「排一次重绘」只有主进程能做到（`webContents.invalidate()`）。
-     * 所以这里只做「摆一步 → 主进程逼一帧 → 再量一步」里的那两步，
-     * 由主进程按 `step` 逐级推进（每一级都是量着验，验不过才降级）。
+     * 为什么由主进程驱动而不是这里一把梭：摆完一步要**量一次**（覆盖够不够）、不够再降级摆下一步 ——
+     * 量的判据（`viewMetrics.framing`）与相机都在这一侧，而「摆哪一级、要不要继续」是主进程的决定。
+     *
+     * ⚠ 曾经这里还配着一句「主进程 `invalidate()` 逼一帧再量」。**那一句已整体撤掉**
+     * （2026-10-08 口径：本扩展不碰合成器，见 `source/capture.ts` 文件头）。代价如实说：
+     * 相机刚动完就量，读到的**可能是重画前的那一帧** —— 所以主进程那边靠**多量几轮**、
+     * 而不是靠逼一帧来"保证新鲜"。
      *
      * @param payload - `{action, step?, fit?, node?, projectPath?}`：
      *   `action:'fit'` 摆第 `step` 级取景（0 = 编辑器 focus / 1 = 控制器适配 / 2 = 手工），

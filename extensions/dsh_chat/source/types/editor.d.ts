@@ -53,6 +53,18 @@ declare namespace Editor {
          */
         function request(name: string, message: string, ...args: unknown[]): Promise<unknown>;
 
+        /**
+         * **发一条不等回执**的消息（fire-and-forget）。
+         *
+         * 为什么需要它：真机实测（`docs/真机验收-结果.md`）`editor-preview-set-play(true)`
+         * **120s 不回执** —— 用 `request` 等这条消息就是把自己挂死，而它的**副作用（把预览跑起来）
+         * 其实发生了**。所以「先 send、再按状态复探」是本工程对这类消息的口径。
+         *
+         * 用法出处（编辑器自带工具栏）：`builtin/preview/static/toolbar/middle.js` 里的
+         * `Editor.Message.send("console","update-extension-visible")`。
+         */
+        function send(name: string, message: string, ...args: unknown[]): void;
+
         /** 向所有窗口广播一条消息（面板侧用 `Message.__protected__.addBroadcastListener` 收）。 */
         function broadcast(message: string, ...args: unknown[]): void;
 

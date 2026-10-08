@@ -43,6 +43,8 @@ const SCENE_FILE = path.join(EXT_ROOT, 'source', 'scene.ts');
 const ENGINE_FILE = path.join(EXT_ROOT, 'source', 'core', 'engine.ts');
 const COCOS_TOOLS_FILE = path.join(EXT_ROOT, 'source', 'cocos-tools.ts');
 const LOGS_FILE = path.join(EXT_ROOT, 'source', 'logs.ts');
+const INPUT_FILE = path.join(EXT_ROOT, 'source', 'input.ts');
+const PREVIEW_FILE = path.join(EXT_ROOT, 'source', 'preview.ts');
 
 const FACT_RE = /^<!--\s*fact:\s*([^|]+?)\s*\|\s*verify:\s*([^|]+?)\s*(?:\|\s*(.*?)\s*)?-->\s*$/;
 const PIT_RE = /^##\s*坑\s*(\d+)\s*[：:]/;
@@ -50,6 +52,19 @@ const PIT_RE = /^##\s*坑\s*(\d+)\s*[：:]/;
 const read = (file) => {
     try { return fs.readFileSync(file, 'utf-8'); } catch { return null; }
 };
+
+/**
+ * 剥掉注释之后的源码 —— **"有没有某次调用"这类断言必须看剥过的文本**。
+ *
+ * 为什么：本项目的注释是**长篇中文说明**，"我们为什么不再调 `webContents.invalidate()`"
+ * 这种句子会**逐字**包含被禁的那个调用，于是"0 处调用"的断言会被自己的说明文字判红。
+ * 反过来（直接把说明写得不能出现那个词）又会把最该说清的那句话逼走。
+ * 所以：**丑话留给断言，把注释剥掉再说**。
+ *
+ * 只处理 `//` 与 `/* *\/` 两种；字符串字面量里的 `//`（如 URL）不还原成文本也无所谓 ——
+ * 这个函数的用途是"找调用点"，不是当解析器用。
+ */
+const stripComments = (text) => (text == null ? null : text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
 
 /** 源码里必须有某段字符串 —— "插件行为"类事实的锚点 */
 const mustContain = (file, needle, why) => ({
@@ -99,15 +114,136 @@ const listIndexedRecipes = () => {
 };
 
 const IMPLS = {
-    'tool-count-is-5': {
-        desc: 'bridge 里 ctx.tools.register 正好 5 次（工具面表格的前提）',
+    'tool-count-is-8': {
+        desc: 'bridge 里 ctx.tools.register 正好 8 次（工具面表格的前提）',
         run() {
             const text = read(BRIDGE_FILE);
             if (text == null) return { ok: false, detail: '读不到 bridge 插件' };
             const n = (text.match(/ctx\.tools\.register\s*\(/g) || []).length;
             return {
-                ok: n === 5,
-                detail: '实测注册 ' + n + ' 个工具' + (n === 5 ? '' : '（不是 5 → 「工具面」那张表已失真）'),
+                ok: n === 8,
+                detail: '实测注册 ' + n + ' 个工具' + (n === 8 ? '' : '（不是 8 → 「工具面」那张表已失真）'),
+            };
+        },
+    },
+    /**
+     * 「点与跑」那一节的锚点：三件套**四处都要在**，缺一处那节说法就站不住 ——
+     * 插件要注册三个工具名、要真发对应的帧、编辑器侧要有分发表条目、
+     * 两个实现文件要有各自的"这条通道靠什么成立"的关键字。
+     */
+    'interaction-tools-wired': {
+        desc: 'cocos_click_node / cocos_send_keys / cocos_runtime 三处都在（注册 + 帧 + 分发表 + 实现文件），且 runtime 只剩只读 `state`',
+        run() {
+            const bridgeText = read(BRIDGE_FILE);
+            const toolsText = read(COCOS_TOOLS_FILE);
+            const inputText = read(INPUT_FILE);
+            const previewText = read(PREVIEW_FILE);
+            if (bridgeText == null || toolsText == null || inputText == null || previewText == null) {
+                return { ok: false, detail: '读不到 bridge / cocos-tools / input / preview 源码' };
+            }
+            const missing = [];
+            for (const name of ['cocos_click_node', 'cocos_send_keys', 'cocos_runtime']) {
+                if (!bridgeText.includes(`name: '${name}'`)) missing.push(`bridge 里没有 ${name} 的注册`);
+            }
+            for (const frame of ["'click_node'", "'send_keys'", "'runtime'"]) {
+                if (!bridgeText.includes(frame)) missing.push(`bridge 里没有发 ${frame} 帧`);
+            }
+            for (const entry of ['click_node: withRefs', 'send_keys: withRefs', 'runtime: withRefs']) {
+                if (!toolsText.includes(entry)) missing.push(`cocos-tools 分发表里没有 ${entry}`);
+            }
+            if (!inputText.includes('sendInputEvent')) missing.push('input.ts 里没有 sendInputEvent（那就不是真事件了）');
+            if (!inputText.includes('MAX_TEXT_CHARS')) missing.push('input.ts 里没有 text 长度上限');
+            /**
+             * ⚠ 2026-10-08 之后 `preview.ts` **不再开关预览**（那两条消息连同直调一起撤了）。
+             * 现在这里钉的是**相反的两件事**：只读探针还在（`query-scene-mode`），
+             * 而"开关预览"的那两条消息**一个字都不许留**（留了就是后门）。
+             */
+            if (!previewText.includes('query-scene-mode')) missing.push('preview.ts 里没有只读的 query-scene-mode 探针');
+            if (previewText.includes('editor-preview-set-play')) missing.push('preview.ts 里又出现了 editor-preview-set-play（开关预览的后门）');
+            if (previewText.includes('editor-preview-call-method')) missing.push('preview.ts 里又出现了 editor-preview-call-method（pause/step 的后门）');
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '注册 / 帧 / 分发表 / 两个实现文件都在，且 runtime 只剩只读那一格' : missing.join('；'),
+            };
+        },
+    },
+    /**
+     * `view`（编辑器场景 vs 跑着的游戏）那条口径的锚点：**两侧都要在** ——
+     * 场景脚本要真的读模式（`readSceneMode`），主进程要真的把它报出来（`mode` 里带 requested/actual）。
+     *
+     * ⚠ 2026-11 真机验收之后加了两条更硬的：判据必须是 **`PreviewPlay._state`**（`previewState`），
+     * 因为实测预览跑着的时候 facade 那两条**仍然是 `general`** —— 只钉"读了 cce 单例"是不够的，
+     * 那正是"断言看着绿、真机上判不出来"的状态。
+     */
+    'capture-view-mode': {
+        desc: 'capture_view 的 view 参数有来源也有出口（scene.ts 读 _state + engine.ts 报 mode + bridge 有 view 参数）',
+        run() {
+            const sceneText = read(SCENE_FILE);
+            const engineText = read(ENGINE_FILE);
+            const bridgeText = read(BRIDGE_FILE);
+            if (sceneText == null || engineText == null || bridgeText == null) {
+                return { ok: false, detail: '读不到 scene / engine / bridge 源码' };
+            }
+            const missing = [];
+            if (!sceneText.includes('function readSceneMode')) missing.push('scene.ts 里没有 readSceneMode（模式就没来源了）');
+            if (!sceneText.includes('previewState')) missing.push('scene.ts 没读 PreviewPlay._state（真机上只有它判得出运行态）');
+            if (!sceneText.includes("previewState === 'play'")) missing.push('scene.ts 没拿 previewState 判 running（那就又退回 facade 了）');
+            if (!sceneText.includes("out.paused = previewState === 'pause'")) missing.push('scene.ts 没报 paused（冻住没有就说不清）');
+            if (!sceneText.includes('cce.SceneFacadeManager')) missing.push('scene.ts 没读 SceneFacadeManager（预制件/动画模式就没来源了）');
+            if (!sceneText.includes('totalFrames')) missing.push('scene.ts 没报帧计数（"真的冻住了"没有判据）');
+            if (!engineText.includes('normalizeViewTarget')) missing.push('engine.ts 里没有 view 参数解析');
+            if (!engineText.includes('requested: options.view')) missing.push('engine.ts 回执里没有 mode.requested（说不清"要的"是哪种）');
+            if (!engineText.includes('paused: typeof runtime.paused')) missing.push('engine.ts 回执里没有 mode.paused');
+            if (!bridgeText.includes("enum: ['auto', 'scene', 'game']")) missing.push('bridge 里 capture_view 没有 view 参数');
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '判据（_state）+ 来源 + 回执出口 + 工具参数都在' : missing.join('；'),
+            };
+        },
+    },
+    /**
+     * 「合成输入进不了引擎」这条边界的锚点 —— 2026-11 真机验收最大的收获。
+     *
+     * 三处都得在，缺一处那节说法就站不住：
+     * ① 插件的 `cocos_click_node` 描述里要**明说这条路在编辑器里点不动引擎**（不能留着"像真人点一样"的旧话）；
+     * ② `cocos_send_keys` 描述里要有同源的边界（含"打字进 DOM 输入框仍然有效"这个区别）；
+     * ③ 场景脚本仍以 `_state` 作运行态判据（那条拒绝到底会不会触发，全看它）。
+     */
+    'editor-input-not-dom': {
+        desc: '桥接里点/按键的描述都写着「引擎在编辑器构建里不注册 DOM 监听」，且运行态判据仍是 _state',
+        run() {
+            const bridgeText = read(BRIDGE_FILE);
+            const sceneText = read(SCENE_FILE);
+            if (bridgeText == null || sceneText == null) return { ok: false, detail: '读不到 bridge / scene 源码' };
+            const missing = [];
+            if (!bridgeText.includes('不注册 DOM 监听')) missing.push('bridge 里没有「引擎在编辑器构建里不注册 DOM 监听」这条边界');
+            if (!bridgeText.includes('manually event dispatching')) missing.push('bridge 里没引引擎源码那句注释（说服力全靠它）');
+            if (!bridgeText.includes('_dispatchMouse')) missing.push('bridge 里没写换路方向（cc.input._dispatchMouse*）');
+            if (!bridgeText.includes('引擎收不到')) missing.push('bridge 里没明说"合成事件引擎收不到"（"像真人点一样"的旧话就会重新长回来）');
+            if (!sceneText.includes('previewState')) missing.push('scene.ts 的运行态判据不再是 _state（那条拒绝又会永远不触发）');
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '三条边界 + 运行态判据都在' : missing.join('；'),
+            };
+        },
+    },
+    /**
+     * 坑 15（`open-scene` 给 `db://` 会开出新空场景）的锚点：
+     * 这条只能靠"提示位里写着"来保证 —— 模型不会主动去读 skill 才发现这件事。
+     */
+    'open-scene-uuid': {
+        desc: 'editor_state 的「下一步」提示里写着 open-scene 要用资源 uuid（别给 db:// 路径）',
+        run() {
+            const toolsText = read(COCOS_TOOLS_FILE);
+            if (toolsText == null) return { ok: false, detail: '读不到 cocos-tools.ts' };
+            const hasLine = toolsText.includes('要开别的场景：open-scene 给**资源 uuid**');
+            const hasWhy = toolsText.includes('会开出**一个新的空场景**');
+            return {
+                ok: hasLine && hasWhy,
+                detail: hasLine && hasWhy
+                    ? '提示位里写了「用资源 uuid」+ 后果'
+                    : (hasLine ? '' : 'cocos-tools.ts 的下一步提示里没有 open-scene 用 uuid 那条；')
+                        + (hasWhy ? '' : '没有写"给 db:// 会开出新的空场景"这个后果'),
             };
         },
     },
@@ -115,8 +251,96 @@ const IMPLS = {
         '坑 1 说「剪枝时不静默，会回 editorChildrenHidden」就站不住了'),
     'nodebypath-greedy': mustContain(SCENE_FILE, 'resolvePathBySegments',
         '坑 2 说「nodeByPath 用贪心按段匹配兜住含 / 的节点名」就站不住了'),
-    'capture-reports-viewstate': mustContain(SCENE_FILE, 'visibleMatchesDesign',
-        '坑 5 说「截图回执里带 view.visibleMatchesDesign」就站不住了'),
+    'capture-reports-viewstate': {
+        desc: '坑 5 的判据还在（回执带 view.visibleMatchesDesign），且**本扩展一处 `invalidate()` 都不调**（2026-10-08 口径）',
+        run() {
+            const sceneText = read(SCENE_FILE);
+            const captureText = read(path.join(EXT_ROOT, 'source', 'capture.ts'));
+            const engineText = read(ENGINE_FILE);
+            if (sceneText == null || captureText == null || engineText == null) {
+                return { ok: false, detail: '读不到 scene / capture / engine 源码' };
+            }
+            const missing = [];
+            if (!sceneText.includes('visibleMatchesDesign')) missing.push('scene.ts 里没有 visibleMatchesDesign（"设备模拟被改过"就说不清）');
+            /**
+             * ⚠ 2026-10-08 口径**反过来了**：以前钉的是「重绘要了才排」，现在钉的是
+             * **一次都没有** —— 因为"靠一个默认值把危险动作关掉"在**模块级 require 缓存**面前
+             * 是不可验证的（那次会话里编辑器跑的就是旧构建，回执仍在恒报 `forcedRepaint:true`）。
+             */
+            if (stripComments(captureText).includes('forceRepaint')) missing.push('capture.ts 里又出现了 forceRepaint（"不碰合成器"这条硬口径被改回去了）');
+            if (/\.invalidate\(/.test(stripComments(captureText))) missing.push('capture.ts 里出现了 invalidate() 调用点（空图那次也不行）');
+            if (/\.invalidate\(/.test(stripComments(engineText))) missing.push('engine.ts 里出现了 invalidate() 调用点（取景后逼帧那次也不行）');
+            if (engineText.includes('forcedRepaint')) missing.push('engine.ts 回执里又带上了 forcedRepaint');
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '视图状态读数在，且 capture/engine 里 0 处 invalidate() 调用' : missing.join('；'),
+            };
+        },
+    },
+    /**
+     * 坑 16（场景面板画面停住 / 黑掉）的锚点：SKILL 里那份**恢复配方**必须还在，
+     * 而且它指的那份判定文档要真存在 —— 否则这条坑就变成"只说了症状，没说怎么办"。
+     */
+    'scene-frozen-recipe': {
+        desc: '坑 16 的恢复配方（重启编辑器）+ 判定文档 `docs/冻结诊断.md` 都在，且三处源码里**一处 `invalidate()` 调用都没有**',
+        run() {
+            const skillText = read(SKILL_FILE);
+            const captureText = read(path.join(EXT_ROOT, 'source', 'capture.ts'));
+            const engineText = read(ENGINE_FILE);
+            const sceneText = read(SCENE_FILE);
+            if (skillText == null || captureText == null || engineText == null || sceneText == null) {
+                return { ok: false, detail: '读不到 SKILL / capture / engine / scene 源码' };
+            }
+            const docFile = path.join(EXT_ROOT, 'docs', '冻结诊断.md');
+            const missing = [];
+            if (!skillText.includes('docs/冻结诊断.md')) missing.push('SKILL 的坑 16 里没有指向 docs/冻结诊断.md');
+            if (!skillText.includes('重启编辑器')) missing.push('SKILL 的坑 16 里没写"只有重启编辑器能恢复"这条恢复配方');
+            if (!skillText.includes('pit-16-scene-frozen')) missing.push('SKILL 里没有坑 16 的 fact 锚点行');
+            if (read(docFile) == null) missing.push('docs/冻结诊断.md 不在了（坑 16 指的判定文档没了）');
+            for (const [name, text] of [['capture.ts', captureText], ['engine.ts', engineText], ['scene.ts', sceneText]]) {
+                if (/\.invalidate\(/.test(stripComments(text))) missing.push(name + ' 里出现了 invalidate() 调用点（"不碰合成器"落不了地）');
+            }
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '恢复配方 + 判定文档 + 三处源码 0 处 invalidate() 调用' : missing.join('；'),
+            };
+        },
+    },
+    /**
+     * 坑 17（运行预览开关已撤掉）的锚点：**四个入口都得堵上** ——
+     * bridge 的 action 白名单、cocos-tools 的拒绝分支、package.json 的 scene methods、scene.ts 的直调。
+     * 只堵一半（比如 UI 上去了、直调还在）等于留了个后门，所以这里逐个点名。
+     */
+    'preview-control-removed': {
+        desc: '运行预览开关撤干净了：bridge enum 只剩 state、cocos-tools 拒绝五个动作、package.json 无 runtimeControl、scene.ts 不再直调 PreviewPlay 开关',
+        run() {
+            const bridgeText = read(path.join(EXT_ROOT, 'dsh-profile', 'plugin', 'dsh-cocos-bridge', 'index.js'));
+            const toolsText = read(path.join(EXT_ROOT, 'source', 'cocos-tools.ts'));
+            const sceneText = read(SCENE_FILE);
+            const pkgText = read(path.join(EXT_ROOT, 'package.json'));
+            if (bridgeText == null || toolsText == null || sceneText == null || pkgText == null) {
+                return { ok: false, detail: '读不到 bridge / cocos-tools / scene / package.json' };
+            }
+            const missing = [];
+            /** ① bridge：action 的 enum 只剩 state，且描述里必须写清"为什么撤" */
+            if (!/enum:\s*\['state'\]/.test(bridgeText)) missing.push('bridge 的 cocos_runtime action enum 不是只剩 [state]');
+            if (/enum:\s*\['state',\s*'play'/.test(bridgeText)) missing.push('bridge 里 play 又在 enum 里了');
+            if (!bridgeText.includes('冻结诊断')) missing.push('bridge 的 runtime 描述里没说清"为什么撤"（没提冻结诊断）');
+            /** ② cocos-tools：只认 state，其余一律拒绝 */
+            if (!/action !== 'state'/.test(toolsText)) missing.push('cocos-tools 里没有"非 state 一律拒"的分支');
+            if (!toolsText.includes('黑屏')) missing.push('cocos-tools 的拒绝文案里没说清黑屏这件事');
+            /** ③ package.json：scene methods 里不许再有 runtimeControl */
+            if (pkgText.includes('runtimeControl')) missing.push('package.json 的 scene methods 里还有 runtimeControl');
+            /** ④ scene.ts：不许再直调 PreviewPlay 的开关方法（只读 `_state` 是允许的） */
+            if (/PreviewPlay\s*\[/.test(sceneText) || /play\[method\]/.test(sceneText)) missing.push('scene.ts 里还在直调 PreviewPlay 的开关方法');
+            if (/async runtimeControl\s*\(/.test(sceneText)) missing.push('scene.ts 里 runtimeControl 方法又出现了');
+            if (!sceneText.includes('PreviewPlay')) missing.push('scene.ts 里连 PreviewPlay.\u005fstate 都不读了（运行态判据会瞎）');
+            return {
+                ok: missing.length === 0,
+                detail: missing.length === 0 ? '四个入口（bridge / cocos-tools / package.json / scene.ts）都堵上了，只读判据仍在' : missing.join('；'),
+            };
+        },
+    },
     /**
      * 坑 5 续（取景）的锚点：两侧都得在 ——
      * 主进程要还在推那条链（`runFitChain`），场景侧要还在摆相机（`applyFitStep`）

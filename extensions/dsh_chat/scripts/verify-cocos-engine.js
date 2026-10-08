@@ -71,8 +71,21 @@ function makeFakeCc() {
         join(nodeModules, 'index.js'),
         [
             "'use strict';",
+            '/**',
+            ' * 主循环时钟：帧计数与两个暂停位 —— 真机验收之后 `readSceneMode` 要读它们',
+            ' * （「冻住没有」只有帧计数能作证：实测 pause 之后 1.5s +0、step 恰好 +1）。',
+            ' * 测试里改 `clock.frames` 模拟「又跑了几帧」。',
+            ' */',
+            'const clock = { frames: 100, directorPaused: false, gamePaused: false };',
             '/** 场景：默认 null（既有断言依赖「没开场景」），Electron 那组测试用 `director.__scene = …` 装上 */',
-            'const director = { __scene: null, getScene() { return director.__scene; } };',
+            'const director = {',
+            '    __scene: null,',
+            '    getScene() { return director.__scene; },',
+            '    getTotalFrames() { return clock.frames; },',
+            '    isPaused() { return clock.directorPaused; },',
+            '    pause() { clock.directorPaused = true; },',
+            '    resume() { clock.directorPaused = false; },',
+            '};',
             'function Node() {}',
             "Node.__props__ = ['name', 'position', 'active'];",
             'function Camera() {}',
@@ -102,7 +115,12 @@ function makeFakeCc() {
             '    getContext: () => ({}),',
             '    getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }),',
             '};',
-            'const game = { canvas };',
+            'const game = {',
+            '    canvas,',
+            '    isPaused() { return clock.gamePaused; },',
+            '    pause() { clock.gamePaused = true; },',
+            '    resume() { clock.gamePaused = false; },',
+            '};',
             /**
              * 假的资源加载：**只认带 `@` 的子资源 uuid**（那才是 SpriteFrame），
              * 裸 uuid 一律回一个「看起来像 Texture2D」的东西 ——
@@ -121,6 +139,7 @@ function makeFakeCc() {
             'module.exports = {',
             '    director,',
             '    game,',
+            '    clock,',
             '    canvas,',
             '    js: { getClassName: (cls) => (cls && cls.name) || "FakeClass" },',
             '    Node,',
@@ -178,7 +197,121 @@ function makeFakeCc() {
  * @param {{ sceneAvailable?: boolean }} [options] - `sceneAvailable: false` 模拟「没打开场景」。
  */
 function installFakeEditor(options = {}) {
-    const state = { sceneAvailable: options.sceneAvailable !== false, snapshots: 0, calls: [] };
+    /**
+     * 假的 `cce.PreviewPlay`（真机验收之后它是**运行态的唯一判据**：`_state`）。
+     *
+     * `_state` 走 `'stop' → 'play' → 'pause'`；`start/stop/pause/step` 按 `directBehavior` 行事：
+     * - `'ok'`（默认）：真的改 `_state`（真机实测直调这四个都生效）；
+     * - `'silent'`：**什么都不做**（照抄真机上的 `editor-preview-call-method`：回 ok 而一帧不动）；
+     * - `'throw'`：抛错（照抄真机上那个 `setAttribute` 错）。
+     */
+    const fakePlay = {
+        _state: 'stop',
+        isPause() {
+            return fakePlay._state === 'pause';
+        },
+        start() {
+            fakePlay.calls.push(['start', []]);
+            if (directBehavior === 'silent') return Promise.resolve();
+            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
+            fakePlay._state = 'play';
+            clockRef.frames += 1;
+            return Promise.resolve();
+        },
+        stop() {
+            fakePlay.calls.push(['stop', []]);
+            if (directBehavior === 'silent') return Promise.resolve();
+            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
+            fakePlay._state = 'stop';
+            return Promise.resolve();
+        },
+        pause(isPause) {
+            fakePlay.calls.push(['pause', [isPause]]);
+            if (directBehavior === 'silent') return Promise.resolve();
+            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
+            if (isPause) {
+                fakePlay._state = 'pause';
+                clockRef.directorPaused = true;
+                clockRef.gamePaused = true;
+            } else {
+                fakePlay._state = 'play';
+                clockRef.directorPaused = false;
+                clockRef.gamePaused = false;
+            }
+            return Promise.resolve();
+        },
+        step() {
+            fakePlay.calls.push(['step', []]);
+            if (directBehavior === 'silent') return Promise.resolve();
+            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
+            clockRef.frames += 1;
+            return Promise.resolve();
+        },
+        /** 直调过哪些方法（断言"到底调了谁"） */
+        calls: [],
+    };
+
+    let directBehavior = 'ok';
+    /** 假 `cc` 里的那块时钟（`clock.frames` / 两个暂停位）—— 与假引擎同一份 */
+    const clockRef = require(join(FAKE_PROJECT, 'node_modules', 'cc')).clock;
+
+    const state = {
+        sceneAvailable: options.sceneAvailable !== false,
+        snapshots: 0,
+        calls: [],
+        /**
+         * 运行预览（game view）那两条消息的桩：`editor-preview-set-play` /
+         * `editor-preview-call-method`。默认**都成功**（回 true），
+         * 每组测试可以按需改成「编辑器拒绝了这一下」（回 false）。
+         */
+        previewReject: false,
+        /** `editor-preview-call-method` 收到的调用（`[method, ...args]`），断言"到底发了哪条" */
+        previewCalls: [],
+        /** `editor-preview-set-play` 收到的目标状态 */
+        playCalls: [],
+        /** `Message.send` 发出去的每一条（`{name, message, args}`）—— 新口径**不等回执**，靠它断言"发了什么" */
+        sentMessages: [],
+        /**
+         * 那条消息到底有没有把状态带过去。
+         *
+         * `'works'` = 照抄"正常编辑器"（改 `fakePlay._state`）；
+         * `'silent'` = **照抄真机**：消息回 ok 而状态一动不动（真机上 `step`/`resume` 就是这样）；
+         * `'throw'` = 消息抛错（真机上 `pause` 就是这样）。
+         */
+        messageRoute: 'works',
+        /** 直调 `cce.PreviewPlay` 的行为（`'ok'` / `'silent'` / `'throw'`） */
+        set directBehavior(value) {
+            directBehavior = value;
+        },
+        get directBehavior() {
+            return directBehavior;
+        },
+        /** 假的 `cce.PreviewPlay`（测试可以直接改 `state.previewPlay._state`） */
+        previewPlay: fakePlay,
+        /** `query-scene-mode` 回什么（默认这条消息在真编辑器里"只有声明、没有调用方"，这里模拟回得出 general） */
+        sceneMode: 'general',
+        /** 让 `query-scene-mode` 抛错（验「消息不通 ≠ 不在运行态」） */
+        sceneModeError: false,
+    };
+
+    /**
+     * 消息对状态的影响（**这一处是"编辑器到底做没做"的唯一入口**）。
+     *
+     * 两条路都走它：`request`（老口径）与 `send`（新口径）—— 因为真机上
+     * **副作用与回执是两件事**（`set-play(true)` 不回执但预览起来了）。
+     */
+    const applyPreviewMessage = (message, first, rest) => {
+        if (state.messageRoute === 'throw') throw new Error("Cannot read properties of undefined (reading 'setAttribute')");
+        if (state.messageRoute === 'silent') return;
+        if (message === 'editor-preview-set-play') {
+            fakePlay._state = first === true ? 'play' : 'stop';
+            return;
+        }
+        if (message === 'editor-preview-call-method') {
+            const args = Array.isArray(rest) ? rest : [];
+            if (first === 'pause') fakePlay._state = args[0] === true ? 'pause' : 'play';
+        }
+    };
 
     /** 场景脚本实例（模拟编辑器 scene 包的 `execute-scene-script` 查找）。 */
     let sceneScript = null;
@@ -195,7 +328,12 @@ function installFakeEditor(options = {}) {
             getPath: (name) => (name === 'dsh_chat' ? EXT_ROOT : undefined),
         },
         Message: {
-            async request(name, message, payload) {
+            /**
+             * ⚠ 末尾收成 `...rest` 而不是固定三个参数：`editor-preview-call-method` 是
+             * `request('scene', 消息, 方法名, ...参数)` 这种**多参**形状，写死三参就会把
+             * 方法名之后的参数静默丢掉 —— 那正是"断言看着绿、其实没验到"的经典来源。
+             */
+            async request(name, message, payload, ...rest) {
                 state.calls.push(`${name}/${message}`);
                 if (name === 'scene' && message === 'execute-scene-script') {
                     if (!state.sceneAvailable) throw new Error(SCENE_MISSING_MESSAGE);
@@ -214,7 +352,44 @@ function installFakeEditor(options = {}) {
                 if (name === 'scene' && message === 'query-node-tree') {
                     return { name: 'scene-2d', uuid: 'fake-scene-uuid' };
                 }
+                /**
+                 * 运行预览那三条消息（真编辑器里由 scene 包处理，见 `source/preview.ts` 的出处表）：
+                 * 桩的行为照抄编辑器工具栏的用法 —— `set-play` 回目标状态、`call-method` 回"做到没有"。
+                 */
+                if (name === 'scene' && message === 'query-scene-mode') {
+                    if (state.sceneModeError) throw new Error('Message does not exist: query-scene-mode');
+                    return state.sceneMode;
+                }
+                if (name === 'scene' && message === 'editor-preview-set-play') {
+                    state.playCalls.push(payload);
+                    applyPreviewMessage(message, payload, rest);
+                    return state.previewReject ? !payload : payload;
+                }
+                if (name === 'scene' && message === 'editor-preview-call-method') {
+                    /** 形状照抄真用法：第一个参是**方法名**，后面是给那个方法的参数（`pause` 收一个布尔） */
+                    state.previewCalls.push({ method: payload, args: rest });
+                    applyPreviewMessage(message, payload, rest);
+                    return state.previewReject ? false : true;
+                }
                 throw new Error(`未桩的编辑器消息：${name} / ${message}`);
+            },
+            /**
+             * 新口径走的是 `send`（**不等回执**）：真机实测 `set-play(true)` 120s 不回执，
+             * 而它的副作用其实发生了 —— 所以这里也照抄"副作用照做、回执没有"。
+             */
+            send(name, message, ...args) {
+                state.calls.push(`send:${name}/${message}`);
+                state.sentMessages.push({ name, message, args });
+                if (name !== 'scene') return;
+                if (message === 'editor-preview-set-play') {
+                    state.playCalls.push(args[0]);
+                    applyPreviewMessage(message, args[0]);
+                    return;
+                }
+                if (message === 'editor-preview-call-method') {
+                    state.previewCalls.push({ method: args[0], args: args.slice(1) });
+                    applyPreviewMessage(message, args[0], args.slice(1));
+                }
             },
             broadcast() {},
         },
@@ -295,6 +470,10 @@ function makeFakeView(url) {
         id: 42,
         invalidateCalls: 0,
         captureCalls: 0,
+        /** **每一次** `sendInputEvent` 的入参原样记下来（「到底发了什么」的唯一证据） */
+        inputEvents: [],
+        /** 目标页有没有键盘焦点（`cocos_send_keys` 只如实报，不抢） */
+        focused: true,
         /** **下一次**抓图返回空图 —— 用来验「invalidate 逼重绘」 */
         blankNext: false,
         /** 一直空 —— 用来验退路文案 */
@@ -310,11 +489,23 @@ function makeFakeView(url) {
         invalidate() {
             this.invalidateCalls += 1;
         },
+        sendInputEvent(event) {
+            this.inputEvents.push(JSON.parse(JSON.stringify(event)));
+        },
+        isFocused() {
+            return this.focused;
+        },
         getOwnerBrowserWindow: () => ({
             id: 1,
             getTitle: () => 'Cocos Creator',
             isVisible: () => true,
             isMinimized: () => false,
+            /** 窗口焦点：`sendInputEvent` 能不能生效的前提（假的那份默认有焦点） */
+            isFocused: () => fakeElectron.windowFocused,
+            focus() {
+                fakeElectron.focusCalls += 1;
+                fakeElectron.windowFocused = true;
+            },
         }),
         async capturePage() {
             this.captureCalls += 1;
@@ -612,6 +803,10 @@ function installFakeSceneView(cc, options = {}) {
  */
 const fakeElectron = {
     views: [],
+    /** 装那一页的窗口有没有焦点（`sendInputEvent` 的前提）—— 每组测试自己摆 */
+    windowFocused: true,
+    /** `focus()` 被调了几次（提前台这件事必须能被断言到） */
+    focusCalls: 0,
     webContents: {
         getAllWebContents: () => fakeElectron.views,
         fromId: (id) => fakeElectron.views.find((view) => view.id === id),
@@ -655,6 +850,8 @@ async function main() {
      * 后面 [6b] 那节也用它（原来是就地 require 的，见那里的注释）。
      */
     const cc = require(join(FAKE_PROJECT, 'node_modules', 'cc'));
+    /** 假引擎的主循环时钟：`frames` 与两个暂停位（`readSceneMode` 读它、「冻住没有」靠它说话） */
+    const clock = cc.clock;
 
     /** 让 `require('electron')` 拿到假的那一份（真编辑器主进程里才是真的）。 */
     const Module = require('node:module');
@@ -684,7 +881,12 @@ async function main() {
     const sceneMethods = (sceneContribution && sceneContribution.methods) || [];
     check(
         '五个场景方法都注册了（ping / runCode / describeApi / viewMetrics / fitView）',
-        ['ping', 'runCode', 'describeApi', 'viewMetrics', 'fitView'].every((m) => sceneMethods.includes(m)),
+        ['ping', 'runCode', 'describeApi', 'viewMetrics', 'fitView'].every((m) => sceneMethods.includes(m)) &&
+            /**
+             * ⚠ 反向也要钉住：`runtimeControl`（运行预览开关）**已于 2026-10-08 撤掉** ——
+             * 它若被谁悄悄加回来，这里当场红（理由见 `cocos_runtime` 的工具说明与 `docs/冻结诊断.md`）。
+             */
+            !sceneMethods.includes('runtimeControl'),
         sceneMethods,
     );
     check('dist/scene.js 存在（构建产物）', existsSync(join(EXT_ROOT, 'dist', 'scene.js')));
@@ -1229,7 +1431,7 @@ async function main() {
         timeoutMs: 5000,
     });
     check(
-        'snapshotTree：内容没变则哈希相同；快照**跨调用还在**（`kept` 里能看到前面那些 label）',
+        'snapshotTree：内容没变则哈希相同（**哈希不含 `at` 时间戳** —— 否则跨毫秒就红）；快照**跨调用还在**（`kept` 里能看到前面那些 label）',
         snapHash.ok === true &&
             snapHash.result.same === true &&
             snapHash.result.keptBefore === true &&
@@ -1709,10 +1911,25 @@ async function main() {
         { width: shot.data.width, height: shot.data.height, file: readFileSync(shotPath, 'utf8') },
     );
     check(
-        '第一张就是非空图 → 不折腾 invalidate',
-        shot.data.blankRatio < 0.05 && shot.data.useInvalidate === false && view.invalidateCalls === 0,
-        { blankRatio: shot.data.blankRatio, useInvalidate: shot.data.useInvalidate, invalidateCalls: view.invalidateCalls },
+        '抓到好图那次：回执里**没有** `useInvalidate` / `forcedRepaint` 这两格了（本扩展不再有"逼重绘"这个旋钮）',
+        shot.data.blankRatio < 0.05 &&
+            shot.data.useInvalidate === undefined &&
+            shot.data.forcedRepaint === undefined &&
+            view.invalidateCalls === 0,
+        { blankRatio: shot.data.blankRatio, useInvalidate: shot.data.useInvalidate, forcedRepaint: shot.data.forcedRepaint, invalidateCalls: view.invalidateCalls },
     );
+
+    view.invalidateCalls = 0;
+    /** 连"要了才排"也没了：就算调用方硬塞 `forceRepaint:true`（旧参数），代码里也没有任何一处会去碰合成器 */
+    const repaintShot = await engine.captureView({ savePath: join(FAKE_PROJECT, 'shot-repaint.png'), maxWidth: 4096, forceRepaint: true });
+    check(
+        '旧参数 `forceRepaint:true` 已经**失效**（不是"默认关掉"，是根本没有这个动作）：一次 `invalidate()` 都不发，回执也不再有那两格',
+        repaintShot.ok === true &&
+            repaintShot.data.forcedRepaint === undefined &&
+            view.invalidateCalls === 0,
+        { forcedRepaint: repaintShot.data.forcedRepaint, invalidateCalls: view.invalidateCalls },
+    );
+    view.invalidateCalls = 0;
 
     const nodePath = join(FAKE_PROJECT, 'shot-node.png');
     const nodeShot = await engine.captureView({ node: 'card-uuid', savePath: nodePath, maxWidth: 4096 });
@@ -1758,9 +1975,13 @@ async function main() {
     const healedPath = join(FAKE_PROJECT, 'shot-healed.png');
     const healed = await engine.captureView({ savePath: healedPath, maxWidth: 4096 });
     check(
-        '第一张是空图 → `invalidate()` 逼一次重绘再抓（**正是老实现缺的那一件**）',
-        healed.ok === true && healed.data.useInvalidate === true && healed.data.blankRatio < 0.05 && view.invalidateCalls === 1,
-        { useInvalidate: healed.data.useInvalidate, blankRatio: healed.data.blankRatio, invalidateCalls: view.invalidateCalls },
+        '第一张是空图 → **不重试、不逼重绘**（空就是空，如实报）；也**不许**静默换成别的图',
+        healed.ok === true &&
+            healed.data.useInvalidate === undefined &&
+            healed.data.blankRatio >= 0.95 &&
+            view.invalidateCalls === 0 &&
+            view.captureCalls >= 1,
+        { blankRatio: healed.data.blankRatio, useInvalidate: healed.data.useInvalidate, invalidateCalls: view.invalidateCalls, captureCalls: view.captureCalls },
     );
 
     view.alwaysBlank = true;
@@ -1925,6 +2146,7 @@ async function main() {
             noneShot.data.framing.applied === null &&
             noneShot.data.framing.before.covered === false &&
             /fit:"scene"/.test(String(noneShot.data.framing.note || '')) &&
+            /** ⚠ 相机一次没动（这里的 0 说的是这件事）；抓图前那次重绘**默认也不排**了（2026-10-08 现场），所以这里也是 0 */
             stage.calls.length === 0 &&
             view.invalidateCalls === 0 &&
             readFileSync(nonePath, 'utf8') === 'PNG 600x400',
@@ -1963,8 +2185,8 @@ async function main() {
         stage.findAllCalls('focus'),
     );
     check(
-        '取景之后**逼了一帧**（相机动了但页面没重画的话，抓到的还是旧取景）',
-        view.invalidateCalls >= 1,
+        '取景之后**一次 `invalidate()` 都没有**（2026-10-08 口径：本扩展不碰合成器 —— 相机动完就量，可能读到重画前那一帧，靠"多量几轮"而不是逼帧来兜）',
+        view.invalidateCalls === 0,
         { invalidateCalls: view.invalidateCalls },
     );
     check(
@@ -2352,6 +2574,428 @@ async function main() {
         noRefsReply.ok === true && !noRefsReply.text.includes('--- refs（') && noRefsReply.data.refs === undefined,
         noRefsReply.text.slice(-40),
     );
+
+    // ---------------------------------------------------------------------
+    console.log('\n[9] 点按 / 按键 / 运行态（真发事件 + 真问编辑器）');
+    // ---------------------------------------------------------------------
+    /**
+     * 这一节验的是「让 agent 自己验收界面」那三件（`click_node` / `send_keys` / `runtime`）。
+     *
+     * 两件必须钉住的事：
+     * ① **发出去的到底是什么** —— 假 webContents 把每次 `sendInputEvent` 的入参原样记下来，
+     *    断言逐字比对（坐标 / 按键 / 连击 / 修饰键），而不是"调用没报错就算过"；
+     * ② **不该发的时候一个都不发** —— 运行态按节点点会被拒、参数写错会被拒，
+     *    这些路径必须**零副作用**（假页上的事件数不变）。
+     */
+    /**
+     * ⚠ 先把 [6b] 收尾时拆掉的那套现场**重新装上**（那边 `delete global.window` /
+     * `delete globalThis.cce` / `cc.director.__scene = null` 是刻意的：后面的节不该依赖它）。
+     * 不重装的话这里会退化成"节点找不到"，而那种红看着像被测代码坏了、其实只是夹具没了。
+     */
+    global.window = { location: { href: PAGE_HREF }, innerWidth: 600, innerHeight: 400, devicePixelRatio: 2 };
+    /**
+     * 场景页上真实存在的 `cce` 单例（编辑器场景页就有）——**含 `SceneFacadeManager`**：
+     * 少了它，「现在是什么模式」这条就无从谈起（真编辑器里它一直在，只是模式会变）。
+     */
+    const generalFacade = { getCurrentFacade: () => ({ modeName: 'general' }), queryMode: () => 'general' };
+    const previewFacade = { getCurrentFacade: () => ({ modeName: 'preview' }), queryMode: () => 'preview' };
+    globalThis.cce = { Camera: stage.manager, SceneFacadeManager: generalFacade };
+    cc.director.__scene = fakeScene;
+    stage.reset();
+    view.alwaysBlank = false;
+    view.imageSize = { width: 600, height: 400 };
+    view.inputEvents.length = 0;
+    fakeElectron.windowFocused = true;
+    fakeElectron.focusCalls = 0;
+    state.previewReject = false;
+    state.previewCalls.length = 0;
+    state.playCalls.length = 0;
+    state.sceneMode = 'general';
+
+    // ---- 9a. 点节点：坐标 = 场景侧算出的 CSS 矩形中心 ----
+    const clickNode = await tools.COCOS_IPC_METHODS.click_node({ node: 'card-uuid' });
+    check(
+        '点节点：坐标 = 场景侧算出的 CSS 矩形中心（card 矩形 (300,150,100,50) → 中心 (350,175)）',
+        clickNode.ok === true && clickNode.data.point.x === 350 && clickNode.data.point.y === 175,
+        clickNode.text ? clickNode.text.slice(0, 400) : clickNode.data,
+    );
+    check(
+        '真发出去的是三条事件：mouseMove → mouseDown → mouseUp（坐标逐字一致、都是左键）',
+        JSON.stringify(view.inputEvents.map((event) => [event.type, event.x, event.y, event.button])) ===
+            JSON.stringify([
+                ['mouseMove', 350, 175, undefined],
+                ['mouseDown', 350, 175, 'left'],
+                ['mouseUp', 350, 175, 'left'],
+            ]),
+        view.inputEvents,
+    );
+    check(
+        '回执里带**真发出去的那几条**（events 与假页收到的一致）',
+        Array.isArray(clickNode.data.events) &&
+            clickNode.data.events.length === 3 &&
+            clickNode.data.events[1].type === 'mouseDown' &&
+            clickNode.data.events[1].clickCount === 1,
+        clickNode.data.events,
+    );
+    check(
+        'probe：点之前问了一次 `pick`（编辑态才有），回执里带着它自己的判词',
+        clickNode.data.probe && typeof clickNode.data.probe.verdict === 'string',
+        clickNode.data.probe,
+    );
+    check(
+        '窗口焦点如实报（有焦点时不提前台、也不说"可能没送达"）',
+        clickNode.data.window && clickNode.data.window.focused === true && clickNode.data.window.focusedByUs === false && fakeElectron.focusCalls === 0,
+        { window: clickNode.data.window, focusCalls: fakeElectron.focusCalls },
+    );
+
+    // ---- 9b. 窗口没焦点：必须提前台并如实记，别给一个"看着成功了" ----
+    fakeElectron.windowFocused = false;
+    view.inputEvents.length = 0;
+    const focusClick = await tools.COCOS_IPC_METHODS.click_node({ node: 'card-uuid' });
+    check(
+        '窗口没焦点时：自动提到前台、回执记 focusedByUs:true（否则这一下可能根本没送达）',
+        focusClick.data.window.focused === true && focusClick.data.window.focusedByUs === true && fakeElectron.focusCalls === 1,
+        { window: focusClick.data.window, focusCalls: fakeElectron.focusCalls },
+    );
+    fakeElectron.windowFocused = false;
+    view.inputEvents.length = 0;
+    const noFocusClick = await tools.COCOS_IPC_METHODS.click_node({ node: 'card-uuid', focusWindow: false });
+    check(
+        '关掉自动提前台后仍没焦点 → 回执**直说**「可能没被送达」（不假装成功）',
+        noFocusClick.data.window.focused === false &&
+            /没被送达/.test(String(noFocusClick.data.window.note)) &&
+            /没被送达/.test(String(noFocusClick.data.hint)),
+        { window: noFocusClick.data.window, hint: noFocusClick.data.hint },
+    );
+    fakeElectron.windowFocused = true;
+
+    // ---- 9c. 坐标给法：view / uv ----
+    view.inputEvents.length = 0;
+    const uvClick = await tools.COCOS_IPC_METHODS.click_node({ x: 0.25, y: 0.5, space: 'uv' });
+    check(
+        'space:"uv" 按页面尺寸折算（0.25×600=150、0.5×400=200）—— 截图缩过就用它',
+        uvClick.ok === true && uvClick.data.point.x === 150 && uvClick.data.point.y === 200 && uvClick.data.point.space === 'view',
+        uvClick.data && uvClick.data.point,
+    );
+    check(
+        'uv 那条也真发出去了（mouseDown 落在 (150,200)）',
+        view.inputEvents.some((event) => event.type === 'mouseDown' && event.x === 150 && event.y === 200),
+        view.inputEvents,
+    );
+
+    view.inputEvents.length = 0;
+    const dblClick = await tools.COCOS_IPC_METHODS.click_node({ x: 10, y: 20, button: 'right', clickCount: 2, modifiers: ['ctrl', 'Shift'] });
+    check(
+        '双击 + 右键 + 修饰键：连击第二次带 clickCount:2，且 `ctrl`/`Shift` 被归一成 control/shift',
+        JSON.stringify(view.inputEvents.filter((event) => event.type === 'mouseDown')) ===
+            JSON.stringify([
+                { type: 'mouseDown', x: 10, y: 20, button: 'right', clickCount: 1, modifiers: ['control', 'shift'] },
+                { type: 'mouseDown', x: 10, y: 20, button: 'right', clickCount: 2, modifiers: ['control', 'shift'] },
+            ]),
+        view.inputEvents,
+    );
+
+    // ---- 9d. 运行态：按节点点**必须被拒**（那种投影在那一刻不成立）----
+    /**
+     * ⚠ **这个开关是 `PreviewPlay._state`，不是 facade**（2026-11 真机验收的结论）：
+     * 真机上预览**跑着**的时候 `facadeMode` / `queryMode` **仍然是 `general`**，所以
+     * 下面这一组刻意把 facade 留在 `general` —— 判据要是写回 facade，这条拒绝就**永远不触发**。
+     */
+    state.previewPlay._state = 'play';
+    globalThis.cce = {
+        ...(globalThis.cce || {}),
+        SceneFacadeManager: generalFacade,
+        PreviewPlay: state.previewPlay,
+    };
+    view.inputEvents.length = 0;
+    const runningClick = await tools.COCOS_IPC_METHODS.click_node({ node: 'card-uuid' });
+    check(
+        '运行态按节点点：**被拒**（ok:false + 说清"那一刻的投影不成立" + 给出两条可用路）',
+        runningClick.ok === false &&
+            /运行态/.test(errorText(runningClick)) &&
+            /工具栏上按停止/.test(errorText(runningClick)) &&
+            /space:"uv"/.test(errorText(runningClick)),
+        errorText(runningClick).slice(0, 200),
+    );
+    check(
+        '而且判据是 `_state` —— facade 那两条当时**仍写着 general**（真机实测的样子）',
+        runningClick.data.mode.actual === 'preview' && runningClick.data.mode.sources.facadeMode === 'general',
+        runningClick.data.mode,
+    );
+    check('被拒时**一个事件都没发**（不是"发完再说不行"）', view.inputEvents.length === 0, view.inputEvents);
+
+    view.inputEvents.length = 0;
+    const runningUvClick = await tools.COCOS_IPC_METHODS.click_node({ x: 0.5, y: 0.5, space: 'uv' });
+    check(
+        '运行态给坐标**照常能点**（这正是运行态唯一可用的给法）',
+        runningUvClick.ok === true &&
+            runningUvClick.data.mode.running === true &&
+            view.inputEvents.some((event) => event.type === 'mouseDown' && event.x === 300 && event.y === 200),
+        { point: runningUvClick.data.point, events: view.inputEvents.length },
+    );
+    check(
+        '运行态下 probe 明确写「跳过」（pick 用的也是编辑器相机，同样不成立）',
+        runningUvClick.data.probe !== null &&
+            /运行态/.test(String(runningUvClick.data.probe.skipped || '')) &&
+            runningClick.data.mode.running === true,
+        { probe: runningUvClick.data.probe },
+    );
+
+    // ---- 9e. 抓图在运行态下的两条硬后果 ----
+    const runningShot = await engine.captureView({ savePath: join(FAKE_PROJECT, 'shot-running.png'), maxWidth: 4096 });
+    check(
+        '运行态抓图：`mode.actual` 如实报 preview（`view:"game"` 要的正是它）',
+        runningShot.ok === true && runningShot.data.mode.actual === 'preview' && runningShot.data.mode.running === true,
+        runningShot.data && runningShot.data.mode,
+    );
+    check(
+        '判据摆在回执里：`mode.sources.previewState`（`_state` 原值）+ `mode.paused` + 帧计数',
+        runningShot.data.mode.sources.previewState === 'play' &&
+            runningShot.data.mode.paused === false &&
+            typeof runningShot.data.mode.sources.totalFrames === 'number',
+        runningShot.data.mode,
+    );
+
+    // 冻住态：`_state='pause'` → `paused:true`（真机实测这个标志与帧计数一致）
+    state.previewPlay._state = 'pause';
+    const pausedShot = await engine.captureView({ savePath: join(FAKE_PROJECT, 'shot-paused.png'), maxWidth: 4096 });
+    check(
+        '冻住态：`_state="pause"` → `running:true` + `paused:true`（画面还是游戏，只是不走了）',
+        pausedShot.data.mode.actual === 'preview' && pausedShot.data.mode.running === true && pausedShot.data.mode.paused === true,
+        pausedShot.data.mode,
+    );
+    state.previewPlay._state = 'play';
+    view.lastImage.__calls.length = 0;
+    const runningNodeShot = await engine.captureView({ node: 'card-uuid', savePath: join(FAKE_PROJECT, 'shot-running-node.png'), maxWidth: 4096 });
+    check(
+        '运行态**不按节点裁图**（矩形是编辑器相机投的，按它裁会错位）—— 退回整张 + 说清为什么',
+        runningNodeShot.data.target.crop === null &&
+            /运行态/.test(String(runningNodeShot.data.note)) &&
+            view.lastImage.__calls.filter((call) => call.kind === 'crop').length === 0 &&
+            readFileSync(join(FAKE_PROJECT, 'shot-running-node.png'), 'utf8') === 'PNG 600x400',
+        { note: runningNodeShot.data.note, file: readFileSync(join(FAKE_PROJECT, 'shot-running-node.png'), 'utf8') },
+    );
+    const gameShot = await engine.captureView({ view: 'game', savePath: join(FAKE_PROJECT, 'shot-game.png'), maxWidth: 4096 });
+    check(
+        '`view:"game"` 要的东西拿到了 → **不加**"要的和拿的不一致"那句（`mode.note` 空）',
+        gameShot.ok === true && gameShot.data.mode.requested === 'game' && gameShot.data.mode.note === undefined,
+        gameShot.data && gameShot.data.mode,
+    );
+    check(
+        '但运行态下 `fit` 那句说明仍在（落在 `framing.note` / `data.note`，说的是"取景被忽略"而不是"拿错画面"）',
+        /不取景/.test(String(gameShot.data.framing.note || '')) &&
+            /不取景/.test(String(gameShot.data.note || '')) &&
+            gameShot.data.framing.requested === 'none',
+        { note: gameShot.data.note, framing: gameShot.data.framing },
+    );
+    const sceneWantedShot = await engine.captureView({ view: 'scene', savePath: join(FAKE_PROJECT, 'shot-scene-want.png'), maxWidth: 4096 });
+    check(
+        '运行态下要 `view:"scene"` → **明说这张图是游戏画面**（不假装成功，且给的是"人自己按停止"这条真路）',
+        sceneWantedShot.ok === true && /游戏画面/.test(String(sceneWantedShot.data.note)) && /工具栏/.test(String(sceneWantedShot.data.note)),
+        sceneWantedShot.data && sceneWantedShot.data.note,
+    );
+
+    // 回到编辑态（后面几组按"编辑态"验）
+    globalThis.cce = { Camera: stage.manager, SceneFacadeManager: generalFacade };
+    const editShot = await engine.captureView({ node: 'card-uuid', savePath: join(FAKE_PROJECT, 'shot-edit-again.png'), maxWidth: 4096 });
+    check(
+        '回到编辑态：节点裁图照旧（(300,150,100,50)）—— 运行态那条限制没有误伤编辑态',
+        editShot.ok === true &&
+            editShot.data.mode.actual === 'general' &&
+            readFileSync(join(FAKE_PROJECT, 'shot-edit-again.png'), 'utf8') === 'PNG 100x50',
+        { mode: editShot.data.mode, file: readFileSync(join(FAKE_PROJECT, 'shot-edit-again.png'), 'utf8') },
+    );
+
+    // ---- 9f. 按键 ----
+    view.inputEvents.length = 0;
+    const keys = await tools.COCOS_IPC_METHODS.send_keys({ key: 'Escape' });
+    check(
+        '按一下键：keyDown → keyUp（keyCode 原样用 Electron 加速键名）',
+        keys.ok === true &&
+            JSON.stringify(view.inputEvents.map((event) => [event.type, event.keyCode])) ===
+                JSON.stringify([
+                    ['keyDown', 'Escape'],
+                    ['keyUp', 'Escape'],
+                ]),
+        view.inputEvents,
+    );
+    view.inputEvents.length = 0;
+    const typing = await tools.COCOS_IPC_METHODS.send_keys({ text: 'ab', modifiers: ['meta'] });
+    check(
+        '输入文字：逐字发 `char`（不是 keyDown），修饰键只跟着 keyUp/keyDown 那条走',
+        typing.ok === true &&
+            JSON.stringify(view.inputEvents.map((event) => [event.type, event.keyCode, event.modifiers])) ===
+                JSON.stringify([
+                    ['char', 'a', undefined],
+                    ['char', 'b', undefined],
+                ]),
+        view.inputEvents,
+    );
+    const tooLong = await tools.COCOS_IPC_METHODS.send_keys({ text: 'x'.repeat(201) });
+    check(
+        'text 超过上限被拒（挡住"把一整份日志打进去"），且**一个字都没发**',
+        tooLong.ok === false && /200/.test(errorText(tooLong)) && view.inputEvents.length === 2,
+        errorText(tooLong).slice(0, 120),
+    );
+    const badModifier = await tools.COCOS_IPC_METHODS.send_keys({ key: 'A', modifiers: ['hyper'] });
+    check('拼错的修饰键被拒（不静默丢掉 —— 否则"我明明发了 ctrl"会变成假话）', badModifier.ok === false, errorText(badModifier).slice(0, 120));
+    const noKey = await tools.COCOS_IPC_METHODS.send_keys({});
+    check('key 与 text 都不给 → 报错且不发事件', noKey.ok === false && view.inputEvents.length === 2, errorText(noKey).slice(0, 120));
+
+    // 页面没有键盘焦点时如实报（**本工具不抢网页内焦点**）
+    view.focused = false;
+    const unfocusedKeys = await tools.COCOS_IPC_METHODS.send_keys({ text: 'x' });
+    check(
+        '网页没有键盘焦点时如实报 `focused:false` + 提示"先点一下那个输入框"',
+        unfocusedKeys.data.focused === false && /焦点/.test(String(unfocusedKeys.data.hint)),
+        { focused: unfocusedKeys.data.focused, hint: unfocusedKeys.data.hint },
+    );
+    view.focused = true;
+
+    // ---- 9g. 运行态：**只读**（开关已于 2026-10-08 撤掉，这一节钉住"撤干净了"）----
+    /**
+     * ⚠ 这一节在 2026-10-08 之后**变了性质**：原来验的是「直调优先 / 消息兜底」那套开关逻辑，
+     * 现在验的是**那些开关真的没有入口了** —— 场景面板黑屏/画面停住两次现场都在同一条时间线上
+     * （`docs/冻结诊断.md`），撤掉之后的判据是：
+     *
+     * ① `state` 照旧把两条独立来源摆出来（只读，一条消息都不发、一次直调都没有）；
+     * ② 五个改状态的动作**全部被拒**，而且**零副作用**（不发消息、不碰 `cce.PreviewPlay`）；
+     * ③ 拒的文案要说清**为什么**撤（不是"参数错了"那种让人再试一次的错）。
+     */
+    state.sceneMode = 'general';
+    globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: generalFacade, PreviewPlay: state.previewPlay };
+    state.previewPlay._state = 'stop';
+    state.previewPlay.calls.length = 0;
+    state.sentMessages.length = 0;
+    state.playCalls.length = 0;
+    state.previewCalls.length = 0;
+
+    const runtimeState = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    check(
+        'runtime(state)：两条独立来源都摆出来（编辑器消息 + 场景进程 cce 单例）',
+        runtimeState.ok === true &&
+            runtimeState.data.editorMessage.message === 'query-scene-mode' &&
+            runtimeState.data.editorMessage.mode === 'general' &&
+            runtimeState.data.scene &&
+            runtimeState.data.scene.mode === 'general' &&
+            runtimeState.data.scene.running === false,
+        { editorMessage: runtimeState.data.editorMessage, scene: runtimeState.data.scene },
+    );
+    check(
+        'runtime(state) 只读：**一条消息都没发、一次直调都没有**，且回执里 `readOnly:true` 明写',
+        state.sentMessages.length === 0 && state.previewPlay.calls.length === 0 && runtimeState.data.readOnly === true,
+        { sentMessages: state.sentMessages, directCalls: state.previewPlay.calls, readOnly: runtimeState.data.readOnly },
+    );
+
+    /**
+     * ②③ 五个改状态的动作**全被拒**：判据三件 —— `ok:false`、**零副作用**、文案里点名"为什么撤"。
+     * 用循环逐个 action 验，别只验一个（漏一个就等于留了一个后门）。
+     */
+    for (const action of ['play', 'stop', 'pause', 'resume', 'step']) {
+        state.sentMessages.length = 0;
+        state.previewPlay.calls.length = 0;
+        state.directBehavior = 'ok';
+        state.messageRoute = 'works';
+        const refused = await tools.COCOS_IPC_METHODS.runtime({ action, waitMs: 0 });
+        check(
+            `runtime(${action}) 已被拒（ok:false + 零副作用：不发消息、不碰 cce.PreviewPlay）`,
+            refused.ok === false &&
+                state.sentMessages.length === 0 &&
+                state.previewPlay.calls.length === 0,
+            { error: errorText(refused).slice(0, 120), sentMessages: state.sentMessages, directCalls: state.previewPlay.calls },
+        );
+        check(
+            `runtime(${action}) 的拒绝文案说清**为什么撤**（点名黑屏/冻结诊断，而不是"参数错了"）`,
+            /撤掉/.test(errorText(refused)) && /黑屏/.test(errorText(refused)) && /冻结诊断/.test(errorText(refused)),
+            errorText(refused).slice(0, 240),
+        );
+    }
+
+    /**
+     * 用户自己按了工具栏播放键之后，`state` 必须**照样如实报**（本工具只是不能开，不是不能看）。
+     */
+    state.previewPlay._state = 'play';
+    const userPlayed = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    check(
+        '用户自己开了预览时：`state` 照旧如实报 `running:true` + `previewState:"play"`（只读不等于看不见）',
+        userPlayed.ok === true &&
+            userPlayed.data.scene.running === true &&
+            userPlayed.data.before.previewState === 'play' &&
+            state.previewPlay.calls.length === 0,
+        { scene: userPlayed.data.scene, before: userPlayed.data.before },
+    );
+    state.previewPlay._state = 'stop';
+
+    /**
+     * ⑥ `_state` 读不到时**不许猜**：回退到 facade，并且 `note` 必须说出来。
+     * （真机上 facade 判不出运行态 —— 这条 note 就是"我知道我不准"。）
+     */
+    state.sceneMode = 'preview';
+    globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: previewFacade, PreviewPlay: undefined };
+    const noState = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    check(
+        '拿不到 `_state` 时：回退到 facade，但 `note` 明说"这条判据不可信"（不安静地猜）',
+        noState.ok === true &&
+            noState.data.scene.running === true &&
+            /cce\.PreviewPlay/.test(String(noState.data.scene.note || '')) &&
+            /判不出/.test(String(noState.data.scene.note || '')),
+        noState.data.scene,
+    );
+    globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: generalFacade, PreviewPlay: state.previewPlay };
+
+    // `query-scene-mode` 这条消息不通 ≠ 不在运行态：两条来源各报各的
+    state.sceneModeError = true;
+    const noMessage = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    check(
+        '`query-scene-mode` 抛错时：如实记原文，**另一条来源照样用**（消息不通 ≠ 状态未知）',
+        noMessage.ok === true &&
+            noMessage.data.editorMessage.ok === false &&
+            /Message does not exist/.test(String(noMessage.data.editorMessage.error)) &&
+            noMessage.data.scene.mode === 'general',
+        { editorMessage: noMessage.data.editorMessage, scene: noMessage.data.scene },
+    );
+    state.sceneModeError = false;
+
+    const badAction = await tools.COCOS_IPC_METHODS.runtime({ action: 'timeScale' });
+    check(
+        'runtime 只认 `state`（`timeScale` 同样被拒）—— 引擎里本来就没有全局倍率这个旋钮，不给"看着像能用"的名字',
+        badAction.ok === false && /只认/.test(errorText(badAction)) && /state/.test(errorText(badAction)),
+        errorText(badAction).slice(0, 140),
+    );
+
+
+    // ---- 9h. 参数校验：错的值一律**拒绝**，绝不"猜一个" ----
+    view.inputEvents.length = 0;
+    for (const [label, params, needle] of [
+        ['node 与 x/y 同时给', { node: 'card-uuid', x: 1, y: 2 }, '只能给一个'],
+        ['什么都不给', {}, '要给'],
+        ['space 写错', { x: 1, y: 2, space: 'screen' }, 'space'],
+        ['view 模式下坐标不是数', { x: 'a', y: 2 }, '有限数'],
+        ['button 写错', { x: 1, y: 2, button: 'primary' }, 'button'],
+        ['修饰键写错', { x: 1, y: 2, modifiers: ['hyper'] }, '修饰键'],
+    ]) {
+        const reply = await tools.COCOS_IPC_METHODS.click_node(params);
+        check(
+            `参数校验：${label} → 被拒且说得清`,
+            reply.ok === false && errorText(reply).includes(needle),
+            errorText(reply).slice(0, 120),
+        );
+    }
+    check('参数被拒时**一个事件都没发**', view.inputEvents.length === 0, view.inputEvents);
+
+    // 找错了页 / 没开场景：回执要带现场（否则"点不动"只能靠猜）
+    const savedViews = fakeElectron.views;
+    fakeElectron.views = [];
+    const noPage = await tools.COCOS_IPC_METHODS.click_node({ x: 1, y: 2 });
+    check(
+        '找不到那一页时：ok:false + 说清"没有找到场景视图的 webContents"',
+        noPage.ok === false && /webContents/.test(errorText(noPage)),
+        errorText(noPage).slice(0, 140),
+    );
+    fakeElectron.views = savedViews;
+
+    // 回到编辑态的现场，免得影响后面的收尾断言
+    globalThis.cce = { Camera: stage.manager };
 
     // ---------------------------------------------------------------------
     console.log(`\n=== 结果：${checks - failures}/${checks} 通过 ===`);

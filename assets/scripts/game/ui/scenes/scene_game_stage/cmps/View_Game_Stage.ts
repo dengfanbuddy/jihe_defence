@@ -10,6 +10,7 @@ import { showFloatText } from './skill_slot/FloatText';
 import { TbRoot } from 'db://assets/scripts/platform/excel_table/TbRoot';
 import { UnitCfgContainer } from '../../../../excel_table/Tb_UnitConfig';
 import { FINAL_BOSS_STAGE } from '../../../../common/EntityVisualConfig';
+import { gameModeName } from '../../../../common/GameModeConfig';
 import { HIT_FEEL_INFO } from '../../../../common/HitFeelConfig';
 import type { SkillSlotsVM } from '../../../../battle/SkillSlots';
 import type { HeroSelectVM } from '../../../../battle/HeroSelect';
@@ -273,6 +274,8 @@ export class View_Game_Stage extends UIWidget {
         );
         // 本局难度（难度选择弹窗决定，场景换局时写；HUD 只读）
         this.scope.watch(() => this.battleStore.difficulty, () => this.refreshDifficulty());
+        // 本局模式（主界面模式卡决定，场景换局时写；HUD 只读）
+        this.scope.watch(() => this.battleStore.mode, () => this.refreshMode());
         // 阶段 / 剩余时间：单一来源是 store（场景写），取代 BATTLE_REMAINTIME 事件推送
         this.scope.watch(
             [() => this.battleStore.phase, () => this.battleStore.phaseRemainTime],
@@ -339,6 +342,7 @@ export class View_Game_Stage extends UIWidget {
         this.refreshKills();
         this.refreshLevel();
         this.refreshDifficulty();
+        this.refreshMode();
         this.updateProgress();
         this.refreshBosses();
     }
@@ -632,6 +636,16 @@ export class View_Game_Stage extends UIWidget {
      */
     private refreshDifficulty(): void {
         if (this.info_name) this.info_name.string = `难度 ${this.battleStore.difficulty}`;
+    }
+
+    /**
+     * 左上角信息条的**模式名**（`info/mode`）—— 与「难度 N」并排的那一格。
+     *
+     * ⚠ 它原来是预制件里的**死文案**「阶梯模式」，全工程没有写入方（连主界面的「阶段模式」都对不上）。
+     *   现在跟 `battleStore.mode`（主界面模式卡选的）走，换模式进游戏就会跟着变。
+     */
+    private refreshMode(): void {
+        if (this.info_mode) this.info_mode.string = gameModeName(this.battleStore.mode);
     }
 
     /* ===================================================================

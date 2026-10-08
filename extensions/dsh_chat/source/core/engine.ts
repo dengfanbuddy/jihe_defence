@@ -42,7 +42,6 @@ import {
     encodeImage,
     getElectron,
     imageSizeOf,
-    invalidateSceneView,
     listContents,
 } from '../capture';
 import {
@@ -878,7 +877,8 @@ const CAPTURE_READ_HINT = '用图片读取能力打开 path 看一眼画面，�
  * 但真到这一步说明**连合成后的 surface 都是空的** —— 那时更不该重试。
  */
 const CAPTURE_BLANK_HINT =
-    '这是空图（blankRatio≈1），**别再重试截图** —— Electron 通道已经 `invalidate()` 逼过一次重绘，' +
+    '这是空图（blankRatio≈1），**别再重试截图** —— 本扩展**不调 `invalidate()`**（不碰合成器，' +
+    '理由见 `source/capture.ts` 文件头与 `docs/冻结诊断.md`），' +
     '换 waitMs / 重新聚焦 / 换 maxWidth 都不会变。先看 `view` 再决定，按顺序做：' +
     '① `view.visibleMatchesDesign === false`：编辑器场景视图的**设备模拟被改过**（历史上是有人调了 `cc.view.setDesignResolutionSize`）—— 在场景视图工具栏重新选一次设备分辨率即可恢复，纯视图设置、不影响场景与预制件数据；' +
     '② `view.visibleMatchesDesign === true` 却仍然空：说明**这个环境当下确实取不到画面**（编辑器最小化、场景视图面板被折叠或从未渲染）—— 不要自建离屏渲染器（历史上有人为此花了 16 步），直接转数值判据；' +
@@ -897,6 +897,8 @@ interface ElectronCaptureOptions {
     projectPath: string;
     /** 取景要求：`auto`（默认）/ `scene` / `node` / `none`，语义见 {@link captureView} */
     fit: FitMode;
+    /** 「想要哪一种画面」：`auto`（不管）/ `scene`（编辑器场景）/ `game`（跑着的游戏），见 {@link ViewTarget} */
+    view: ViewTarget;
 }
 
 /**
@@ -911,7 +913,42 @@ interface ElectronCaptureOptions {
 type FitMode = 'auto' | 'scene' | 'node' | 'none';
 
 /**
- * `auto` 模式下「内容小得看不清」的判据：内容与画布的交集面积占比低于它就顺手取景。
+ * 「想要哪一种画面」（`capture_view` 的 `view` 参数）。
+ *
+ * 编辑器里那块场景视图**同一时刻只画一样东西**：编辑态的编辑器场景，或者运行预览
+ * （game view，编辑器工具栏那颗播放键）跑着的**游戏画面**。两者用的是**不同的相机**
+ * （见 `source/scene.ts` 的 `readSceneMode`），所以"我要的是哪一种"必须由调用方说清楚 ——
+ * 否则回执里那张图到底是场景还是游戏，只有图自己知道。
+ *
+ * - `auto`（默认）：不管，抓现在这一帧 —— 但回执里**照样**会说清抓到的是哪一种（`mode`）。
+ * - `scene`：要编辑器场景。拿到的是运行态画面时会**明说不对**（不假装成功）。
+ * - `game`：要跑着的游戏。**运行态下不再取景、不再裁节点**（两者都建立在编辑器相机上，
+ *   而那时在渲染的是游戏相机 —— 摆了也不会改变画面）。
+ */
+type ViewTarget = 'auto' | 'scene' | 'game';
+
+/**
+ * 解析 `view` 参数。
+ *
+ * `'preview'` 按 `game` 理解（读者多半是想说"跑起来那个画面"），但会**多写一句**说明
+ * 它有两种读法 —— 浏览器/模拟器预览是另一个应用的另一个进程，本扩展够不着。
+ */
+function normalizeViewTarget(raw: unknown): { mode: ViewTarget; note?: string } {
+    if (raw === undefined || raw === null || raw === '' || raw === 'auto') return { mode: 'auto' };
+    if (raw === 'scene' || raw === 'game') return { mode: raw };
+    if (raw === 'preview') {
+        return {
+            mode: 'game',
+            note:
+                '`view:"preview"` 按 `game`（编辑器内运行预览）理解。若你指的是**浏览器/模拟器预览**，' +
+                '那是编辑器之外的另一个应用，本工具截不到它 —— 那种情况请自己在那个窗口里截图。',
+        };
+    }
+    return { mode: 'auto', note: `view 只认 auto/scene/game，收到 ${JSON.stringify(raw)}，按 auto 处理` };
+}
+
+/**
+ * `auto` 模式下「内容小得看不清」的判据：内容与画布交集面积占比低于它就顺手取景。
  *
  * 为什么要这一条：只在「没拍全」时取景是**不够**的 —— 用户缩到 10% 看全局时内容**确实全在画里**，
  * 但截图里那一小块根本看不清（实测：720×1560 的设计分辨率缩到 10%，在画布里只有 72×156）。
@@ -1035,7 +1072,12 @@ async function runFitChain(
             }
             if (applied.note) fitNote = applied.note;
         }
-        invalidateSceneView(href);
+        /**
+         * ⛔ 这里曾经有一句 `invalidateSceneView(href)`（"相机动了，逼一帧再量"）。
+         * 2026-10-08 之后**删掉了**：本扩展一次 `invalidate()` 都不调（见 `source/capture.ts` 文件头）。
+         * 代价如实说：相机刚动完就量，读到的**可能是重画前的那一帧** ——
+         * 所以下面这一量与主进程侧的取景链会**多量几轮**，而不是靠逼一帧来"保证新鲜"。
+         */
         await sleep(FIT_SETTLE_MS);
         const measured = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [
             { node: nodeRef || undefined, fit: { kind, ref: nodeRef }, projectPath },
@@ -1146,21 +1188,73 @@ async function captureViewViaElectron(
     const page = (metrics.page || {}) as Record<string, any>;
     let href = typeof page.href === 'string' ? page.href : '';
 
+    /**
+     * 这一页现在画的是**编辑器场景**还是**跑着的游戏** —— 由场景脚本报上来（`viewMetrics.runtime`，
+     * 见 `source/scene.ts` 的 `readSceneMode`）。「运行态」有两条硬后果（下面 ② 与 ④ 各一条）：
+     * 取景与裁节点都建立在**编辑器相机**上，而运行态的渲染相机是**游戏自己的**。
+     */
+    const runtime = (metrics.runtime || {}) as Record<string, any>;
+    const running = runtime.running === true;
+    const actualMode = typeof runtime.mode === 'string' ? runtime.mode : 'unknown';
+
+    /**
+     * 「没给出正确模式」时的如实说明。
+     *
+     * 约定：`note` 非空 = 有事。这里只在**调用方要的那一种与实际那一种不一致**时才写，
+     * 而且写的是事实（"这张图是 X"），不是安慰（"可能不是你要的"）。
+     */
+    let viewNote: string | undefined;
+    if (options.view === 'game' && !running) {
+        viewNote =
+            '要的是**运行态**（game view）画面，但编辑器现在**不在**运行预览里 —— 这张图是**编辑器场景**。' +
+            '本扩展**已经开不了预览了**（那条能力 2026-10-08 撤掉了，理由见 `cocos_runtime` 的说明）：' +
+            '要看游戏画面，请**自己在编辑器工具栏按那颗播放键**，回来再截。';
+    } else if (options.view === 'scene' && running) {
+        viewNote =
+            '要的是**编辑器场景**，但编辑器现在正在跑运行预览 —— 这张图是**游戏画面**。' +
+            '想要编辑器场景：请**自己在编辑器工具栏按停止**再截。';
+    } else if (options.view !== 'auto' && runtime.mode === 'unknown' && runtime.note) {
+        /**
+         * ⚠ 只在调用方**明确要了某一种**时才说这句话。
+         * `view:"auto"` 的调用方没问模式，把"我判不出来"塞进 `note` 会盖掉更要紧的那条
+         * （比如"节点找不到，退回整张视图"）—— 「note 非空 = 有事」这条约定就被噪声用掉了。
+         * 判不出来这件事本身**照样如实报**：`mode.actual` 就是 `unknown`，理由在 `mode.note` 里。
+         */
+        viewNote = `要的是「${options.view}」，但判断不了这一页画的是场景还是游戏：${runtime.note}`;
+    }
+
     // ② 取景（`fit`）：用户缩放/平移过之后，屏幕上那一帧未必是「全景」——
     //    按需要把目标框进画布，截完再还原视角（见 runFitChain）。
+    /**
+     * ⚠ **运行态一律不取景**（不管调用方传了什么 `fit`）。
+     *
+     * 理由不是"取景失败"，而是"取景在那一刻**没有意义**"：`runFitChain` 摆的是
+     * `cce.Camera`（编辑器相机），而运行态的画面是**游戏自己的相机**渲染的
+     * （`PreviewPlay.hideEditorCamera()`）—— 摆了也不会改变画面一根像素，
+     * 反而会**白动一次用户的编辑器视角**。
+     */
+    let fitMode: FitMode = options.fit;
+    /** 运行态下「取景被忽略」的说明 —— 它属于**取景账本**（`framing.note`），不是「拿错画面」那一类 */
+    let fitOverrideNote: string | undefined;
+    if (running && fitMode !== 'none') {
+        fitMode = 'none';
+        fitOverrideNote =
+            '运行态下不取景：`fit` 摆的是编辑器相机，而画面由游戏自己的相机渲染，摆了也不会改变这张图（这次按原样截）。';
+    }
+
     let framing: Record<string, any> = {
-        requested: options.fit,
+        requested: fitMode,
         applied: null,
         method: null,
         before: pickCoverage(metrics),
         after: pickCoverage(metrics),
     };
     let fitNote: string | undefined;
-    const wanted = decideFit(options.fit, options.nodeRef, framing.before);
+    const wanted = decideFit(fitMode, options.nodeRef, framing.before);
     if (wanted) {
         try {
             const result = await runFitChain(wanted, options.nodeRef, options.projectPath, metrics, href);
-            framing = { requested: options.fit, ...result.framing };
+            framing = { requested: fitMode, ...result.framing };
             /** ⚠ 相机动过 → 节点矩形必须用**新的**那一份（旧的已经不成立了） */
             metrics = result.metrics;
             fitNote = result.fitNote;
@@ -1168,16 +1262,16 @@ async function captureViewViaElectron(
             if (typeof newPage.href === 'string' && newPage.href) href = newPage.href;
         } catch (err) {
             /** 取景是**加分项**：它失败不该让截图失败 —— 如实记一笔，继续按当前取景截 */
-            framing.requested = options.fit;
+            framing.requested = fitMode;
             framing.applied = wanted;
             framing.note = `取景没做成（${describe(err)}）—— 回执里这张图是**当前视角**那一帧`;
             fitNote = framing.note;
         }
-    } else if (options.fit === 'none' && framing.before && framing.before.covered !== true) {
+    } else if (fitMode === 'none' && framing.before && framing.before.covered !== true) {
         framing.note = '`fit:"none"` 按原样截 —— 但量下来目标**没有被拍全**，想拍全就传 `fit:"scene"`';
-    } else if (options.fit === 'node' && !options.nodeRef) {
+    } else if (fitMode === 'node' && !options.nodeRef) {
         framing.note = '`fit:"node"` 需要同时给 `node`（这次没给）—— 按当前视角原样截';
-    } else if (options.fit === 'auto' && !options.nodeRef && framing.before) {
+    } else if (fitMode === 'auto' && !options.nodeRef && framing.before) {
         /**
          * 「不用取景」是**正常情况**，所以不写 `note`（约定：`note` 非空 = 有事）——
          * 把"为什么没动相机"记在 `why` 里，需要解释时看得到。
@@ -1187,8 +1281,10 @@ async function captureViewViaElectron(
                 ? `内容已经整个在画布里（areaRatio ${framing.before.areaRatio} ≥ ${FIT_SMALL_RATIO}）—— 按原样截，没动相机`
                 : '量不到覆盖情况';
     }
+    /** 运行态那条说明落在**取景账本**里（要找"为什么没动相机"，就看这一格） */
+    if (fitOverrideNote && !framing.note) framing.note = fitOverrideNote;
 
-    // ③ 抓图（空图会自动 invalidate 重抓一次，见 capture.ts）
+    // ③ 抓图（**只读**：一次 `capturePage()`，不排重绘 —— 见 capture.ts 文件头那条硬口径）
     const outcome = await captureSceneView(href);
     if (!outcome.ok) {
         return { fallback: outcome.error };
@@ -1201,7 +1297,17 @@ async function captureViewViaElectron(
     let cropRect: { x: number; y: number; width: number; height: number } | null = null;
     let cropNote: string | undefined;
     if (options.nodeRef) {
-        if (!nodeInfo || nodeInfo.found !== true) {
+        if (running) {
+            /**
+             * ⚠ **运行态不裁节点**：`node.rect` 是拿**编辑器相机**投出来的，而那一刻画面由
+             * 游戏自己的相机渲染 —— 按它裁会得到一块**错位的图**（比整页图更坑：看着像成功了）。
+             * 所以这里如实退回整页，并把"怎么办"一起说了。
+             */
+            cropNote =
+                '运行态（game view）下**不按节点裁图**：节点矩形是用编辑器相机投出来的，' +
+                '而运行态的画面由游戏自己的相机渲染，两者不是同一个取景 —— 按它裁会给你一块错位的图。' +
+                '现在给的是**整张画面**；要按节点裁请先**自己在编辑器工具栏按停止**回到编辑态。';
+        } else if (!nodeInfo || nodeInfo.found !== true) {
             cropNote = `没找到节点「${options.nodeRef}」${nodeInfo && nodeInfo.note ? `（${nodeInfo.note}）` : ''} —— 回执里给的是**整张场景视图**`;
         } else if (!nodeInfo.rect) {
             cropNote = `节点「${nodeInfo.name || options.nodeRef}」算不出矩形${nodeInfo.note ? `（${nodeInfo.note}）` : ''} —— 回执里给的是**整张场景视图**`;
@@ -1272,11 +1378,25 @@ async function captureViewViaElectron(
         blankRatio: outcome.blankRatio,
         // 视图状态（visibleSize / designResolution / canvas / visibleMatchesDesign）
         view: metrics.view ?? null,
+        /**
+         * 这张图**画的是哪一种画面** —— 运行态（game view 跑着游戏）还是编辑态（编辑器场景）。
+         *
+         * 为什么不并进 `view`：那个字段早就是「视图状态」（visibleSize / designResolution），
+         * 含义已经占住了；而这一格回答的是另一个问题："我到底截到了什么"。
+         * `requested` / `actual` 两个都摆出来 —— 要的和拿的不是一回事时，这里一眼看得见。
+         */
+        mode: {
+            requested: options.view,
+            actual: actualMode,
+            running,
+            /** 预览自己是不是被冻住了（`PreviewPlay._state === 'pause'`；判不了就是 null） */
+            paused: typeof runtime.paused === 'boolean' ? runtime.paused : null,
+            sources: runtime.sources ?? null,
+            note: viewNote,
+        },
         // 抓的是哪一个 webContents —— 编辑器里可能同时有场景视图与游戏预览，抓错时靠它一眼看出来
         contents: outcome.target,
         matchedBy: outcome.matchedBy,
-        /** 第一张是空图、靠 `invalidate()` 逼出第二张时为 true */
-        useInvalidate: outcome.usedInvalidate,
         transport: 'electron',
         target: options.nodeRef
             ? {
@@ -1305,6 +1425,15 @@ async function captureViewViaElectron(
     if (nodeInfo && nodeInfo.rect && nodeInfo.note) payload.nodeNote = nodeInfo.note;
     /** 取景的说明优先落在 `framing.note` 里（它带着覆盖率数据）；这里只在它缺位时补一句 */
     if (fitNote && !framing.note && !cropNote) payload.note = fitNote;
+    else if (fitOverrideNote && !cropNote && !payload.note) payload.note = fitOverrideNote;
+    /**
+     * ⚠ 「要的那种画面没拿到」**压过**上面两条。
+     *
+     * 它说的不是"这张图小瑕疵"，而是"这张图根本不是你要的那个东西" ——
+     * 被 `framing.note` 或裁剪说明盖掉的话，调用方会拿着一张错画面的图继续往下走
+     * （这正是最难查的一类错：工具没报错，图也在，就是不对）。
+     */
+    if (viewNote) payload.note = viewNote;
     payload.hint = blank ? CAPTURE_BLANK_HINT : CAPTURE_READ_HINT;
 
     return { reply: { ok: true, text: JSON.stringify(payload, null, 2), data: payload } };
@@ -1319,7 +1448,8 @@ async function captureViewViaElectron(
  * ## 两条路，先好后老
  *
  * 1. **Electron 通道**（{@link captureViewViaElectron}，**正路**）：主进程
- *    `webContents.capturePage()` 抓**合成后的 surface**，空图时 `invalidate()` 逼一次重绘。
+ *    `webContents.capturePage()` 抓**合成后的 surface**（**只读**，一次抓图，不排重绘 ——
+ *    见 `source/capture.ts` 文件头那条硬口径）。
  *    老实现读的是 GL 后备缓冲、且**没法让编辑器重画**，于是实测恒回 `blankRatio: 1`
  *    （`docs/agent-notes/UI与表现层.md`）—— 这条路就是从根上换掉那个读取源。
  *    顺带支持**节点级截图**（`node` 参数，矩形由编辑器相机投影，见场景脚本 `viewMetrics`）
@@ -1341,9 +1471,23 @@ async function captureViewViaElectron(
  * | `node` | 强制框住**目标节点**（要同时给 `node`） |
  * | `none` | 不动相机，就截现在这一帧（回执里仍会告诉你拍全没有） |
  *
- * @param params - `{savePath?, maxWidth?, format?, quality?, node?, padding?, fit?, waitMs?, timeoutMs?}`。
+ * ## `view` 是干什么的（**同一块画布，两种画面**）
+ *
+ * 编辑器里那块场景视图**同一时刻只画一样东西**：编辑态的编辑器场景，或者运行预览
+ * （game view）跑着的游戏画面 —— 两者用**不同的相机**。所以：
+ *
+ * | view | 行为 |
+ * |---|---|
+ * | `auto`（默认） | 不管，截现在这一帧；回执 `mode.actual` 说明**截到的到底是哪一种** |
+ * | `scene` | 要编辑器场景；拿到运行态画面时**明说不对**（`note` + `mode.running`） |
+ * | `game` | 要跑着的游戏；运行态下**不取景、不裁节点**（两者都建立在编辑器相机上），并说明为什么 |
+ *
+ * `view:"preview"` 按 `game` 理解并附一句说明（浏览器/模拟器预览是另一个应用，够不着）。
+ *
+ * @param params - `{savePath?, maxWidth?, format?, quality?, node?, padding?, fit?, view?, waitMs?, timeoutMs?}`。
  * @returns `data.path` 是图片绝对路径，可直接喂给图片读取工具；
- *   `data.framing` 是取景账本（取景前/后的覆盖率、用了哪一级、还回去没有）。
+ *   `data.framing` 是取景账本（取景前/后的覆盖率、用了哪一级、还回去没有）；
+ *   `data.mode` 是"这张图到底画的是哪一种画面"（`requested` / `actual` / `running`）。
  */
 export async function captureView(params: Record<string, unknown>): Promise<ToolReply> {
     const format = params.format === 'jpeg' || params.format === 'jpg' ? 'jpeg' : 'png';
@@ -1364,6 +1508,8 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
     const padding = clampInt(params.padding, 0, 400, 0);
     /** 取景：见上面的表；不认的值按 auto 处理（回执里会说一声）。 */
     const fit = normalizeFitMode(params.fit);
+    /** 要哪一种画面（`auto` / `scene` / `game`）—— 见 {@link ViewTarget}。 */
+    const view = normalizeViewTarget(params.view);
 
     // ---- ① Electron 通道（正路）----
     const viaElectron = await captureViewViaElectron({
@@ -1375,26 +1521,48 @@ export async function captureView(params: Record<string, unknown>): Promise<Tool
         padding,
         projectPath: Editor.Project.path,
         fit: fit.mode,
+        view: view.mode,
     });
     if ('reply' in viaElectron) {
-        /** fit 参数写错了就说一声（不阻断截图） */
-        if (fit.note && viaElectron.reply.data) {
+        /** fit / view 参数写错了就说一声（不阻断截图） */
+        if (viaElectron.reply.data) {
             const data = viaElectron.reply.data as Record<string, unknown>;
-            data.fitNote = fit.note;
+            if (fit.note) data.fitNote = fit.note;
+            if (view.note) {
+                data.viewNote = view.note;
+                /** 这是"解读你的参数"的一句话，比裁剪/取景那些细节更该被看见 */
+                data.note = data.note ? `${view.note}（另有：${data.note}）` : view.note;
+            }
         }
         return viaElectron.reply;
     }
 
     // ---- ② 兜底：老的场景进程读像素 ----
     /**
-     * 兜底通道读的是场景进程的 GL 后备缓冲，**没法摆相机**（取景要靠主进程 `invalidate()` 逼帧配合），
+     * 兜底通道读的是场景进程的 GL 后备缓冲，**没法摆相机**（取景那条链要靠主进程逐级量、`fitView` 才排得上），
      * 所以 `fit` 在这条路上**不生效** —— 不管这一步成败都要说清，否则用户会以为拿到的是全景。
      */
     const withFitNote = (reply: ToolReply): ToolReply => {
-        if (fit.mode === 'none') return reply;
         const data = reply.data;
-        if (!data || typeof data !== 'object' || (data as Record<string, unknown>).fitIgnored) return reply;
-        (data as Record<string, unknown>).fitIgnored =
+        const payload = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+        if (payload && !payload.viewMode) {
+            /**
+             * 兜底路**量不到模式**（它不经过 `viewMetrics`）—— 但那正是最要说清的一句：
+             * 这条路上拿到的可能是场景、也可能是跑着的游戏，而回执里没有任何字段能区分。
+             */
+            payload.viewMode = {
+                requested: view.mode,
+                actual: 'unknown',
+                note: '这条兜底通道判断不了这一页画的是场景还是游戏（它不经过主通道的几何探针）',
+            };
+        }
+        if (view.note) {
+            if (payload) payload.viewNote = view.note;
+            return reply;
+        }
+        if (fit.mode === 'none') return reply;
+        if (!payload || payload.fitIgnored) return reply;
+        payload.fitIgnored =
             '这条兜底通道（场景进程读像素）不取景 —— 回执里这张图是**当前视角**那一帧；想拍全就修好主通道（看 electronFallback），或先自己把视角调好再截';
         return reply;
     };
@@ -1477,6 +1645,56 @@ export async function pingSceneScript(): Promise<{ available: boolean; reason?: 
         return value && value.ok ? { available: true } : { available: false, reason: '场景脚本返回异常' };
     } catch (err) {
         return { available: false, reason: describe(err) };
+    }
+}
+
+/**
+ * 一个节点在**页面上的位置**（点它 / 裁它 / 量它都要的那一份几何）。
+ *
+ * 复用截图那条路的同一份投影（`viewMetrics`）：这样「截图裁出来的矩形」与「点击落下的点」
+ * 天然是同一套坐标 —— 两处各算一次的话，迟早出现"截到的和点到的差半个节点"。
+ *
+ * @param nodeRef - 节点 uuid 或路径；空串 = 只要页面几何（不要节点矩形）。
+ * @returns `{ok, page, canvas, camera, runtime, node?, error?}`；拿不到就是 `{ok:false, error}`（不抛）。
+ */
+export async function readNodeGeometry(nodeRef: string): Promise<Record<string, any>> {
+    try {
+        const metrics = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [
+            { node: nodeRef || undefined, projectPath: Editor.Project.path },
+        ]);
+        if (!metrics || metrics.ok !== true) {
+            return { ok: false, error: describe((metrics && metrics.error) || 'viewMetrics 没给出几何') };
+        }
+        return metrics;
+    } catch (err) {
+        return { ok: false, error: describe(err) };
+    }
+}
+
+/**
+ * 运行态探针：问场景脚本「这一页现在画的是编辑器场景，还是跑着的游戏」。
+ *
+ * 取的是 `viewMetrics` 的 `runtime` 那一块（见 `source/scene.ts` 的 `readSceneMode`）——
+ * **不在主进程另抄一份判定**：模式是从场景进程里那几个 `cce` 单例读出来的，
+ * 抄一份的下场是两处对同一个编辑器状态各说各话。
+ *
+ * 只带 `{}` 参数（不要节点矩形、不要取景），所以它很轻：一次场景进程往返。
+ *
+ * @returns 拿到就是 `{ok:true, runtime}`；场景不可用就 `{ok:false, error}`（不抛）。
+ */
+export async function readSceneRuntime(): Promise<{ ok: boolean; runtime?: Record<string, unknown>; error?: string }> {
+    try {
+        const metrics = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [{}]);
+        if (!metrics || metrics.ok !== true) {
+            return { ok: false, error: describe((metrics && metrics.error) || 'viewMetrics 没给出结果') };
+        }
+        const runtime = (metrics.runtime || null) as Record<string, unknown> | null;
+        if (!runtime) {
+            return { ok: false, error: '场景脚本没有报 runtime（这个版本的本扩展脚本比主进程旧？）' };
+        }
+        return { ok: true, runtime };
+    } catch (err) {
+        return { ok: false, error: describe(err) };
     }
 }
 

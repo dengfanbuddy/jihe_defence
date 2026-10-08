@@ -13,6 +13,8 @@ import { ref } from 'db://assets/scripts/platform/reactivity';
 import { Cmp_Difficulty } from './cmps/Cmp_Difficulty';
 import { DifficultyScopeEvents } from './cmps/DifficultyScope';
 import { describeLevel } from '../../../common/DifficultyConfig';
+import { gameModeName } from '../../../common/GameModeConfig';
+import { Cmp_Game } from './cmps/Cmp_Game';
 import { Cmp_HeroDetail } from './cmps/Cmp_HeroDetail';
 import { HeroScopeEvents } from './cmps/HeroScope';
 import { buildDetailVM } from './cmps/HeroVM';
@@ -23,6 +25,13 @@ const { ccclass, property } = _decorator;
 
 /** 难度弹窗节点的名字（`@property` 没拖时的兜底；场景根节点的直接子节点） */
 const DIFFICULTY_NODE_NAME = 'ui_difficulty';
+
+/**
+ * 「游戏」页的节点路径（模式卡 + 顶部进度那条）—— `Cmp_Game` 挂在它上面。
+ * 它是左侧页签 `Cmp_FuncTabs` 的 content 之一（`content/right` 的第 0 个），
+ * 所以路由/显隐归 `Tabs`，这里只负责"确保组件在"。
+ */
+const GAME_PAGE_PATH = 'content/right/game';
 
 /** 英雄详情弹窗节点的名字（同上；**必须在 `ui_difficulty` 之后**，见预制件的子节点顺序） */
 const HERO_DETAIL_NODE_NAME = 'ui_hero_detail';
@@ -57,9 +66,11 @@ const SHOP_ENTRY_PATHS = [
     'head/coins/ernergy-002/add',
 ];
 
-/** 主界面「阶段模式」卡上的两个进度标签（`content/right/game/info` 下） */
-const PROGRESS_PASSED_PATH = 'content/right/game/info/passed/value';
-const PROGRESS_LAST_PATH = 'content/right/game/info/last/value';
+/**
+ * 顶栏金币读数 = `head/coins/gold/value`（`@property goldValueNode` 没拖时的兜底路径，
+ * 与上面两个进度标签同口径）。
+ */
+const GOLD_VALUE_PATH = 'head/coins/gold/value';
 
 @uiview({
     prefabPath: 'prefabs/ui/scenes/scene_menu/Scene_Menu', // 预制件路径
@@ -87,9 +98,13 @@ export class Scene_Menu extends BaseView {
     private heroWired = false;
     /** 弹窗当前给谁开着（0 = 没开；解锁/升级后据此判断要不要重推 VM） */
     private heroDetailHeroId = 0;
-    /** 主界面「最高通过」/「上次玩过」两个数值标签 */
-    private passedValueLabel: Label = null;
-    private lastValueLabel: Label = null;
+    /**
+     * 「游戏」页的控制器（组件挂在 `content/right/game` 上，这里只是引用）。
+     *
+     * ⚠ 顶部那两格进度（最高通过 / 上次玩过）与模式卡的选中态**都归它画**（那是它的子树）——
+     *   本文件不再自己写 `content/right/game/info/**` 的标签，只保证"组件在"。
+     */
+    private gamePage: Cmp_Game = null;
     /** 商城入口的三颗 `add`（`head/coins/<格名>/add`；退订要用同一批节点） */
     private shopEntryNodes: Node[] = [];
 
@@ -271,7 +286,10 @@ export class Scene_Menu extends BaseView {
         // 两个全屏弹窗**不同时开**（叠在一起时上面那个会盖住下面那个的关闭按钮，见 README §3.1）
         this.closeHeroDetail();
         // 节点显隐由**持有节点的宿主**写（弹窗自己不动自己的 active）。
-        // 打开这一下会触发弹窗的 onShow → 它按最新进度重铺/重画（不用宿主去喂数据）
+        // 打开这一下会触发弹窗的 onShow → 它按最新进度重铺/重画（不用宿主去喂数据）。
+        // ⚠ 弹窗读的是**当前模式**那套进度（`LevelData.getSelectedLevel()` 默认取当前模式），
+        //   而当前模式是模式卡点一下就已经落盘了的（`Cmp_Game.onClickCard`）——
+        //   所以这里不需要、也不该再传一次模式。
         this.difficultyNode.active = true;
     }
 
@@ -284,30 +302,41 @@ export class Scene_Menu extends BaseView {
      *
      * ⚠ **顺序不能换**：先把选择的档位落盘（`selectLevel`），再 `showUI(Scene_Game_Stage)` ——
      *   战斗场景是在自己的 `show()` 里读这个档位的，反过来写就会让这一局用的是上一档的数值。
+     * ⚠ 档位是**按模式各记一份**的，所以这里必须带上当前模式（`selectLevel` 省略模式 = 当前模式，
+     *   显式传一次是为了让"这一段落的是哪个模式的账"在代码里看得见）。
      */
     private enterGame(level: number): void {
         const data = DataCenter.ins.levelData;
-        if (!data.selectLevel(level)) {
+        const mode = data.getMode();
+        if (!data.selectLevel(level, mode)) {
             // 理论上进不来（未解锁的格子点不动）；真发生了就退回当前合法选择，不让流程断掉
-            ezgame.warn(`[难度选择] 档位 ${level} 未解锁，改用当前选择 ${data.getSelectedLevel()}`);
+            ezgame.warn(`[难度选择] 档位 ${level} 未解锁，改用当前选择 ${data.getSelectedLevel(mode)}`);
         }
-        ezgame.info(`[难度选择] 开战：${describeLevel(data.getSelectedLevel())}`);
+        ezgame.info(`[难度选择] 开战：${gameModeName(mode)} · ${describeLevel(data.getSelectedLevel(mode))}`);
         this.closeDifficultyPanel();
         UIManager.ins.showUI(Scene_Game_Stage);
     }
 
-    /**
-     * 主界面「阶段模式」卡上的两个进度标签：**最高通过** = 已通关的最高档，**上次玩过** = 上次打的档。
+    /* ===================================================================
+     * 「游戏」页（模式卡 + 顶部进度）
      *
-     * 这两个格子原来是预制件里的死文案（写死的 `99`），现在接上 `LevelData` ——
-     * 数值来自数据层，本方法只做"读 → 写"。
+     * 分工：**页面自己就是数据的主人** —— `Cmp_Game` 直接读写 `LevelData`
+     * （模式落盘、顶部信息刷新、卡片选中态都在它里面），与 `Cmp_Difficulty` / `Cmp_Heroes` 同口径。
+     * 本文件只做一件事：**保证那个组件在**（它是"点开始游戏"这条流程的前半段，
+     * 组件丢了就选不了模式 —— 与难度弹窗缺失时的兜底同一个理由）。
+     * =================================================================== */
+
+    /**
+     * 解析「游戏」页的节点并拿到控制器（幂等：`init()` 调一次）。
+     * 预制件里组件已经挂好了，`addComponent` 只是兜底（作者漏挂时页面还不至于变成死的）。
      */
-    private refreshLevelProgress(): void {
-        const data = DataCenter.ins.levelData;
-        this.passedValueLabel = this.passedValueLabel ?? this.node.getChildByPath(PROGRESS_PASSED_PATH)?.getComponent(Label);
-        this.lastValueLabel = this.lastValueLabel ?? this.node.getChildByPath(PROGRESS_LAST_PATH)?.getComponent(Label);
-        if (this.passedValueLabel) this.passedValueLabel.string = `${data.getClearedLevel()}`;
-        if (this.lastValueLabel) this.lastValueLabel.string = `${data.getLastPlayedLevel()}`;
+    private setupGamePage(): void {
+        const pageNode = this.node.getChildByPath(GAME_PAGE_PATH);
+        if (!pageNode) {
+            ezgame.warn(`[游戏模式] 预制件里找不到「游戏」页节点（${GAME_PAGE_PATH}）→ 模式切不了、顶部进度也不会刷新`);
+            return;
+        }
+        this.gamePage = this.gamePage ?? pageNode.getComponent(Cmp_Game) ?? pageNode.addComponent(Cmp_Game);
     }
 
     /* ===================================================================
@@ -467,15 +496,41 @@ export class Scene_Menu extends BaseView {
         } else {
             this.closeHeroDetail();
         }
-        // 进度标签：局内通关会改 `cleared`，回到主界面时要跟着变（watch + show() 里各兜一次）
-        this.refreshLevelProgress();
+        // 「游戏」页：确保 `Cmp_Game` 在（模式卡的选中态 + 顶部「最高通过 / 上次玩过」都归它画）。
+        // ⚠ 这里**不刷**那两格进度：它自己 `onInit` 就会画一次，之后靠自己的 watcher 跟。
+        //   （宿主原来是直接写 `content/right/game/info/**` 的，那属于"越过页面去写它的子节点"，
+        //     已把那两格连同 watcher 一起搬进 `Cmp_Game`。）
+        this.setupGamePage();
+        // 顶栏金币：先解析节点（`@property` 没拖就按路径兜底）、**先刷一次现值**，再挂监听。
+        // 顺序不能反：watch 不立即执行，先挂后刷才有"第一帧就是真值"（见 refreshGold 的说明）。
+        this.goldValueNode = this.goldValueNode ?? this.node.getChildByPath(GOLD_VALUE_PATH)?.getComponent(Label);
+        if (!this.goldValueNode) {
+            ezgame.warn(`[金币] 顶栏找不到读数节点 ${GOLD_VALUE_PATH} → 顶栏金币不会刷新`);
+        } else {
+            this.refreshGold();
+        }
+        // 局外金币的**唯一来源**是 `itemData.currencies.gold`（商城发奖 / 英雄解锁 / 遗物抽取都改它），
+        // 所以盯这一个读法就够；本屏被缓存时 watcher 会暂停并**在 resume 时补播**（回主界面能跟上）。
         this.scope.watch(
-            [() => DataCenter.ins.levelData.data.cleared, () => DataCenter.ins.levelData.data.lastPlayed],
-            () => this.refreshLevelProgress(),
+            () => DataCenter.ins.itemData.getCurrency(CurrencyType.Gold),
+            () => this.refreshGold(),
         );
-        this.scope.watch(()=>DataCenter.ins.itemData.data.currencies[CurrencyType.Gold],()=>{
-            this.goldValueNode.string = `${DataCenter.ins.itemData.data.currencies[CurrencyType.Gold]}`
-        })
+    }
+
+    /**
+     * 顶栏「金币」读数：把 `ItemData` 里的**真实金币**画到 `head/coins/gold/value` 上。
+     *
+     * ⚠ **只有 `scope.watch` 是不够的**（这是这一格原来显示不对的原因）：
+     *   `platform/reactivity` 的 `watch` 不带 `immediate` 时，初次只 `effect.run()` 取一遍旧值、
+     *   **不回调** —— 于是进主界面第一眼看到的是预制件里烤死的静态文案（现为 `200`），
+     *   而不是存档里的真实金币；要等金币**变化一次**才会被改对。
+     *   本方法就是补上"首次绘制"这一下（`init()` 与 `show()` 各调一次）。
+     * 数值一律走数据层门面 `getCurrency()`（它读的就是响应式字段，watcher 照样能追踪），
+     * 本方法只做"读 → 写"，不自己算账。
+     */
+    private refreshGold(): void {
+        if (!this.goldValueNode || !this.goldValueNode.isValid) return;
+        this.goldValueNode.string = `${DataCenter.ins.itemData.getCurrency(CurrencyType.Gold)}`;
     }
 
     private refreshAchieveRedDot(count: number): void {
@@ -498,11 +553,14 @@ export class Scene_Menu extends BaseView {
     }
 
     protected show(): void {
-        // 回到主界面（局内 `exit()` → showUI(Scene_Menu)）：弹窗一律是收起的，
-        // 上一局的通关进度也要立刻反映到「最高通过 / 上次玩过」上
+        // 回到主界面（局内 `exit()` → showUI(Scene_Menu)）：两个弹窗一律是收起的。
+        // ⚠ 「最高通过 / 上次玩过」不在这里补 —— 那两格归 `Cmp_Game`（它 `onShow` 会按当前数据重画，
+        //   而且它的节点自始至终是激活的、watcher 一直是活的，回来时不会漏）。
         this.closeDifficultyPanel();
         this.closeHeroDetail();
-        this.refreshLevelProgress();
+        // 金币同理：本屏是被缓存的（`closeView` 只 `active=false`、不销毁），回来时**不走 `init()`**，
+        // 所以这里也兜一次现值（watcher 的补播是另一条保险，两条都在才不怕时序）
+        this.refreshGold();
     }
 
     protected close(): void {

@@ -20,7 +20,7 @@
 
 **值得借鉴的是他们"编辑器能力面"里的五件我们真没有的东西**（日志、预览截图、输入模拟、预制件引用体检、
 工具结果的 `refs`），不是他们的架构。反过来，我们手里有三件他们没有的：真隔离（vm 沙箱）、
-真门禁（8 个 verify / 11k 行）、以及"客户端那一半"的完整能力（审批/提问/计划评审/斜杠命令/history/用量）。
+真门禁（8 个 verify / 近 13k 行）、以及"客户端那一半"的完整能力（审批/提问/计划评审/斜杠命令/history/用量）。
 
 **外加一条本次明确的口径**：上面那五件之所以值得借，是因为它们都是**与业务无关的通用能力**
 （读日志 / 截图 / 发输入 / 取引用清单 / 抽 uuid），不是我方业务的搬运。凡是要把业务知识
@@ -48,12 +48,12 @@
 
 | 项 | 事实 |
 |---|---|
-| 工具面 | **正好 4 个**：`cocos_execute_code` / `cocos_capture_view` / `cocos_editor_state` / `cocos_describe_api`（`dsh-profile/plugin/dsh-cocos-bridge/index.js:1499-1659`） |
+| 工具面 | **8 个**（§1.1 分析当时是 4 个，第 1、2 批各加了几个）：`cocos_execute_code` / `cocos_capture_view` / `cocos_editor_state` / `cocos_describe_api` / `cocos_logs` / `cocos_click_node` / `cocos_send_keys` / `cocos_runtime`（`dsh-profile/plugin/dsh-cocos-bridge/index.js`，见 §8 / §9） |
 | 传输 | 模型↔宿主走 SDK stdio，宿主↔编辑器走 fork IPC 自带的那条 fd（`README.md:21-26`） |
 | 面板 | 自绘（零依赖纯 DOM + 从 DSH 抽的 `--dsw-*` token）；**明确否掉了 iframe 方案**（`README.md:30-37`） |
 | 编辑器执行 | editor 上下文 = `vm.createContext` 沙箱（`source/core/engine.ts`）；scene 上下文 = 场景脚本（`source/scene.ts`，184KB，助手 `eachNode/tree/nodeByPath/dump/snapshot/worldRect/contentBounds/captureView/pick/labelFit/snapshotTree/diffTree/loadFrame`） |
 | 面板块 | 对话 / 工具卡片 / 交互卡（提问·授权·计划评审）/ history（搜索·导出·删除）/ 用量·进度·活动三个抽屉 / 图片 / 斜杠命令 + `@` 引用 |
-| 门禁 | 8 个 verify 脚本（`package.json:17`），共 **11,405 行**；skill 有 `<!-- fact: -->` 锚点门禁 |
+| 门禁 | 8 个 verify 脚本（`package.json` 的 `verify` 链），`scripts/*.js` 共 **12,847 行**（§1.1 分析当时是 11,405）；skill 有 `<!-- fact: -->` 锚点门禁 |
 
 ---
 
@@ -63,7 +63,7 @@
 |---|---|---|---|
 | **接入方式** | HTTP MCP（厂商无关；但 MCP 工具在**会话初始化时**注册 ⇒ "先起 8765 再开 dsh"这条时序坑，`QUICKSTART.md:35`） | fork IPC（只有本插件能用；换端口/重连这类问题不存在） | 各有取舍；我们是"专用"，他们是"通用" |
 | **代码执行隔离** | `new AsyncFunction(...)` 直接跑，注入 `require/cc/Editor/scene/director/args`（`scene.js:31,590`；`browser.js:31,430`），**没有 vm**；安全靠正则拦 `fs.rm/unlink/truncate`、`createWriteStream`、`child_process`、家目录/工程外绝对路径、`..`（`lib/javascript-safety.js:6-11,52-90`），可 `safety_checks:false` 关掉 | `vm.createContext` 隔离 + 两层超时 + 跨 realm 错误归一化（`source/core/sandbox.ts` / `core/engine.ts`） | **我们**（他们自己的 README 也承认"这是防护栏，不是完整沙箱"，`README_CN.md:249`） |
-| **工具数量/披露** | 106 个，靠 profile 分档补救 | 4 个，`execute_code` 一个描述 1870 字（`README.md` 坑 20） | 现在**我们**省；工具涨到 8~10 个之后必须补披露机制（见 §4-B6） |
+| **工具数量/披露** | 106 个，靠 profile 分档补救 | **8 个**（分析当时 4 个），`execute_code` 一个描述 1870 字（`README.md` 坑 20） | 现在**我们**省；**8 个已经是 §4-B6 说的那档了** —— 第 4 批要补"按需暴露 + 目录元工具" |
 | **工具结果的形状** | 统一信封 `{ok, tool, callId, timestamp, summary, data, refs}`，`refs` 自动抽 uuid / `db://` 路径供**下一步直接用**（`lib/tool-registry.js:88-114,245-298`） | `{ok, context, durationMs, result}` + 序列化上限（`source/core/serialize.ts`） | **他们**（`refs` 这一条直接可借） |
 | **工具注解** | 由工具名正则推断 `readOnlyHint / destructiveHint / idempotentHint`（`lib/tool-registry.js:145-163`） | 无注解；但**审批通道已经挂好**（`README.md`「交互」一节） | 组合起来才强（见 §4-B7） |
 | **面板形态** | `panel/codely.js` = iframe 嵌 `http://127.0.0.1:3080`（`codely.js:9,17`），2s×45 次轮询探活、90s 上限、`fetch` 连失败 3 次退化成周期重载 iframe（`:56-116`） | 自绘面板（一层真 DOM，抄渲染模型不抄像素） | **我们**（我们评估过的那张对照表在 `README.md:32-37`，结论一致） |
@@ -79,7 +79,7 @@
 | **工程指令 / skill** | `list/read/write_project_instruction`（认 `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.cursorrules`/`.windsurfrules`/`.github/copilot-instructions.md`）+ `create_project_skill` 写 `.codex/skills/<name>/SKILL.md`（`lib/project-instructions.js:7-164`） | recipe 五件套（`find/read/save/run/deleteRecipe`）+ **复用门禁**，存 `<工程根>/.dsh-mcp/recipes/`；另有随插件发布的 bundled skill（`skills/cocos-editor-ops/SKILL.md`，56KB / 20 条 fact 锚点） | **我们**（门禁 + fact 锚点是他们没有的） |
 | **多角色** | 8 个 preset；但每个文件 15~16KB 里，**头 23 行注释与从 `- id: tool-bash` 到文末那一段逐字相同**（实测：头 23 行 1,766 字节 + 样板尾段 11,951 字节，见 `agent-presets/cocos-gameplay/agent.cordis.yml:65` 起），persona 只占 1.9~3.3KB；同名 `cocos-codely` 预设还存在两份漂移副本（`AUDIT_REPORT.md:117-123` 自记） | 1 个 profile、persona 13 行（`cordis.patch.yml:22-32`）+ 66KB `AGENTS.md` + skill 层分工 | **我们**（但"并行 subagent 时一人设一角色"确有价值，且**必须放在工程侧**，见 §4-C13） |
 | **分发** | Cocos Store / npm `bin`（stdio→HTTP 桥）/ `server.json`（MCP Registry）/ 自更新（GitHub Release + SHA256SUMS）/ i18n zh·en / 生成 `docs/TOOLS.md` 且 `docs:check` 卡住漂移 | 单工程内部（UNLICENSED，无 CLI） | **他们**（若要分发就抄这份清单） |
-| **测试** | `node --test` 16 个文件 / **1,634 行**（`cocos-mcp-bridge/test/`） | 8 个 verify / **11,405 行**（`scripts/`），含"假 Editor + 假 cc 真跑 `dist/scene.js`" | **我们**（差一个量级） |
+| **测试** | `node --test` 16 个文件 / **1,634 行**（`cocos-mcp-bridge/test/`） | 8 个 verify / **12,847 行**（`scripts/`），含"假 Editor + 假 cc + 假 Electron 真跑 `dist/*.js`" | **我们**（差一个量级） |
 
 ---
 
@@ -92,7 +92,7 @@
 3. **面板那一半**：history/用量/进度/活动/交互卡/斜杠命令/`@` 引用/图片管线，他们全在 iframe 里。
 4. **预制件"改了什么"**：`snapshotTree`/`diffTree`（键按节点路径、只回真变了的、点名探针泄漏）他们没有。
 5. **文档与代码一致**：见 §6（他们仓里至少 6 处文档与代码不符，我们靠 verify 脚本挡这一类）。
-6. **分层干净（业务无关）**：扩展层的 4 个工具、`source/**`、随包发布的 skill，
+6. **分层干净（业务无关）**：扩展层的 8 个工具、`source/**`、随包发布的 skill，
    **业务词命中为 0**（实测见 §4.0）—— 业务知识全在 `AGENTS.md` / `docs/` / `tools/*-audit/`。
    这条纪律**必须保住**：借能力时最容易顺手把一批业务假设一起搬进来。
 
@@ -125,8 +125,8 @@ A4 只做前半句，后半句靠调用方把**期望值**传进来。
 
 | 范围 | 业务词命中 | 结论 |
 |---|---|---|
-| `source/**/*.ts`（13 个）+ `dsh-profile/plugin/dsh-cocos-bridge/index.js` | `背包/商城/遗物/英雄/塔防/怪物/技能/关卡/大厅/结算/Cmp_/Scene_Menu/tb/` = **0** | 工具面 100% 业务无关（4 个工具名也不带业务语义） |
-| `skills/cocos-editor-ops/SKILL.md`（464 行 / 56KB） | 同上 = **0** | skill 是**通用编辑器操作**，不是本游戏攻略 |
+| `source/**/*.ts`（**28 个** / 19,786 行，含 `input.ts` / `preview.ts` / `logs.ts`）+ `dsh-profile/plugin/dsh-cocos-bridge/index.js` | `背包/商城/遗物/英雄/塔防/怪物/技能/关卡/大厅/结算/Cmp_/Scene_Menu/tb/` = **0** | 工具面 100% 业务无关（**8 个**工具名也不带业务语义） |
+| `skills/cocos-editor-ops/SKILL.md`（436 行 / 66KB） | 同上 = **0** | skill 是**通用编辑器操作**，不是本游戏攻略 |
 | `benchmark/**` | `Bench.scene` 26 处、`units/relics/abilities` 1 处 | **设计使然**（基准必须在真工程里跑）；但 `cases.json:349` 的 `table-config` 问的是**业务表**（英雄/遗物/技能的 id 区间）→ 建议改成"任选一张 `tb/*.json`，只考能不能真读到 + 数字对不对" |
 | `scripts/preview-panel.js`（面板预览台） | `英雄/遗物` 2 处 | 纯假数据（只为看面板长相），**不对模型暴露**，可接受 |
 
@@ -207,7 +207,7 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 ### B 级——结构性（工具面涨到 8~10 个之后是必需）
 
 **B6. 工具面按需暴露 + 目录元工具**：他们的 `core/full/custom` + 命名 profile 存取/导出/导入
-（`lib/tool-profiles.js`）+ 面板一屏开关 + `get_tool_catalog`。我们现在 4 个工具、
+（`lib/tool-profiles.js`）+ 面板一屏开关 + `get_tool_catalog`。我们现在 **8 个**工具、
 `cocos_execute_code` 一条描述就 1870 字 —— A1~A5 做完就是 8~10 个，需要"默认少暴露、
 需要时查目录"。
 - **业务无关：✅** profile 键只认工具名/分类名（通用键）；**默认暴露哪几个是工程侧设置**，
@@ -305,9 +305,10 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 | 批次 | 内容 | 为什么这个顺序 |
 |---|---|---|
 | **第 1 批**（小、立刻有用）**✅ 已落地 2026-11** | A1 日志工具 · A5 `refs` · B10 面板 Cocos 主题 | 不动架构、不新增窗口定位，当天能验。落地清单见 §8 |
-| **第 2 批**（真补能力） | A2 预览截图 · A3 输入模拟（含 `cocos_click_node`）· C12 pause/timeScale | 共用同一套窗口定位（`source/capture.ts` 已有）；A3 收益最大 |
+| **第 2 批**（真补能力）**✅ 已落地 2026-11**（A2 / A3 / C12） | A2 预览截图（`view`）· A3 输入模拟（`cocos_click_node` + `cocos_send_keys`）· C12 pause/step（`cocos_runtime`） | 共用同一套窗口定位（`source/capture.ts` 已有）；A3 收益最大。落地清单与**两处对原计划的改写**见 §9 |
+| **第 2c 批**（本次**没做**，已写清为什么） | 运行态下的**节点投影**（game view 里按 `camera` 参数投影到游戏相机） | 那一刻渲染的是**游戏自己的相机**而节点矩形用的是编辑器相机 —— 要支持得让 `viewMetrics` / `pick` / 点击都接受"用哪台相机"，是独立一批的活（见 §9.5） |
 | **第 3 批**（解除已知边界） | A4 预制件引用体检 + 结构化改预制件（含 `asset-db` 写盘） | 会碰"编辑态 vs 写盘"的一致性，要单独验 |
-| **第 4 批**（工具变多之后） | B6 profile/按需暴露 · B7 注解×审批 · B9 像素对比 · B8 出图闭环（只做"导入资产回 uuid"那半） | 前 3 批把工具数推到 8~10 个，这一批才有的放矢 |
+| **第 4 批**（工具变多之后） | B6 profile/按需暴露 · B7 注解×审批 · B9 像素对比 · B8 出图闭环（只做"导入资产回 uuid"那半） | 前三批把工具数推到 **8 个**，B6 的触发条件已经成立 |
 
 **每批都要配两条**：
 
@@ -338,7 +339,7 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 
 ### 8.2 A5 `refs`（出口统一补可复用标识）
 
-- `source/core/serialize.ts` 新增 `collectRefs` / `formatRefs`（纯函数）；`source/cocos-tools.ts` 的 `withRefs` 把**五个方法**全包上。
+- `source/core/serialize.ts` 新增 `collectRefs` / `formatRefs`（纯函数）；`source/cocos-tools.ts` 的 `withRefs` 把**每个方法**都包上（当时 5 个，现在 8 个）。
 - 只抽**不会认错**的两类：**全形 uuid**（含子资源写法 `uuid@f9941`）与 **`db://` 路径**。
   **压缩型 uuid 刻意不抽**（任意 22 字符单词都会命中，抽出来是噪声）、节点路径不抽（与普通文本无法区分）。
 - 追加在 `text` 结尾（模型只读 `text` —— 桥接侧 `OUTPUT.render` 只渲染它），结构化版本进 `data.refs`。
@@ -370,6 +371,221 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 
 ⚠ **要生效得重启一次 agent**：插件是纯 ESM、不编译，但 `patchReload: live` **不热重载它**（README 坑 23），
 所以新增工具后必须 stop/start 一次；面板侧改了 TS 则要先 `npm run build`。
+
+---
+
+## 9. 第 2 批已落地（2026-11）：A2 截图分画面 · A3 点按/按键 · C12 运行态
+
+### 9.0 先说三处**对原计划的改写**（计划写在 §4，理由都来自实测）
+
+> ⚠ **这三件在真机上跑过之后又有变化**：A3 与 C12 的路子都被证伪/改掉了，
+> 详见 **§9.7**（真机验收结果）—— 下面这张表是"当时为什么这么写"，保留原样。
+
+| 原计划 | 落地成 | 为什么改 |
+|---|---|---|
+| `view: 'scene' \| 'game' \| 'preview'` | `view: 'auto' \| 'scene' \| 'game'`（`'preview'` 按 `game` 理解**并附一句说明**） | 「浏览器 / 模拟器预览」是**编辑器之外的另一个应用**，本扩展够不着 —— 把它做成一个能传的枚举值，等于给了一个点不动的假入口 |
+| C12 的 `set_time_scale` | **没做**（只做 `play`/`stop`/`pause`/`resume`/`step`） | 3.8.6 引擎里**没有全局倍率**：`Game` / `Director` 上都没有 `timeScale`；唯一像的 `director.getScheduler().setTimeScale()` 只缩放定时器与动作，**不缩放组件的 `update(dt)`**（`cocos/core/scheduler.ts:441` 的 `dt *= this._timeScale` vs `game/director.ts:780` 的 `componentScheduler.updatePhase(dt)`）。起名"改速度"就是"看着像能用" |
+| A3 判据 = "点英雄卡 → 预览里真的选中" | 判据 = **点前后各截一张图对比**，并**如实说明 `probe` 证明不了什么** | `probe`（`pick`）只证明"这个坐标在页面上是那个节点"，证明不了"Chromium 把那一下送到了" —— 后者只有截图对比能证明。业务验收（点英雄卡）留在工程侧 |
+
+### 9.1 A2：`capture_view` 的 `view`（**同一块画布，两种画面**）
+
+编辑器那块画布**同一时刻只画一样东西**，而且两者用**不同的相机**：编辑态的编辑器场景，或者运行预览
+（编辑器工具栏那颗播放键，编辑器自己叫 game view）**跑着的游戏**。所以"我要哪一种"必须由调用方说清楚：
+
+- `auto`（默认）：不管，截现在这一帧 —— 但回执的 `mode` **照样**会说清截到的是哪一种（`requested` / `actual` / `running` / `sources`）。
+- `scene` / `game`：要的和拿的不一致时**明说**（`note`），不假装成功。
+- **运行态有两条硬后果**（都是"那一刻编辑器相机不是渲染用的那台"推出来的，不是"取景失败了"）：
+  ① **不取景**（`fit` 被忽略，说明落在 `framing.note`）；② **不按节点裁图**（含 padding 的矩形是编辑器相机投的，按它裁会给一块**错位**的图 —— 比整页图更坏，因为看着像成功了）。
+- 模式来源只有一处（`source/scene.ts` 的 `readSceneMode`）：读 `cce.SceneFacadeManager` 的 `getCurrentFacade().modeName` 与 `queryMode()`，外加 `cce.PreviewPlay.isPause()` 与 `globalThis.isPreviewProcess`，**三个来源都原样报出**，认得出已知串才归一，认不出就 `unknown` + 原值。
+
+### 9.2 A3：`cocos_click_node` —— **真事件**，不是"悄悄调一下回调"
+
+`webContents.sendInputEvent()` 把事件交给 **Chromium 自己的输入管线**：命中测试、`pointer-events`、
+焦点那一套与真人点完全一样。两种给点法：
+
+| 给法 | 投影 | 什么时候能信 |
+|---|---|---|
+| `node`（uuid 或路径） | 场景脚本按**编辑器相机**把节点世界矩形投到页面 CSS 像素 | **编辑态**（那时画面就是编辑器相机画的） |
+| `x` / `y`（`space:"view"` 页面 CSS 像素，或 `"uv"` 0~1） | 不投影，直接用 | **任何状态**（运行态只有这两种能用；`uv` 就是为**缩过的截图**准备的） |
+
+**运行态给 `node` 是"拒绝"而不是"算个近似值"**：按错的投影点下去比点不动更坏（会点到别的地方上，
+而回执看着像成功了）。被拒时回执给出两条可用路（先 `stop` 回编辑态 / 改用坐标）。
+
+**三件如实报出来的事实**（都不是判断）：
+
+- `events`：**真发出去的那几条**（类型 / 坐标 / 按键 / 连击 / 修饰键，`ctrl`/`cmd` 这类别名**归一后**再发）。
+- `probe`：点**之前**跑一次编辑器自己的命中测试（`pick(x,y)`）—— "这个点是哪个节点"。运行态下明写「跳过」（`pick` 用的也是编辑器相机）。
+- `window`：**装这一页的窗口有没有焦点**。Electron 的 `sendInputEvent` 声明里明写需要窗口有焦点，所以这一格是"到底送没送进去"的前提：没焦点时**自动提到前台**并记 `focusedByUs:true`（`focusWindow:false` 可关），做完仍没焦点就**直说"可能没被送达"**。
+
+### 9.3 A3b：`cocos_send_keys`
+
+`key` 走 `keyDown`/`keyUp`（Electron 加速键名，不是 DOM 的 `event.key`），`text` 逐字发 `char`（真的往输入框打字，≤200 字）。
+**不抢网页内的键盘焦点**（那会打断用户正在别处打字），只如实报 `focused` —— 要打字而 `focused:false` 时，
+先用 `cocos_click_node` 点一下那个输入框。
+
+### 9.4 C12：`cocos_runtime`（**冻住再截图/取数**）
+
+六个动作，每一个都对应工具栏上真实存在的那颗按钮，走的是**编辑器自己那条路**：
+
+| action | 走的消息（出处） |
+|---|---|
+| `state` | 只读：`query-scene-mode`（编辑器的）+ 场景进程 `cce` 单例（独立第二来源） |
+| `play` / `stop` | `editor-preview-set-play`（`builtin/scene/package.json:2108`；调用方 `builtin/preview/static/toolbar/middle.js` 的 `_playWithGameView`） |
+| `pause` / `resume` / `step` | `editor-preview-call-method`（`package.json:2118`；同上 `gameViewPause` / `gameViewStep`） |
+
+三条口径：① **改状态一定复探**（`before` / `after` 各一次真探针），回执里的 `request.didApply` 记"编辑器回的那个布尔与我们要的是否一致"——
+**不一致就是失败**（编辑器自己的工具栏遇到这种情况会把按钮回滚）；② `query-scene-mode` 在编辑器安装里**只有声明、没有调用方**，
+所以它只是"一条来源"，认不出就 `unknown`；③ **只认编辑器内预览**，够不着浏览器 / 模拟器。
+
+### 9.5 本次**没做**的一条：运行态下的节点投影（= 第 2c 批）
+
+运行态（game view）里，画面由**游戏自己的相机**渲染，编辑器相机被 `PreviewPlay.hideEditorCamera()` 藏起来。
+于是 `viewMetrics` 投出来的 `node.rect`（以及 `pick` 的判定）**在那一刻不成立** —— 本批的处理是**如实拒绝**，
+而不是悄悄用一个错的矩形。
+
+要做到"运行态也能按节点点"，得让**三处**都接受"用哪台相机"：
+
+1. `viewMetrics` 加 `camera: 'auto' | 'editor' | '<节点路径|uuid>'`，`auto` 在运行态解析成**渲染那台相机**；
+2. `pick` 的 `opts` 加同名字段（它内部写死了 `editorCamera()`）；
+3. `click_node` 透传，并在回执里点名"用的是哪台相机"。
+
+难点**不在投影算法**（`projectNodeRect(cc, cam, node, canvas)` 本来就收相机参数），而在**怎么认定"是哪台相机"**：
+`cc.Camera.cameras` 的可用性、多台候选时选哪台、`PreviewPlay` 内部到底调的是 `cc.game.pause()` 还是 `director.pause()`
+—— 这些**明文里都没有**（编辑器那部分代码是加密的 `.ccc`，引擎侧是明文所以上面那些引用有行号）。
+所以它单独一批，且必须以"**报告候选相机 + 让调用方指定**"的形态落地，不许猜。
+
+### 9.6 门禁（每批都要配的两条，都跑了）
+
+| 门禁 | 结果 |
+|---|---|
+| `verify-cocos-engine.js` 新增 **[9] 段** | 假 webContents 把每次 `sendInputEvent` 的入参原样记下来逐字比对：节点中心投影（`(300,150,100,50)` → `(350,175)`）、三条事件序列、`uv` 折算、双击/右键/修饰键归一、**运行态给 `node` 被拒且一个事件都不发**、窗口没焦点时提前台并如实记、`focusWindow:false` 时直说"可能没被送达"、按键三态与字数上限、六组参数校验**零副作用**。**当时 207/207 通过** —— ⚠ 运行态那一组在真机验收之后**重写过**（判据换成 `_state`、`runtime` 换成三段式），现在全链是 **215/215**，见 §9.7 |
+| `verify-bridge.js` | 工具名预期 5 → **8**（+ 三件套描述要点：`events` / `probe` / `space` / `uv` / `运行态` / 焦点 / `after`） |
+| `verify-skill-facts.js` | `tool-count-is-5` → **`tool-count-is-8`**；新增 `interaction-tools-wired`（三件套四处都在）与 `capture-view-mode`（模式有来源也有出口）。**24 条事实 / 15 条可执行锚点全绿** |
+| `npm run verify`（全链） | **exit=0** |
+| **业务无关自检**（§4.0 那条命令） | 三个目录 **命中 0** |
+
+主要改动文件：`source/input.ts`（新）、`source/preview.ts`（新）、`source/scene.ts`（`readSceneMode`）、
+`source/core/engine.ts`（`view` + `mode` + 运行态两条限制）、`source/cocos-tools.ts`（三个新方法）、
+`source/types/electron.d.ts`（`sendInputEvent` / 输入事件 / 窗口焦点）、
+`dsh-profile/plugin/dsh-cocos-bridge/index.js`（三个新工具 + `view` 参数）、
+`scripts/verify-cocos-engine.js`、`scripts/verify-bridge.js`、`scripts/verify-skill-facts.js`、
+`skills/cocos-editor-ops/SKILL.md`、`README.md`。
+
+### 9.7 ✅ 真机验收已经跑过（2026-11）：**上面那批"只在假件上验过"的东西，两条被证伪、一条被证实**
+
+跑法与原始回执：`真机验收.md` + `真机验收-结果.md`（**原文，未删改**）、
+第二轮 `真机验收2.md` + `真机验收2-结果.md`。下面只写结论与"因此改了什么"。
+
+| 项 | 结论 | 因此改了什么 |
+|---|---|---|
+| **认页**（`findSceneView`） | ✅ **通过** —— `matchedBy: 'href'`、打到的确实是场景视图那一页（`3d-webview.html`）、窗口有焦点、三条事件坐标与 `point` 一致 | 无（这条可以当已验） |
+| **`sendInputEvent` 的坐标系** | ❌ **证伪得更彻底**：事件**到得了那一页、到不了引擎**。全屏拦截节点 **0 条**事件；连页面里自己 `dispatchEvent`（16 条、`target` 都是 `GameCanvas`）也进不了引擎。根因在引擎源码：编辑器构建**不注册 DOM 监听**（`pal/input/web/mouse-input.ts`：`// In Editor, we receive mouse event from manually event dispatching.` + `if (!EDITOR) { this._registerEvent(); }`）—— 真人的点击是**编辑器自己手动转发**进去的 | 换路：引擎给编辑器留了六个口子（`cc.input._dispatchMouse*` / `_dispatchKeyboard*`，注释原话 *"exposed for Editor Only"*，原生场景视图就是这么接的）。**第 2 轮真机验收就是为了定这条路**；在那之前，工具描述里**如实写明"点一下 → 游戏逻辑有没有反应这条闭环现在不成立"**（不许留着"像真人点一样"那句旧话） |
+| **`PreviewPlay.pause(isPause)` 内部** | ✅ **语义证实**：直调 `pause(true)` 之后 `director.isPaused()` 与 `game.isPaused()` **同时**为 true、`frames` 1.5s **+0**（真冻住）；`step()` **恰好 +1 帧**；`pause(false)` 恢复推进 | "冻住再截图/取数"这条**成立**，可以照说 |
+| **路径：那两条 scene 消息** | ❌ **都不能当唯一的路**：`set-play(true)` **120s 不回执**（编辑器主进程直发也 20s 不回）、`call-method('pause',true)` **抛** `setAttribute` 错、`step`/`resume` 回 `true` 而**一帧不动**、`set-play(false)` 回 `false` 而**预览仍在跑** | `cocos_runtime` 改成**三段式**：① 消息 `send`（不等回执）→ ② 按**状态**轮询 → ③ 没变才直调 `cce.PreviewPlay`；`applied.by` 点名走了哪条、走直调时明说"工具栏可能没跟上"。**旧实现拿消息的返回值当结论 → `stop` 报 `ok:true` 而预览还在跑，是假绿** |
+| **运行态判据** | ❌ **前提不成立**：预览**跑着**的时候 `facadeMode` / `queryMode` **仍是 `"general"`**、`isPreviewProcess` 恒 `false` ⇒ `mode` 恒 `general`、`running` 恒 `false`。连带三件设计一起失效：`view:"game"`、运行态不裁节点、**运行态拒绝按节点点**（这条拒绝**从来没触发过**） | `readSceneMode` 改用 **`cce.PreviewPlay._state`**（`stop`/`play`/`pause`；私有字段 → **原样报出**，读不到就回退 + `note` 明说"这条判据不可信"）。三件设计这才真的生效 |
+| **顺带抓到的一条** | 预览跑过之后连抓三次截图**字节完全相同**（41223），画面还是上一段预览的最后一帧，而 `framing` 报的相机已经回到编辑态 —— **图是旧的、量是新的** | 抓图前**一律先 `invalidate()` 排一次重绘**（回执 `forcedRepaint: true`），空图那条二次重试照旧。⚠ **这条口径后来被推翻了，见 §9.9** |
+| **顺带抓到的第二条** | `open-scene` 传 `db://` 路径**不是打开那个场景**，而是开出**一个新的未命名 2D 场景**（根 uuid 每次都不同、文件 mtime 不变）且**不报错** | 写进 `cocos_editor_state` 的「下一步」提示 + skill 坑 15：开场景用**资源 uuid** |
+| **顺带抓到的第三条**（与本主题无关） | `snapshotTree` 的哈希**把 `at` 时间戳也算进去了**，于是"同一棵树连拍两次哈希相同"只在同一毫秒内成立（被 verify 的计时抖动抓到 `{"same":false}`） | 哈希只取内容（`root` + `nodes`）—— 会随时间变的指纹当不了指纹 |
+
+**两条口径因此写进了本仓库**：① **判据只有状态**（消息/接口的返回值一律不算数）；
+② **假件全绿不等于真机能用** —— 这三条都是"假 Editor + 假 cc 全绿、真机上全废"的典型，
+所以每批必须配一次真机验收，且真机结论**原文留档**（`真机验收-结果.md` 里连"未跑"的格子都留着）。
+
+#### 9.7.1 第 2 轮真机验收（`真机验收2.md` / `真机验收2-结果.md`）：**A3 的路定了，R4 又推翻了半条**
+
+| 项 | 结论 | 因此改了什么 |
+|---|---|---|
+| **引擎级注入**（`cc.input._dispatchMouse*`） | ✅ **这条路通**：六个口子全在；全屏探针在画面正中收到 `touch-start`/`touch-end`、`cc.input.on(MOUSE_DOWN)` 也收到；两点差值 ÷ `Δclient` = `0.5599700149925038`，**逐位等于 `scaleX`/`scaleY`**；画布外的点在引擎层有记录但探针**0 条**（反面对照成立） | **A3 的换路有了实证**（第 3 批修正：`transport: 'engine'|'page'`）。坐标空间同时被钉死：**页面 CSS 像素**（引擎公式 `clientX - canvasRect.x`） |
+| **同一现场再点一次合成 DOM 点击** | ❌ 仍然 0 条（`matchedBy`/`window.focused`/`events` 三项全对） | 第 1 轮的结论复现；"真人点击基线"因此**不再需要**（取舍已经定了） |
+| **`send('editor-preview-set-play', true)`** | ❌ **连副作用都没有**：30s 内五次采样 `_state` 全是 `stop`（`frames` 一直涨，是编辑态自己在跑） | **`cocos_runtime` 的顺序从"消息先试"翻成"直调优先、消息兜底"** —— 原先那版每次都要白等一轮轮询 |
+| **`call-method('pause', true)`** | ❌ 在 `_state === 'play'` 时**仍然**抛 `setAttribute` 错（0ms），预览**没被暂停** | 直调优先之后这条只作兜底 |
+| **工具栏会不会同步** | ❌ **走哪条路都同步不了**：工具栏的 `isPlay` 是靠那句 `await request(...)` 的**回执**更新的，而这条消息**从不回执** | 回执里如实写"工具栏不会跟着变"，不再承诺同步 |
+| **`stop()` 之后** | ⚠ 复现两次：`director`/`game` **同时被留在 paused**（`frames` 冻住） | `healPaused` 那条修正留对了 |
+| **重起预览** | ⚠ **会重载运行场景**，运行期挂的节点（探针）全没 —— 收尾那次删探针回 `removed:false` 就是这个原因 | 写进 skill 的手法提醒（探针的"生命周期"跟着一次预览，不是跟着会话） |
+| **键盘口子** | ✅ `_dispatchKeyboardDownEvent({code:'KeyF'})` → `cc.input.on(KEY_DOWN)` 收到 `{keyCode:70}` = `KeyCode.KEY_F` | 按键也能走引擎路；换路时要一并做 **Electron 加速键名 → DOM `code`** 的通用映射 |
+
+### 9.8 真机验收之后改了什么（"第 2 批修正"，2026-11）
+
+| # | 改什么 | 落点 |
+|---|---|---|
+| 1 | **运行态判据换成 `PreviewPlay._state`**（facade 降级成"原样报出"，读不到就回退 + `note` 明说不可信） | `source/scene.ts` 的 `readSceneMode`；`core/engine.ts` 的 `mode.paused` / `mode.sources` |
+| 2 | **`cocos_runtime` 两段式**：**先直调**（`cce.PreviewPlay`）→ 没成才发消息（`send`，不等回执）+ 按状态轮询；`applied.by` 点名走了哪条。⚠ **顺序在第 2 轮真机验收之后翻过来的**（见 §9.7.1：那条消息**连副作用都没有**） | `source/cocos-tools.ts` 的 `runRuntime`（+ `conditionMet` / `waitForRuntime` / `runtimeSummary`）、`source/preview.ts` 的 `sendPreviewMessage` |
+| 3 | **新增场景方法 `runtimeControl`**：在场景进程直调 `cce.PreviewPlay`（`play`/`stop`/`pause`/`resume`/`step`，带 `healPaused` 治"stop 之后被留在 paused"） | `source/scene.ts` + `core/engine.previewDirect` + `package.json` 的 `contributions.scene.methods` |
+| 4 | **抓图前一律排一次重绘**（治"图是旧的、量是新的"），`viewport` 与 `_state` 的读数都进回执。⚠ **2026-10-08 已改回"要了才排"**（新参数 `forceRepaint`，默认 `false`）—— 见 §9.9 | `source/capture.ts`（`forcedRepaint`）+ `core/engine.ts` |
+| 5 | **把边界写进模型看得见的地方**：合成输入到不了引擎、运行态判据是 `_state`、`open-scene` 要用资源 uuid | 插件三段 description + `cocos_editor_state` 的「下一步」+ skill 坑 15 |
+| 6 | **顺带修的真 bug**：`snapshotTree` 的哈希**不含 `at` 时间戳**了（原来跨毫秒就变，当不了内容指纹） | `source/scene.ts` |
+
+门禁（重跑）：`verify-cocos-engine.js` **215/215**（[9] 段按新口径重写：`applied.by` 三态、
+`step` 判据是帧计数 +1、**两边都没做到必须 `ok:false`**、`stop` 后的 `healed`、
+拿不到 `_state` 的回退与 `note`、抓图前那次重绘）；
+`verify-bridge.js` 全绿（点/按键的描述里必须有"不注册 DOM 监听"那条边界，`runtime` 的描述里必须有 `previewState` / `applied.by` 的取值）；
+`verify-skill-facts.js` **26 条事实 / 17 条可执行锚点全绿**（新增 `editor-input-not-dom` / `open-scene-uuid`）；
+`npm run verify` **exit=0**；业务无关自检 **命中 0**。
+
+### 9.9 第 2 批修正跑真机之后的事故 + 一次口径回退（2026-10-08）
+
+**事故**：R6（`真机验收2.md` §6.5，全流程 7 步 + 补充）跑完之后，**编辑器「场景」面板的画面停住了**
+—— 切到别的场景也不更新，**只有重启编辑器才恢复**。
+（先试过：窗口置顶 / 最小化再还原 / 拖面板分隔条 / 关掉再打开场景面板 —— **都无效**。）
+
+**判定（只读诊断 + 人的确认，两份证据合起来才定案）**：
+引擎侧**完全健康** —— 帧计数 2 秒 **+119**（≈59fps，且从编辑器启动起**一帧没少**）、
+`gamePaused`/`directorPaused` 都 `false`、编辑器相机 `Editor Camera` `active+enabled`、
+`document.visibilityState: visible`、引擎里装着的是 `Main`；
+**而画布上还是切场景之前那一帧**。⇒ **画面停在这一层（那一页的呈递），不在引擎里。**
+
+| 项 | 结论 | 因此改了什么 |
+|---|---|---|
+| **R6 改状态那五个动作** | ✅ 全部 `applied.by: 'direct-previewplay'`，最长 915ms、**没有一步挂死**；`stop` 两次的 `direct.call.healed` 都非空（`{game,resolved}`） | `cocos_runtime` 的"直调优先"**留用**（§9.8 第 2 条） |
+| **`mode.actual` 随状态变** | ✅ `stop` → `general`（图是编辑器场景）、`play` → `preview`（图就是游戏那一屏） | 运行态判据（§9.8 第 1 条）**留用** |
+| **抓图前那次重绘**（§9.8 第 4 条） | ❌ **代价暴露**：为 `true` 的那两次抓图之后，场景面板画面停住、只能重启编辑器 | **回退成"要了才排"**：新增 `forceRepaint`（默认 `false`），只有调用方显式要才排；空图兜底那次照旧保留 |
+| **取景那条路上的逼重绘**（`invalidateSceneView`） | ⚠ 保留：它是老实现、第 1 轮就跑过没出事；若现象复发，下一刀就是把它也改成"只在引擎不出帧时才做" | `core/engine.ts` 的 `runFitChain`（本轮不动） |
+
+**⚠ 因果没证实**：另一个候选是"Chromium 把这一页的呈递停了"（与扩展无关）。
+之所以还是改了，是**按代价不对称做的取舍**：宁可偶尔拿到旧帧（重截一次即可），
+也不能把用户的编辑器弄成要重启。对照实验（A 组不带 `forceRepaint` / B 组带）见 `docs/冻结诊断.md` §5.5。
+
+### 9.9.1 这次"回退"本身也失败了 —— 于是两个候选**都撤掉**（2026-10-08 晚些时候）
+
+**先说结论**：§9.9 那次"把 `invalidate()` 改成 opt-in"的修法，**在那次会话里根本没生效**，
+**随后又出了一次黑屏**。所以最终处置不是"改默认值"，而是**把碰合成器的两类操作整体撤掉**：
+
+| 时间 | 现场 | 证据 |
+|---|---|---|
+| 04:48 | 场景面板**画面停住**（切场景也不更新，只能重启） | `docs/冻结诊断.md` §5（引擎侧完全健康） |
+| 14:59 | 面板 agent 加 `Cmp_Game` 那次：同一块画布抓回来的是**一张全空的图**（`blankRatio 0.988`）= 用户看到的**黑屏** | 该会话回执里 **`forcedRepaint: true`** —— 而这一格**只有旧实现才恒报 `true`**（§9.9 的第一条改动就是"如实回报"）⇒ 编辑器跑的是**改之前的构建**（`dist` 05:16 才重建，编辑器 05:14 重启时已把旧模块装进 require 缓存） |
+
+⇒ **教训（比因果更值得记）**：靠"一个默认值"关掉危险动作是**不可验证的**；
+而且这一次窗口里既有 `PreviewPlay.start()/stop()`（换掉那块画布的渲染相机），
+也有带重绘的抓图 —— 两个候选**都**在，谁也没法排除。
+
+| 撤什么 | 落点 |
+|---|---|
+| **一切"逼重绘"**：抓图前 `forceRepaint`、空图兜底那次、取景链的 `invalidateSceneView()` | `source/capture.ts`（收成一次 `capturePage()`；`CaptureOptions` / `invalidateSceneView` 删除）、`core/engine.ts`（回执里 `useInvalidate` / `forcedRepaint` 两格删除） |
+| **运行预览的开关**（`play` / `stop` / `pause` / `resume` / `step`）——§9.8 第 2、3 条**整条作废** | `source/preview.ts`（只剩只读 `querySceneMode()`）、`source/scene.ts`（删 `runtimeControl`）、`core/engine.ts`（删 `previewDirect` + `SCENE_METHOD.runtimeControl`）、`package.json`（scene methods 去掉它）、bridge（action 白名单只剩 `state`）、`cocos-tools.ts`（非 `state` 一律拒绝） |
+
+**为什么撤预览也不算"牺牲能力"**：编辑器内跑起来会卡在首场景 `Loading` 的 `loadBundle('scripts')`
+（`0%`，既不成功也不失败；`bundles` 里只有 `internal`）⇒ 它**换不来任何能力**。
+
+**留下的判据**（都进 `npm run verify`）：`verify-skill-facts.js` 的 `capture-reports-viewstate` /
+`scene-frozen-recipe`（三处源码 **0 处 `.invalidate(` 调用**，断言先剥注释）+ 新增
+`preview-control-removed`（四个入口挨个点名）；`verify-cocos-engine.js` 的抓图段与 9g 段
+（旧参数 `forceRepaint:true` **零副作用**；五个动作被拒且**不发消息、不碰 `PreviewPlay`**）。
+细节：`docs/冻结诊断.md` §6。
+
+**两条顺手记下的（都写进 skill 了）**：① `webContents.isPainting()` 这个字段**没有区分力** ——
+当时**主窗口**也是 `false`，可用户点得动它；② 那个"停在旧场景"的画布**唯一的判据是人看到的画面**
+（引擎里已经是 `Main`）—— 所以这类事故的定案**必须问人一句**，光看回执永远是对的。
+
+
+⏳ **还没做的一件**（原第 2c 批，仍然挂着）：把 A3 换成**引擎级注入**
+（`cc.input._dispatchMouse*` / `_dispatchKeyboard*`）。**第 2 轮真机验收已经把这条路证成了**
+（§9.7.1：注入进引擎、坐标就是页面 CSS 像素、反面对照成立）—— 剩下的是接线：
+`transport: 'engine' | 'page'`（`auto` 默认 engine）、**Electron 加速键名 → DOM `code`** 的通用映射、
+回执里点名用了哪条。在它落地之前，`cocos_click_node` / `cocos_send_keys` 的描述里
+**如实写着"点一下 → 看游戏逻辑有没有反应"这条闭环还不成立** —— 不许假装能点。
+
+
 
 ---
 

@@ -16,7 +16,7 @@
  * 编辑器在**打开场景**时把它加载进引擎进程 —— 所以「没打开场景」是唯一一个
  * 需要向模型解释清楚的失败模式（见 `SCENE_SCRIPT_HINT`）。
  *
- * ## 五个方法，其中两个是「别猜」的护栏
+ * ## 八个方法，其中几个是「别猜 / 别瞎试」的护栏
  *
  * IPC 协议要窄。语义方法越少，DSH 侧插件的参数校验与这里的实现越不容易错位。
  * 需要新能力时优先扩 `execute_code` 的用法（它就是通用逃生口），而不是加新方法。
@@ -26,8 +26,11 @@
  * | `execute_code` | 通用逃生口。写代码，一次执行里完成「取数据 → 改状态 → 返回结论」 |
  * | `describe_api` | **渐进式披露** —— 别猜引擎/编辑器 API，按需查一个命名空间或一个类 |
  * | `editor_state` | 按需自检：我在哪个工程/场景、选中了什么、沙箱能不能动 |
- * | `capture_view` | **例外一**：把场景视图（或某个节点）存成图片文件、回路径。像素塞不进返回值上限，只能单独开一条通道。默认会**先取景再截**（`fit`），因为屏幕上那一帧未必是全景 |
+ * | `capture_view` | **例外一**：把场景视图（或某个节点）存成图片文件、回路径。像素塞不进返回值上限，只能单独开一条通道。默认会**先取景再截**（`fit`），因为屏幕上那一帧未必是全景；`view` 说明"我要的是编辑器场景还是跑着的游戏" |
  * | `read_logs` | **例外二**：读工程里的日志文件。控制台/日志文件里的字**代码拿不到**（那是另一个进程的输出），只能单独开一条通道。实现在 `logs.ts` |
+ * | `click_node` | **例外三**：点下去。`sendInputEvent` 发的是**真事件**（走 Chromium 自己的输入管线），改不了状态的那种"调一下回调"不算数。实现在 `input.ts` |
+ * | `send_keys` | 同上，键盘那一半（快捷键 / 输入文字） |
+ * | `runtime` | 运行预览的状态与开关（play/stop/pause/resume/step）—— **"冻住再截图"**靠它消掉时序抖动 |
  *
  * ## 出口统一补 `refs`
  *
@@ -49,9 +52,18 @@
  */
 
 import { EXTENSION_NAME, type ToolReply } from './constants';
-import { captureView, describeSceneApi, executeCode, pingSceneScript as pingScene } from './core/engine';
+import {
+    captureView,
+    describeSceneApi,
+    executeCode,
+    pingSceneScript as pingScene,
+    readNodeGeometry,
+    readSceneRuntime,
+} from './core/engine';
 import { collectRefs, formatRefs } from './core/serialize';
+import { clickAt, sendKeys } from './input';
 import { readLogs } from './logs';
+import { querySceneMode } from './preview';
 
 export type { ToolReply };
 
@@ -380,6 +392,19 @@ export async function readEditorState(_params: Record<string, unknown>): Promise
         "- 组件有哪些属性：cocos_describe_api({context:'scene', target:'cc.Camera', nodeUuid:'<上面查到的 uuid>'})",
         '- 编辑器 API 总览：cocos_describe_api({context:"editor"})',
         "- 列资源：cocos_execute_code({code:\"return (await Editor.Message.request('asset-db','query-assets',{pattern:'db://assets/**/*.prefab'})).slice(0,20).map(a=>a.url)\"})",
+        /**
+         * 界面交互（点按 / 按键 / 看一眼运行态）是三条**独立通道**，不在 `execute_code` 的射程里 ——
+         * 这里必须点一次名：模型在"改完 UI 想验一下"时最容易只想到截图与读节点数据。
+         */
+        "- **点一下试试**：cocos_click_node({node:'<节点路径>'})（真鼠标事件；运行态下要改用坐标，见该工具说明）",
+        "- 看一眼运行态：cocos_runtime({action:'state'})（**只读**；要跑游戏请人在编辑器工具栏上按播放键，本工具不开预览）",
+        /**
+         * ⚠ 开场景这条**必须点出来**：真机实测 2026-11 —— `open-scene` 传 `db://` 路径
+         * **不是"打开那个场景"**，而是开出一个**新的未命名 2D 场景**（根 uuid 每次都不同、
+         * 磁盘上文件没变），而且**不报错**，接着往下做就会在空场景里改东西。
+         * 传资源 **uuid** 才是开它。详见 skill 的「坑 15」。
+         */
+        "- 要开别的场景：open-scene 给**资源 uuid**（`ba018ca9-…` 这种），**别给 `db://` 路径** —— 实测给路径会开出**一个新的空场景**且不报错（skill 坑 15）",
     );
 
     /**
@@ -402,6 +427,360 @@ export async function readEditorState(_params: Record<string, unknown>): Promise
         ok: gotAnything,
         text: lines.join('\n'),
         data: { ...data, problems, degraded: problems.length > 0 },
+    };
+}
+
+/**
+ * 点一个节点 / 一个坐标 —— **真事件**（`webContents.sendInputEvent`，见 `source/input.ts`）。
+ *
+ * ## 为什么这是"让 agent 自己验收界面"的那一件
+ *
+ * 改完 UI 能截图看，但"这个按钮点下去有没有反应"以前只能请人去点。这里把
+ * 一次真实的鼠标按下/抬起发给那一页，按钮的回调、列表的选中、拖拽，全都照常触发。
+ *
+ * ## 两种给点法（**先说清各自成立的条件**）
+ *
+ * | 给法 | 投影 | 什么时候能信 |
+ * |---|---|---|
+ * | `node`（uuid 或路径） | 场景脚本按**编辑器相机**把节点世界矩形投到页面 CSS 像素 | **编辑态**（编辑器正在显示场景）—— 那时画面就是编辑器相机画的 |
+ * | `x` / `y`（`space:"view"` 页面 CSS 像素，或 `"uv"` 0~1） | 不投影，直接用 | **任何状态**：运行态（game view）下画面是游戏相机画的，节点投影不成立，这时只能用坐标 |
+ *
+ * ⚠ **运行态下给 `node` 会被拒**（不是"算不准"，是**那一刻它压根不成立**：
+ * 运行态由游戏自己的相机渲染，编辑器相机被藏起来了）。这不是缺陷，是如实拒绝 ——
+ * 按错的投影点下去，比点不动更坏（它会点到别的东西上，而回执看着像成功了）。
+ *
+ * ## 「我点到底点到哪了」的两条自检（都不是判"对错"，是给事实）
+ *
+ * 1. `probe`（默认 true，只在编辑态给 `node` 时有意义）：点之前问一次场景脚本的
+ *    `pick(x, y)` —— 编辑器自己的命中测试认为**这个点是哪个节点**，原样附上。
+ *    它与 `node` 不一致就说明投影或节点选错了。
+ * 2. **点前后各截一张图对比**（`cocos_capture_view`）—— 这是唯一能证明
+ *    "Chromium 真的把那一下送到了"的办法；`probe` 只能证明"我们算的坐标在页面上是对的"。
+ *
+ * @param params - `{node?, x?, y?, space?, button?, clickCount?, modifiers?, probe?, pressMs?, timeoutMs?}`。
+ * @returns 回执里带**真发出去的那几条事件**（类型/坐标/按键/修饰键）与打到哪一页。
+ */
+export async function runClickNode(params: Record<string, unknown>): Promise<ToolReply> {
+    const nodeRef = typeof params.node === 'string' ? params.node.trim() : '';
+    const hasPoint = typeof params.x === 'number' || typeof params.y === 'number';
+    if (nodeRef && hasPoint) {
+        return clickFail('`node` 与 `x`/`y` 只能给一个：前者按节点投影算点，后者直接用你给的坐标。');
+    }
+    if (!nodeRef && !hasPoint) {
+        return clickFail('要给 `node`（节点 uuid 或路径）或 `x`/`y`（坐标）中的一个。');
+    }
+    const space = params.space === undefined ? 'view' : String(params.space);
+    if (space !== 'view' && space !== 'uv') {
+        return clickFail(`space 只认 "view"（页面 CSS 像素，默认）与 "uv"（0~1 的比例），收到 ${JSON.stringify(params.space)}。`);
+    }
+    if (!nodeRef && space === 'view') {
+        const x = Number(params.x);
+        const y = Number(params.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return clickFail(`space:"view" 要 x 与 y 都是有限数，收到 ${JSON.stringify(params.x)} / ${JSON.stringify(params.y)}。`);
+        }
+    }
+
+    // ---- ① 问几何（节点矩形 / 页面尺寸 / 现在是不是运行态）----
+    const geometry = await readNodeGeometry(nodeRef);
+    if (geometry.ok !== true) {
+        return clickFail(`拿不到页面几何：${describe(geometry.error)}。${SCENE_SCRIPT_HINT}`);
+    }
+    const page = (geometry.page || {}) as Record<string, any>;
+    const runtime = (geometry.runtime || {}) as Record<string, any>;
+    const running = runtime.running === true;
+    const href = typeof page.href === 'string' ? page.href : '';
+
+    const nodeInfo = (geometry.node || null) as Record<string, any> | null;
+
+    // ---- ② 算出那个点（页面 CSS 像素）----
+    let px = 0;
+    let py = 0;
+    let how = '';
+    if (nodeRef) {
+        if (running) {
+            return clickFail(
+                `现在是**运行态**（编辑器内预览跑着游戏），按节点投影点不了：那一刻画面由**游戏自己的相机**渲染，` +
+                    '而节点矩形是用**编辑器相机**投出来的 —— 两者不是同一个取景，按它点会点到别的地方去。\n' +
+                    '两条可用路：① 请**人在编辑器工具栏上按停止**，回到编辑态再点（适合点 UI 的静态布局）；' +
+                    '② 直接用坐标：先 `cocos_capture_view({view:"game"})` 看清画面，再用 `cocos_click_node({x, y, space:"uv"})`。',
+                { mode: { actual: runtime.mode ?? 'unknown', running: true, sources: runtime.sources ?? null } },
+            );
+        }
+        if (!nodeInfo || nodeInfo.found !== true) {
+            return clickFail(
+                `没找到节点「${nodeRef}」${nodeInfo && nodeInfo.note ? `（${nodeInfo.note}）` : ''}（uuid 用 node.uuid，路径形如 Canvas/panel/btn）。`,
+                { mode: { actual: runtime.mode ?? 'unknown', running: false, sources: runtime.sources ?? null } },
+            );
+        }
+        if (!nodeInfo.rect) {
+            return clickFail(
+                `节点「${nodeInfo.name || nodeRef}」算不出在页面上的矩形${nodeInfo.note ? `（${nodeInfo.note}）` : ''} —— 点不了中心。`,
+                { node: nodeInfo },
+            );
+        }
+        const rect = nodeInfo.rect as { x: number; y: number; width: number; height: number };
+        px = rect.x + rect.width / 2;
+        py = rect.y + rect.height / 2;
+        how = `节点矩形中心（rect ${rect.x},${rect.y} ${rect.width}×${rect.height}）`;
+    } else if (space === 'uv') {
+        const ux = Number(params.x);
+        const uy = Number(params.y);
+        if (!Number.isFinite(ux) || !Number.isFinite(uy)) {
+            return clickFail(`space:"uv" 要 x 与 y 都是 0~1 的有限数，收到 ${JSON.stringify(params.x)} / ${JSON.stringify(params.y)}。`);
+        }
+        const cssWidth = typeof page.cssWidth === 'number' ? page.cssWidth : 0;
+        const cssHeight = typeof page.cssHeight === 'number' ? page.cssHeight : 0;
+        if (!cssWidth || !cssHeight) {
+            return clickFail('space:"uv" 要按页面尺寸折算，但场景脚本没量到页面宽高 —— 改用 space:"view" 自己乘。');
+        }
+        px = ux * cssWidth;
+        py = uy * cssHeight;
+        how = `uv(${ux}, ${uy}) × 页面 ${cssWidth}×${cssHeight}`;
+    } else {
+        px = Number(params.x);
+        py = Number(params.y);
+        how = '直接给的页面 CSS 像素坐标';
+    }
+
+    // ---- ③ probe：点之前问一次「编辑器认为这个点上是哪个节点」（只在编辑态成立）----
+    let probe: Record<string, unknown> | null = null;
+    /**
+     * 只要算出了一个点就探一次（**不只是给 `node` 时**）：坐标是调用方给的，同样值得知道
+     * "编辑器自己的命中测试认为那儿是什么" —— 它与调用方的预期不一致时，这一步就省掉了一轮瞎试。
+     * `probe:false` 可以关掉。
+     */
+    const wantProbe = params.probe !== false;
+    if (wantProbe) {
+        probe = running
+            ? {
+                  skipped: '运行态下不做命中探测：`pick` 用的也是编辑器相机（与节点投影同一个取景），那一刻同样不成立',
+              }
+            : await probePoint(px, py);
+    }
+
+    // ---- ④ 真发出去 ----
+    const outcome = await clickAt(
+        px,
+        py,
+        {
+            button: params.button === undefined ? undefined : (String(params.button) as 'left' | 'right' | 'middle'),
+            clickCount: typeof params.clickCount === 'number' ? params.clickCount : undefined,
+            modifiers: Array.isArray(params.modifiers) ? (params.modifiers as string[]) : undefined,
+            pressMs: typeof params.pressMs === 'number' ? params.pressMs : undefined,
+            focusWindow: params.focusWindow === false ? false : undefined,
+        },
+        href,
+    );
+
+    const payload: Record<string, unknown> = {
+        ok: outcome.ok,
+        point: { x: Math.round(px), y: Math.round(py), space: 'view', how },
+        mode: { actual: runtime.mode ?? 'unknown', running, sources: runtime.sources ?? null },
+        target: outcome.target ?? null,
+        matchedBy: outcome.matchedBy ?? null,
+        focused: outcome.focused ?? null,
+        window: outcome.window ?? null,
+        events: outcome.events,
+        probe,
+    };
+    if (!outcome.ok) {
+        payload.error = outcome.error;
+        if (outcome.contents) payload.contents = outcome.contents;
+        payload.hint = '打不到那一页时先 `cocos_execute_code({context:"scene", code:"return 1"})` 确认场景进程可用（没开场景时场景视图网页也不在）。';
+        return { ok: false, text: JSON.stringify(payload, null, 2), error: String(outcome.error || '点击失败'), data: payload };
+    }
+
+    /**
+     * ⚠ 窗口没焦点时**必须把这句话放在最前面**：那时"事件发出去了"与"页面收到了"是两件事，
+     * 而回执默认看着像成功（就是本工程最防的那种假绿）。
+     */
+    if (outcome.window && outcome.window.focused === false) {
+        payload.hint = outcome.window.note;
+    } else if (probe && !probe.skipped && probe.verdict === 'hit') {
+        payload.hint =
+            '这一下真发出去了（窗口焦点没问题）。**要证明点对了，点前后各截一张图对比**（`probe` 只能证明"这个坐标在页面上是它"，证明不了"Chromium 把它送到了"）。';
+    } else {
+        payload.hint = '这一下真发出去了。点前后各截一张图对比才知道有没有生效。';
+    }
+    return { ok: true, text: JSON.stringify(payload, null, 2), data: payload };
+}
+
+/** 点节点失败时的统一回执（不抛，让模型看到可读的原因）。 */
+function clickFail(message: string, extra?: Record<string, unknown>): ToolReply {
+    const payload = { ok: false, error: message, ...(extra ?? {}) };
+    return { ok: false, text: JSON.stringify(payload, null, 2), error: message, data: payload };
+}
+
+/**
+ * 问一次「这个点是哪个节点」—— 走场景沙箱里的 `pick(x, y)`（编辑器自己的命中测试）。
+ *
+ * ⚠ 它是**事实**，不是判据：回执把 `verdict` / `hit` / 命中个数原样带回来，
+ * 由调用方决定"这算不算点对了"（本扩展不认识"该点到哪个节点"）。
+ */
+async function probePoint(x: number, y: number): Promise<Record<string, unknown>> {
+    try {
+        const reply = await executeCode({
+            context: 'scene',
+            timeoutMs: 8000,
+            code: 'const r = pick(args.x, args.y); return { verdict: r.verdict, hit: r.hit, hitCount: (r.hits || []).length, invisibleCount: (r.invisible || []).length };',
+            args: { x, y },
+        });
+        const value = unwrapSandboxResult(reply.data) as Record<string, unknown> | undefined;
+        if (!reply.ok || !value) return { error: reply.text.slice(0, 300) };
+        return value;
+    } catch (error) {
+        return { error: describe(error) };
+    }
+}
+
+/**
+ * 发一次键盘动作（**真事件**），等价于在那一页上真的按了几下键。
+ *
+ * `key` 走按下/抬起（快捷键、方向键、Esc 这类"按一下"的动作）；
+ * `text` 走 `char`（真的往聚焦的输入框里打字）。两者可以一起给（例如 `{key:'Enter'}`）。
+ *
+ * ⚠ **本工具不抢焦点**（`webContents.focus()` 会打断用户正在别处打字）：
+ * 回执里的 `focused` 是**如实报出**目标页当时有没有键盘焦点。要往输入框打字而 `focused` 为 false 时，
+ * 先用 `cocos_click_node` 点一下那个输入框（真点击会把焦点带过去）再发字。
+ *
+ * @param params - `{key?, text?, modifiers?, pressMs?, target?}`。
+ */
+export async function runSendKeys(params: Record<string, unknown>): Promise<ToolReply> {
+    const key = typeof params.key === 'string' ? params.key.trim() : '';
+    const text = typeof params.text === 'string' ? params.text : '';
+    if (!key && !text) return clickFail('要给 `key`（按一下某个键）或 `text`（输入一段字）中的至少一个。');
+
+    /** 目标页的 href：场景脚本报的最确定；拿不到就退回按 URL 特征找（`findSceneView` 的兜底） */
+    const geometry = await readNodeGeometry('');
+    const href = geometry.ok === true && typeof (geometry.page || {}).href === 'string' ? (geometry.page as Record<string, any>).href : '';
+
+    const outcome = await sendKeys(
+        {
+            key,
+            text,
+            modifiers: Array.isArray(params.modifiers) ? (params.modifiers as string[]) : undefined,
+            pressMs: typeof params.pressMs === 'number' ? params.pressMs : undefined,
+            focusWindow: params.focusWindow === false ? false : undefined,
+        },
+        href,
+    );
+
+    const payload: Record<string, unknown> = {
+        ok: outcome.ok,
+        key: key || null,
+        text: text || null,
+        target: outcome.target ?? null,
+        matchedBy: outcome.matchedBy ?? null,
+        focused: outcome.focused ?? null,
+        window: outcome.window ?? null,
+        events: outcome.events,
+        hrefSource: href ? '场景脚本报的 location.href' : '没量到 href，按 URL 特征找的',
+    };
+    if (!outcome.ok) {
+        payload.error = outcome.error;
+        if (outcome.contents) payload.contents = outcome.contents;
+        return { ok: false, text: JSON.stringify(payload, null, 2), error: String(outcome.error || '发按键失败'), data: payload };
+    }
+    if (outcome.window && outcome.window.focused === false) {
+        payload.hint = outcome.window.note;
+    } else if (outcome.focused === false) {
+        payload.hint = '目标页当时**没有**键盘焦点 —— 打字类（text）多半不会进输入框；先用 cocos_click_node 点一下那个输入框再来。';
+    } else {
+        payload.hint = '按键发出去了；点前后各截一张图（或再读一次状态）才知道有没有生效。';
+    }
+    return { ok: true, text: JSON.stringify(payload, null, 2), data: payload };
+}
+
+/**
+ * 看**运行预览**（编辑器里那个 game view）的**状态** —— 只读。
+ *
+ * ## ⛔ 这里只剩 `state` 一个动作（2026-10-08 撤掉了开关）
+ *
+ * 原来有六个动作，其中 `play` / `stop` / `pause` / `resume` / `step` 会**从编辑器内部**
+ * 起动那块画布上的游戏画面。**整条撤掉**了，两条理由：
+ *
+ * 1. **它与"编辑器画布黑掉"的两次现场都在同一条时间线上**（`docs/冻结诊断.md`：
+ *    04:48 那次跑完预览起停之后场景面板画面停住、切场景也不更新，只能重启编辑器；
+ *    14:59 那次面板 agent 加 `Cmp_Game` 时，同一块画布抓回来的是全空的一张图 = 用户看到的黑屏）。
+ *    因果没有被单变量实验钉死（同一次窗口里还有"抓图前逼重绘"这一条，那条已按同一口径一起撤了），
+ *    但**代价不对称**：留着它，用户随时可能再黑一次屏；撤掉它，损失的是一个在本工程里**跑不起来的**能力
+ *    （编辑器内的游戏卡在首场景 `Loading` 的 `loadBundle('scripts')`、进度 `0%`，`bundles` 里只有 `internal`）。
+ * 2. **要跑游戏有更干净的路**：编辑器工具栏那颗播放键。走那条路，画面出问题没人会怀疑是工具干的。
+ *
+ * ## 留下的 `state`：**两段独立来源都摆出来**
+ *
+ * | 来源 | 问法 | 说明 |
+ * |---|---|---|
+ * | 编辑器消息 | `query-scene-mode` | 只作一条来源；认不出来就是 `unknown`（见 `source/preview.ts`） |
+ * | 场景进程 | `viewMetrics.runtime`（`cce.PreviewPlay._state`） | **运行态的真判据** —— facade 那两条真机实测判不出 |
+ *
+ * `running: true` 只可能来自**用户自己按了播放键**（本扩展已经开不了预览了）——
+ * 这时节点投影 / 按节点裁图 / 按节点点击都不成立（那些都建立在编辑器相机上），
+ * 回执里必须说清，别给一个"看着成功"。
+ *
+ * @param params - `{action?}`：只认 `'state'`（缺省就是它）；别的一律拒绝并说清为什么。
+ */
+export async function runRuntime(params: Record<string, unknown>): Promise<ToolReply> {
+    const action = typeof params.action === 'string' && params.action.trim() ? params.action.trim() : 'state';
+    if (action !== 'state') {
+        return clickFail(
+            `\`cocos_runtime\` 只认 \`state\`（只读），收到 ${JSON.stringify(params.action)}。` +
+                '`play` / `stop` / `pause` / `resume` / `step` 这五个开关**已于 2026-10-08 撤掉** —— ' +
+                '它们与两次「编辑器场景画布黑屏/画面停住」的现场同一条时间线（见 `docs/冻结诊断.md`），' +
+                '而收益极小：编辑器内跑起来会卡在首场景 Loading 的 `loadBundle(\'scripts\')`（0%）。' +
+                '要看游戏画面请在**编辑器工具栏上自己按那颗播放键**，本工具不代劳。',
+        );
+    }
+
+    const payload: Record<string, unknown> = { ok: true, action: 'state' };
+
+    /** 主进程这一侧的问法（编辑器自己的消息）—— 只当一条来源摆出来 */
+    const modeProbe = await querySceneMode();
+    payload.editorMessage = {
+        message: 'query-scene-mode',
+        mode: modeProbe.mode,
+        raw: modeProbe.raw,
+        ok: modeProbe.ok,
+        error: modeProbe.error,
+        note: modeProbe.note,
+    };
+
+    /** 场景进程那一侧的问法（`cce` 单例）—— **运行态的判据在这边** */
+    const sceneProbe = await readSceneRuntime();
+    payload.scene = sceneProbe.ok ? sceneProbe.runtime : { error: sceneProbe.error };
+    payload.before = runtimeSummary(payload.scene as Record<string, unknown>);
+    payload.after = payload.before;
+    payload.readOnly = true;
+    payload.hint =
+        '`running: true` = 那一页现在画的是**跑着的游戏**（这时节点投影/裁节点都不成立，见 cocos_click_node）；' +
+        '`false` = 编辑器场景。判据是 `previewState`（`stop`/`play`/`pause`）—— 真机实测 facade 那两条**判不出**运行态。' +
+        '⚠ 本工具**只能看、不能开**：要跑游戏请在编辑器工具栏上自己按播放键。';
+    return { ok: true, text: JSON.stringify(payload, null, 2), data: payload };
+}
+
+/**
+ * 从场景侧的 runtime 块里挑出"人要看的那几项"（原样搬，不做判断）。
+ *
+ * ⚠ `gamePaused` 是**引擎自己**的 `cc.game.isPaused()`；预览自己的暂停标志另有一格
+ * `previewIsPause`（`cce.PreviewPlay.isPause()`）。两者含义不同，摆在一起看：
+ * 实测 `pause(true)` 之后**三个都变 true**，但只有 `frames` 能证明"真的冻住了"。
+ */
+function runtimeSummary(runtime: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+    if (!runtime || typeof runtime !== 'object') return null;
+    const sources = (runtime.sources || {}) as Record<string, unknown>;
+    return {
+        mode: runtime.mode ?? 'unknown',
+        running: runtime.running === true,
+        paused: typeof runtime.paused === 'boolean' ? runtime.paused : null,
+        /** `PreviewPlay._state`（私有字段，原样搬）—— **运行态的唯一判据** */
+        previewState: sources.previewState ?? null,
+        previewIsPause: typeof sources.previewIsPause === 'boolean' ? sources.previewIsPause : null,
+        /** 帧计数：判「冻住没有 / step 有没有走」只有它能说话 */
+        frames: typeof sources.totalFrames === 'number' ? sources.totalFrames : null,
+        directorPaused: typeof sources.directorPaused === 'boolean' ? sources.directorPaused : null,
+        gamePaused: typeof sources.gamePaused === 'boolean' ? sources.gamePaused : null,
+        note: runtime.note,
     };
 }
 
@@ -454,4 +833,7 @@ export const COCOS_IPC_METHODS: Record<string, (params: Record<string, unknown>)
     editor_state: withRefs(readEditorState),
     capture_view: withRefs(runCaptureView),
     read_logs: withRefs(readLogs),
+    click_node: withRefs(runClickNode),
+    send_keys: withRefs(runSendKeys),
+    runtime: withRefs(runRuntime),
 };

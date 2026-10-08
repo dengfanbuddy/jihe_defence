@@ -41,13 +41,16 @@ const TINY_PNG = Buffer.from(
     'base64',
 );
 
-/** 五个工具名 —— 少一个/多一个都要红。 */
+/** 八个工具名 —— 少一个/多一个都要红。 */
 const EXPECTED_TOOLS = [
     'cocos_execute_code',
     'cocos_describe_api',
     'cocos_editor_state',
     'cocos_capture_view',
     'cocos_logs',
+    'cocos_click_node',
+    'cocos_send_keys',
+    'cocos_runtime',
 ];
 
 /** 描述里必须出现的关键词：它们原本躺在 MCP 服务器的 `initialize.instructions` 里，DSH 不消费那段。 */
@@ -69,9 +72,30 @@ const REQUIRED_IN_TEXT = {
     ],
     cocos_describe_api: ['nodeUuid', 'module:fs', 'helpers', 'cc.Camera'],
     cocos_editor_state: ['下一步'],
-    cocos_capture_view: ['path', 'blankRatio', '场景视图'],
+    // `view` 与 `mode` 是「同一块画布两种画面」唯一说清楚的地方；`blankRatio` 是空图那条退路。
+    // ⚠ 2026-10-08 事故之后：描述里必须写明**本工具不碰合成器**（不再有 `forceRepaint` 这个旋钮），
+    // 空图的退路是"换数值判据"，不是"再逼一帧"（见 docs/冻结诊断.md §5 与 source/capture.ts 文件头）。
+    cocos_capture_view: ['path', 'blankRatio', '场景视图', 'view', 'mode', 'invalidate', '不碰合成器'],
     // 日志工具的用法要点同样只能在描述里（DSH 不消费 instructions）：三步走、原文引用、clear 的确认口令
     cocos_logs: ['list: true', 'grep', 'confirm', 'F1', '原文'],
+    /**
+     * 交互三件套：描述里必须留下的都是「照做才对」的判据 ——
+     * 运行态为什么拒 node、probe 能证明什么不能证明什么、焦点要不要先点一下。
+     */
+    /**
+     * ⚠ 2026-11 真机验收之后，点/按键的描述里多了**一条必须留着的边界**：
+     * 引擎在编辑器构建里**不注册 DOM 监听**，所以合成事件到不了引擎 ——
+     * 少了它，模型看到 「真鼠标事件」就会以为"点一下就能验游戏逻辑"。
+     */
+    cocos_click_node: ['events', 'probe', 'space', 'uv', '运行态', '真鼠标事件', '不注册 DOM 监听', '_dispatchMouse'],
+    cocos_send_keys: ['key', 'text', 'modifiers', 'focused', '焦点', '不注册 DOM 监听'],
+    /**
+     * 运行态**只读**：判据（`previewState`）+ 两条来源 + 撤掉开关的理由都必须在描述里。
+     * ⚠ 2026-10-08 之后：`play` / `stop` / `pause` / `resume` / `step` 已经撤掉，
+     * 描述里必须留下"**为什么撤**"（黑屏/冻结诊断）与"**要看画面请人自己按工具栏**"这两句 ——
+     * 少了它们，模型只会看到"这工具怎么什么都不能做"。
+     */
+    cocos_runtime: ['只读', 'state', 'game view', 'previewState', '撤掉', '冻结诊断', '工具栏'],
 };
 
 let failures = 0;
