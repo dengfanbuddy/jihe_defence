@@ -203,5 +203,21 @@
     "expire_hours": 0,
     "effect_code": "relic_start_gift",
     "sort": 200
+  },
+  {
+    "id": 1021,
+    "key": "boost_run_start_kill_points",
+    "name": "初始击杀券",
+    "desc": "开局增益券，入局消耗",
+    "use_hint": "开局自动生效",
+    "icon": "textures/shop/boost_ticket",
+    "rarity": "rare",
+    "stack_max": 99,
+    "usable": false,
+    "sellable": false,
+    "sell_price": 0,
+    "expire_hours": 0,
+    "effect_code": "run_start_kill_points",
+    "sort": 210
   }
 ]

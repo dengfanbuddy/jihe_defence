@@ -11,41 +11,76 @@ import { TbContainer } from '../../platform/excel_table/TbContainer';
  *   · tasks        = 日/周**周期性**任务，奖励账号经验 + 金币，会重置；
  *   · achievements = **一次性永久**目标，奖励金币；**核心成就的末档**额外给 1 个特殊效果。
  *
- * id 段位：31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战。
+ * id 段位：31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战
+ * （段内**顺序编号**，一个分类不超过 99 行：成就表**每行一档**，所以一条成就占几行由它的档位数决定）。
+ *
+ * ⚠ **档位数不固定**（2026-11 改版）：以前是「每条成就恰好 3 档（铜/银/金）」，现在按成长空间定 ——
+ * 账号等级 20 档、收集类 6~7 档、通关类 5~6 档。界面上的档位文案因此改成 **「阶段N」**
+ * （`common/AchievementTierColor.ts`），档位色按"第几档 / 共几档"的比例取三色锚点。
  *
  * 结构化门禁（`afterHandle` 里运行时告警，`npm run check` 里有对应的硬校验）：
  *   ① 同 group 的 tier 从 1 连续；② count / reward_gold 严格递增；
- *   ③ `effect_code` 只允许出现在该 group 的**最大 tier**；④ 同一 effect_code 全表最多 1 个来源。
+ *   ③ `effect_code` 只允许出现在该 group 的**最大 tier**；④ 同一 effect_code 全表最多 1 个来源；
+ *   ⑤ `run_*` 型 target **必须**写正整数的 `param`（门槛），否则那条成就**永远不会推进**。
  *
  * 查询：TbRoot.ins.getTbContainer(AchievementCfgContainer).getByCategory('stage')
  */
 /** 成就分类（界面页签） */
 export type AchCategory = 'level' | 'stage' | 'combat' | 'economy' | 'collect' | 'challenge';
 
-/** 成就档位：1 = 铜 / 2 = 银 / 3 = 金 */
-export type AchTier = 1 | 2 | 3;
-
 /**
  * 完成条件标识。
  * **前 12 个与 `tasks.json` 共用**（语义唯一真源 = `TaskData.TargetMode`，两者必须一致）；
- * 后 16 个是成就专属（数据来源见 `docs/成就系统设计.md` §3.3）。
+ * 其余是成就专属（数据来源见 `docs/成就系统设计.md` §3.3）。
  */
 export type AchTarget =
     // —— 与 tasks 共用 ——
     | 'login' | 'play_games' | 'victory' | 'kill_enemies' | 'gold_earned' | 'spend_gold'
     | 'relics_picked' | 'skills_used' | 'buffs_bought' | 'stage_reached' | 'hero_level' | 'level_reached'
-    // —— 成就专属 ——
+    // —— 成就专属·累计 / 峰值 / 标记 ——
     | 'level_up_count' | 'login_streak' | 'survive_time' | 'kill_in_run' | 'gold_in_run'
     | 'clear_no_damage' | 'clear_fast' | 'clear_low_hp' | 'run_no_relic_clear' | 'clear_one_skill'
-    | 'damage_dealt' | 'crit_hits' | 'draw_count' | 'relic_collected' | 'buff_types' | 'skills_picked';
+    | 'damage_dealt' | 'crit_hits' | 'draw_count' | 'relic_collected' | 'buff_types' | 'skills_picked'
+    // —— 成就专属·「门槛 × 局数」（2026-11 新增，见 ACH_RUN_TARGETS）——
+    | 'run_stage' | 'run_hero_level' | 'run_kill' | 'run_gold' | 'run_survive';
 
 /**
- * 特殊效果标识（**白名单 10 条**）。
+ * 「门槛 × 局数」型 target（**累加型，计数单位是「局」**）。
+ *
+ * 为什么加这一族（用户口径 2026-11）：「战线推进，一局就能领到银 1000 多」——
+ * 旧的 `stage_reached` / `hero_level` 是**单局峰值**，而一局里就能从第 1 阶段打到第 5 阶段，
+ * 于是三档在同一局里全部达成。改成这一族之后，**一局最多推进 1 点进度**，
+ * 玩家必须"很多局都做到"才能拿到高档位。
+ *
+ * `param` = 门槛（正整数，字符串写在配表里），语义见下表；
+ * 上报口 = `AchievementData.reportRunGoals()`（结算时调一次，见 `Scene_Game_Stage.reportRunTasks`）。
+ */
+export const ACH_RUN_TARGETS: AchTarget[] = [
+    'run_stage',        // param = 阶段数：单局把战线推进到第 param 阶段
+    'run_hero_level',   // param = 等级：单局英雄等级达到 param 级
+    'run_kill',         // param = 击杀数：单局击杀达到 param 只
+    'run_gold',         // param = 金币：单局持有金币达到 param
+    'run_survive',      // param = 秒：单局存活达到 param 秒
+];
+
+/** 是否「门槛 × 局数」型 target */
+export function isRunTarget(target: string): boolean {
+    return ACH_RUN_TARGETS.indexOf(target as AchTarget) >= 0;
+}
+
+/**
+ * 特殊效果标识（**白名单 11 条**）。
  * 数值语义 / 封顶 / 生效点见 `game/common/AchievementEffectMeta.ts`（唯一真源）。
+ *
+ * ⚠ 这 11 条**不是"成就专用"**：它同时是「局外增益券池」的键表（`battle_constants.shopBoostTicketValues`
+ *   与 `bag_items` 的 `boost_*` 行必须一条不漏地覆盖它，`audit:bag` A7c / `audit:mall` B4 盯着），
+ *   也是局外红件词缀（`relics.effects_outer`）的取值表 —— 所以**加一条 code 要同时补这三处**，
+ *   否则有的券发不出去、红件词缀写进去也是静默无效。
  */
 export type AchEffectCode =
-    | 'run_start_gold' | 'shop_option_plus' | 'shop_draw_discount' | 'ad_free_draw' | 'kill_buff_discount'
-    | 'gold_gain_bonus' | 'battle_exp_bonus' | 'hero_start_level' | 'hero_select_free' | 'relic_start_gift';
+    | 'run_start_gold' | 'run_start_kill_points' | 'shop_option_plus' | 'shop_draw_discount' | 'ad_free_draw'
+    | 'kill_buff_discount' | 'gold_gain_bonus' | 'battle_exp_bonus' | 'hero_start_level' | 'hero_select_free'
+    | 'relic_start_gift';
 
 /** 成就的一档（= 配表一行） */
 export interface AchCfg {
@@ -53,19 +88,19 @@ export interface AchCfg {
     id: number;
     /** 成就组（同一条成就的多档共用） */
     group: string;
-    /** 档位：1 铜 / 2 银 / 3 金 */
+    /** 档位序号：**1 起、组内连续**（界面文案 = 「阶段N」，档位数不限） */
     tier: number;
     /** 分类（界面页签） */
     category: AchCategory;
     /** 成就名 */
     name: string;
-    /** 成就描述 */
+    /** 成就描述（**逐档可不同**：卡面显示的是「下一档」这一行的 desc，如「累计3局把战线推进到第2阶段。」） */
     desc?: string;
     /** 图标资源路径（不带扩展名；空 = 回落占位图） */
     icon?: string;
     /** 完成条件 */
     target: AchTarget;
-    /** 条件参数（预留） */
+    /** 条件参数（`run_*` 型 = **门槛**，正整数；其余类型留空） */
     param?: string;
     /** 目标数量（> 0） */
     count: number;
@@ -128,8 +163,9 @@ export class AchievementCfgContainer extends TbContainer<AchCfg> {
     /**
      * 表数据装载完成后归并成「成就」并做结构化体检。
      *
-     * 归并是**必须**的：配表一行一档是为了让每档能写各自的 count / 奖励 / 效果，
-     * 但界面与数据层要的是「一条成就 + 它的 3 个档位」——归并只做一次，别让消费方各自拼。
+     * 归并是**必须**的：配表一行一档是为了让每档能写各自的 `count` / `param` / `desc` / 奖励 / 效果，
+     * 但界面与数据层要的是「一条成就 + 它的全部档位」——归并只做一次，别让消费方各自拼。
+     * ⚠ 档位数**不固定**（3~20 档），所以任何地方都不许假设「恰好 3 档」。
      */
     afterHandle(): void {
         this.groups = [];
@@ -242,6 +278,18 @@ export class AchievementCfgContainer extends TbContainer<AchCfg> {
             // 目标数量必须 > 0（否则一进游戏就完成）
             if (!(cfg.count > 0)) {
                 console.warn(`[成就表] ${g.group} 的 tier${cfg.tier} count=${cfg.count} 非法（应 > 0）`);
+            }
+            // ⑤ 「门槛 × 局数」型必须写正整数 param —— 漏了/写错的话这条成就**永远不会推进**
+            //   （判据在 `AchievementData.reportRunGoals`：param 解析不出正数就整条跳过），
+            //   而配表侧完全看不出来（导表工具只校验字段类型）。
+            if (isRunTarget(cfg.target) && !(Number(cfg.param) > 0)) {
+                console.warn(`[成就表] ${g.group} 的 tier${cfg.tier} 是 ${cfg.target}（门槛×局数型），`
+                    + `但 param=${JSON.stringify(cfg.param)} 不是正整数 —— 这一档永远不会推进`);
+            }
+            // 非局数型不该带 param（带了是误导：判据根本不读它）
+            if (!isRunTarget(cfg.target) && cfg.param !== undefined && cfg.param !== '') {
+                console.warn(`[成就表] ${g.group} 的 tier${cfg.tier} 不是门槛×局数型（${cfg.target}），`
+                    + `param=${JSON.stringify(cfg.param)} 不会被消费`);
             }
         }
     }

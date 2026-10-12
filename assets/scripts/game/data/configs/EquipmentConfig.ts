@@ -1,5 +1,5 @@
 /**
- * EquipmentConfig.ts — 局外装备配置门面（数据源：`relics.json` 里**有局外版**的遗物，`scope` = `outer` / `both`）
+ * EquipmentConfig.ts — 局外装备配置门面（数据源：`relics.json` 里**有局外版**的遗物 —— 2026-11 起 = 全表 268 件，`scope` 全是 `both`）
  *
  * ## 2026-07 变更：遗物表改成「一件遗物一行」
  *
@@ -7,7 +7,7 @@
  * 只有效果与描述分两侧：`modifiers_outer` / `description_outer` 就是本文件读的「局外装备」。
  * 原 `equipments.json` / `equipments.xlsx` / `Tb_EquipmentConfig` 已删除；
  * 英雄专属装备（`code=spc_*` + `hero_id`）也已按「无英雄专属」的口径删除。
- * id 段：局内道具 **1001~1293**（两侧都有的用局内 id）+ 仅局外 **1294~1302** + 手工 demo 1~5。
+ * id 段：手工 demo **1~5** + 设计稿道具 **1001~1293**（那 9 件"只有局外版"的 1294~1302 已随本次对齐整行删除）。
  *
  * ## 数值口径（两套，别混）
  *
@@ -20,14 +20,24 @@
  * 其中 `percent` 是**小数**（`0.05 = +5%`）、`flat` 是运行时值。本文件负责 int → float 与分层。
  * 分层遵循「品质 × 词条」门禁（docs/配置规则_品质与词条门禁.md）：`percent` 加成需**黄档（epic）起**。
  *
- * > ⚠ 该链路目前**尚未接线**（`OuterAttributeCalculator` 没有运行时消费点、`EquipmentCollection.addCollected` 无调用方）：
- * > 「框架已备、待接入」，见《数值配置参考手册》§3.3.2。
+ * > ✅ **2026-11 起这条链路已接线**：`Scene_Game_Stage.selectHero` 在英雄实体创建之后、`hero.bind()` 之前
+ * > 调 `applyOuterBonusesToEntity(hero, getAllEquipmentBonuses())`（`battle/OuterAttributeApply.ts`），
+ * > 把这里产出的加成落到英雄的**基础属性**上（`final = base × (1 + percent) + flat`）。
+ * > 收集份数的唯一来源是 `DataCenter.drawOuterRelic`（局外花金币/券抽取；
+ * > **局内抽到的遗物不再写图鉴**，见 `docs/meta-growth/README.md` §0.2）。
+ * > 体检：`npm run audit:attr` 的「局外」段（真 `relics.json` → 收集份数 → 落基础属性），
+ * > 口径见《数值配置参考手册》§3.3.2 与 `docs/shop/README.md` §4 第 9 条。
  */
 
 import { TbRoot } from "../../../platform/excel_table/TbRoot";
 import { AttributeType, EquipmentConfig, OuterBonusGroup } from "../../battle/core/Types";
+import { AttributeScaling } from "../../battle/core/AttributeScaling";
+import type { AchEffectCode } from "../../excel_table/Tb_AchievementConfig";
 import { AttributeCfgContainer } from "../../excel_table/Tb_AttributeConfig";
-import { RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers, getOuterRelicCfgs } from "../../excel_table/Tb_RelicConfig";
+import {
+    RelicCfgContainer, RelicCfg, relicHasOuter, relicOuterDesc, relicOuterModifiers, relicOuterEffects,
+    getOuterRelicCfgs,
+} from "../../excel_table/Tb_RelicConfig";
 import { DataCenter } from "../DataCenter";
 
 /** 遗物 rarity → 品质档位序号（1 白 / 2 蓝 / 3 黄 / 4 红） */
@@ -36,8 +46,19 @@ const RARITY_TIER: Record<string, number> = { common: 1, rare: 2, epic: 3, legen
 const TIER_QUALITY = [0, 1, 1.3, 1.6, 2];
 /** `percent` 加成（对基础属性乘算）的最低档位：黄档 */
 const PERCENT_LAYER_MIN_TIER = 3;
-/** 百分比型属性编号（与 battle/core/AttributeScaling.SCALE 逐项对齐） */
-const PERCENT_ATTR_IDS = [4, 7, 8, 11, 12, 13, 14, 15];
+/**
+ * 百分比型属性编号 —— **从 `AttributeScaling.SCALE` 现算，不再手抄一张表**。
+ *
+ * 为什么改数据驱动（2026-11）：手抄的那份是 `[4,7,8,11,12,13,14,15]`，而真源是
+ * `AttributeScaling.SCALE = {4,7,8,11,12,14,15,21,22,23,24,25}` —— 两份**对不上两处**：
+ *   · 多了 `13`（`IncomingDamage` 旧值，2026-10 已并入 12 退役）—— 算出来会多除一次 100；
+ *   · 少了 `21~25`（金币获取/经验获取/冷却缩减/抽卡折扣/吸血，2026-10 新增）—— 算出来会少除一次 100，
+ *     也就是"局外给 20 金币获取"被当成 **2000%**。
+ * 今天局外遗物恰好一个都没用到 13/21~25（全部落在 1/3/4/6/8/9/14/15/16 上，见
+ * `tools/attr-audit` 的局外段），所以这个偏差**还没有发作过** —— 但它是"同一件事两份实现"的定时炸弹，
+ * 现在把判据收敛到 `AttributeScaling`（配置 int ↔ 运行时 float 的唯一真源）。
+ */
+const PERCENT_ATTR_IDS: number[] = AttributeScaling.scaledAttrIds();
 
 /** 配置 int → 运行时 float（百分比型属性 ÷100） */
 function toRuntime(attrId: number, configValue: number): number {
@@ -200,8 +221,8 @@ export function equipmentConfigToBonuses(config: EquipmentConfig): OuterBonusGro
 
 /**
  * 获取所有已收集局外装备的总加成组。
- * 从 `DataCenter.ins.equipCollection` 读取收集记录（**存的是 relics 的遗物 id**，与局内是同一个 id 空间：
- * 两侧都有的用局内 id，只有局外版的在 1294~1302），每件装备的加成 × 收集次数（可重复收集，属性累加）。
+ * 从 `DataCenter.ins.equipCollection` 读取收集记录（**存的是 relics 的遗物 id**，与局内是同一个 id 空间），
+ * 每件装备的加成 × 收集次数（可重复收集，属性累加）。
  */
 export function getAllEquipmentBonuses(): OuterBonusGroup {
     const total: OuterBonusGroup = { flat: {}, percent: {} };
@@ -227,6 +248,52 @@ export function getAllEquipmentBonuses(): OuterBonusGroup {
     }
 
     return total;
+}
+
+/* ===================================================================
+ * 红件词缀：局外版的「局内开局初始值」
+ * =================================================================== */
+
+/**
+ * **「次数型」词缀**（同一 code 的多件红遗物**取 max**，不求和）。
+ *
+ * 判据：这些效果的收益是**质变**（多一个商店选项 / 多一级 / 多一件开局遗物），
+ * 不是线性资源 —— 而局外的份数**无上限**，求和会让"多抽几份"直接变成"开局 5 级 / 9 个选项"。
+ * 与 `docs/meta-growth/README.md` §1.5 的旧版口径逐字一致（那句"次数型取 max"就落在这里）。
+ * 其余 code（金币 / 击杀数 / 百分比加成）一律 **Σ（每份线性）**。
+ */
+const RUN_EFFECT_MAX_STACK: string[] = [
+    'hero_start_level', 'shop_option_plus', 'ad_free_draw', 'hero_select_free', 'relic_start_gift',
+];
+
+/**
+ * **红件词缀的汇总**（`relics.effects_outer` × 收集份数）—— 本局开局快照的三个来源之一。
+ *
+ * 三个来源（成就末档 / 局外增益券 / **红遗物词缀**）**共用同一套 code 与封顶**：
+ * 本函数只负责"把红件这一份算出来"，**合并且统一过 `ACH_EFFECT_META.cap` 的那一步在
+ * `Scene_Game_Stage.snapshotAchieveEffects()`**（那里是唯一开局快照）。
+ *
+ * ⚠ 只统计**已收集**（`count > 0`）的件；份数线性（`次数型` 见 `RUN_EFFECT_MAX_STACK`）。
+ */
+export function getOuterRunEffectTotals(): Partial<Record<AchEffectCode, number>> {
+    const out: Partial<Record<AchEffectCode, number>> = {};
+    const collection = DataCenter.ins.equipCollection;
+    for (const relic of getOuterRelics()) {
+        const effects = relicOuterEffects(relic);
+        if (!effects.length) continue;
+        const count = collection.getCollectedCount(relic.id);
+        if (count <= 0) continue;
+        for (const eff of effects) {
+            const code = eff?.code as AchEffectCode;
+            const value = Number(eff?.value);
+            if (!code || !Number.isFinite(value) || value === 0) continue;
+            const cur = out[code] ?? 0;
+            out[code] = RUN_EFFECT_MAX_STACK.indexOf(code) >= 0
+                ? Math.max(cur, Math.abs(value))
+                : cur + value * count;
+        }
+    }
+    return out;
 }
 
 /* ===================================================================

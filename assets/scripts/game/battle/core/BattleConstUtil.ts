@@ -33,7 +33,6 @@ const DEFAULTS: Record<string, number> = {
     playerExpFormulaRatio: 1.15,
     battleExpFormulaBase: 60,
     battleExpFormulaRatio: 1.18,
-    battleLevelMax: 30,
     clearRewardPlayerExpBase: 50,
     clearRewardHeroExpBase: 80,
     enemyDropExpDefault: 10,
@@ -52,6 +51,22 @@ const DEFAULTS: Record<string, number> = {
     skillSlotCount: 4,
     /** 1 米 = 多少像素（距离换算的唯一口径，见 getPxPerMeter） */
     pxPerMeter: 50,
+    // 一局打完就发的局外金币（口径见 common/RunClearReward 的文件头）
+    runClearGoldBase: 400,
+    runClearGoldDecay: 0.6,
+    runClearGoldFloor: 40,
+    runClearGoldStageDivisor: 3,
+    // 一局打完就发的通用英雄经验（口径见 common/RunClearHeroExp 的文件头）
+    runHeroExpWeightStage: 0.6,
+    runHeroExpWeightTime: 0.4,
+    runHeroExpStageFull: 5,
+    runHeroExpTimeFull: 600,
+    runHeroExpMin: 8,
+    runHeroExpMax: 1600,
+    // 结算面板「看广告翻倍」的倍率区间（口径见 common/RewardAdBonus 的文件头）
+    settleAdMulMin: 1.0,
+    settleAdMulMax: 3.0,
+    settleAdMulDecimals: 1,
 };
 
 export class BattleConstUtil {
@@ -122,6 +137,34 @@ export class BattleConstUtil {
         return Math.max(0, BattleConstUtil.getNumber('outerDrawCostCap', 600));
     }
 
+    /* ===================================================================
+     * 一局打完就发的局外金币（`common/RunClearReward` 的四个键）
+     *
+     * 口径真源 = `assets/scripts/game/common/RunClearReward.ts` 的文件头：
+     *   `本局结算金币 = max(floor, base × decay^(N-1)) × clamp(到达阶段 / divisor, 0, 1)`
+     * 这四条**都不乘难度收益倍率**（理由见那份文件头的口径 ③）。
+     * =================================================================== */
+
+    /** 按局结算金币·第 1 局的曲线值（金币） */
+    static getRunClearGoldBase(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runClearGoldBase', 400));
+    }
+
+    /** 按局结算金币·每往后一局的衰减系数（0.6 = 每局只剩 60%） */
+    static getRunClearGoldDecay(): number {
+        return BattleConstUtil.getNumber('runClearGoldDecay', 0.6);
+    }
+
+    /** 按局结算金币·曲线下限（衰减到这里就不再降；这就是"之后每局很少"的那个数） */
+    static getRunClearGoldFloor(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runClearGoldFloor', 40));
+    }
+
+    /** 按局结算金币·完成系数的分母 = 到达第几阶段算打满（3 = 阶段 3 起给满额） */
+    static getRunClearGoldStageDivisor(): number {
+        return Math.max(1, BattleConstUtil.getNumber('runClearGoldStageDivisor', 3));
+    }
+
     /** 玩家经验公式基数 */
     static getPlayerExpFormulaBase(): number {
         return BattleConstUtil.getNumber('playerExpFormulaBase', 100);
@@ -179,17 +222,89 @@ export class BattleConstUtil {
     static getBattleExpFormulaRatio(): number {
         return BattleConstUtil.getNumber('battleExpFormulaRatio', 1.18);
     }
-    /** 局内战斗等级上限 */
-    static getBattleLevelMax(): number {
-        return BattleConstUtil.getNumber('battleLevelMax', 30);
-    }
+    // ⚠ 这里**没有** `getBattleLevelMax()`：局内英雄等级**不封顶**（2026-11 用户口径
+    //   「取消等级限制，以前是 30 级」），`battle_constants.battleLevelMax` 这个键已从表里删掉。
+    //   升级需求是指数曲线（上面两个键：现 `battleExpFormulaBase/Ratio = 60 / 1.12`），
+    //   本身就是"越升越慢"的天然上限 —— 再加硬上限只会让后期经验白吃
+    //   （见 `Scene_Game_Stage.addBattleExp` 的注释）。
     /** 通关局外玩家经验基数（结算时按配置发） */
     static getClearRewardPlayerExpBase(): number {
         return BattleConstUtil.getNumber('clearRewardPlayerExpBase', 50);
     }
-    /** 通关局外英雄经验基数（结算时按配置发） */
+    /**
+     * 单局结算的**通用英雄经验**基数（`battle_constants.clearRewardHeroExpBase`，现 80）。
+     *
+     * ⚠ 键名里的 `clear` 是历史读法：2026-11 起它**不再是"通关才发"**那个数，
+     *   而是「阶段 × 时间」加权后的**满额**（`common/RunClearHeroExp` 的公式里，
+     *   进度 = 1 时的原始值就是它 × 难度收益倍率）。通关 ≈ 进度 1 ⇒ 满额 80，
+     *   与旧口径的"通关固定 80"逐字相同 —— 低关卡手感不变。
+     *
+     * 消费点只有一处：`RunClearHeroExp.amountFor`（别在别处再读一遍）。
+     */
     static getClearRewardHeroExpBase(): number {
-        return BattleConstUtil.getNumber('clearRewardHeroExpBase', 80);
+        return Math.max(0, BattleConstUtil.getNumber('clearRewardHeroExpBase', 80));
+    }
+
+    /* ===================================================================
+     * 一局打完就发的通用英雄经验（`common/RunClearHeroExp` 的六个键）
+     *
+     * 口径真源 = 那个文件的文件头：
+     *   `进度 = w_stage × clamp(阶段/满额阶段,0,1) + w_time × clamp(秒数/满额秒数,0,1)`
+     *   `实发 = clamp(round(基数 × 进度 × 难度收益倍率), 下限, 上限)`
+     * ⚠ 与金币那条**刻意不同**：这一条**乘**难度收益倍率（见 `RunClearReward` 口径 ③）。
+     * =================================================================== */
+
+    /** 单局英雄经验·**阶段维度**的权重（现 0.6；与时间权重之和 = 1） */
+    static getRunHeroExpWeightStage(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runHeroExpWeightStage', 0.6));
+    }
+
+    /** 单局英雄经验·**时间维度**的权重（现 0.4） */
+    static getRunHeroExpWeightTime(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runHeroExpWeightTime', 0.4));
+    }
+
+    /** 单局英雄经验·阶段打满的档位（现 5 = 打到 Boss 阶段就满） */
+    static getRunHeroExpStageFull(): number {
+        return Math.max(1, BattleConstUtil.getNumber('runHeroExpStageFull', 5));
+    }
+
+    /** 单局英雄经验·时间打满的秒数（现 600 = 10 分钟） */
+    static getRunHeroExpTimeFull(): number {
+        return Math.max(1, BattleConstUtil.getNumber('runHeroExpTimeFull', 600));
+    }
+
+    /** 单局英雄经验·**保底下限**（现 8：打一局就有，准备期阵亡也给） */
+    static getRunHeroExpMin(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runHeroExpMin', 8));
+    }
+
+    /**
+     * 单局英雄经验·**单局上限**（现 1600）。
+     * 依据：难度 100 档的满额 = 80 × `rewardMul(100)` ≈ 80 × 17.96 ≈ **1437** ——
+     * 上限刻意留在它之上，所以**正常玩法够不到封顶**，它只在配表被调歪时兜底。
+     */
+    static getRunHeroExpMax(): number {
+        return Math.max(0, BattleConstUtil.getNumber('runHeroExpMax', 1600));
+    }
+
+    /* ===================================================================
+     * 结算面板「看广告翻倍」（`common/RewardAdBonus` 的三个键）
+     * =================================================================== */
+
+    /** 看广告翻倍·倍率下限（现 1.0；配 1.0 时"这一档没赚头"是允许的，见 `RewardAdBonus` 口径 ①） */
+    static getSettleAdMulMin(): number {
+        return Math.max(0, BattleConstUtil.getNumber('settleAdMulMin', 1.0));
+    }
+
+    /** 看广告翻倍·倍率上限（现 3.0） */
+    static getSettleAdMulMax(): number {
+        return Math.max(0, BattleConstUtil.getNumber('settleAdMulMax', 3.0));
+    }
+
+    /** 看广告翻倍·小数位数（现 1；上限 3 由 `RewardAdBonus.decimals()` 夹住） */
+    static getSettleAdMulDecimals(): number {
+        return Math.max(0, BattleConstUtil.getNumber('settleAdMulDecimals', 1));
     }
     /** 初始体力 */
     static getInitialStamina(): number {

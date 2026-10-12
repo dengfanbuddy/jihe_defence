@@ -41,7 +41,7 @@ const TINY_PNG = Buffer.from(
     'base64',
 );
 
-/** 八个工具名 —— 少一个/多一个都要红。 */
+/** 七个工具名 —— 少一个/多一个都要红。 */
 const EXPECTED_TOOLS = [
     'cocos_execute_code',
     'cocos_describe_api',
@@ -50,7 +50,6 @@ const EXPECTED_TOOLS = [
     'cocos_logs',
     'cocos_click_node',
     'cocos_send_keys',
-    'cocos_runtime',
 ];
 
 /** 描述里必须出现的关键词：它们原本躺在 MCP 服务器的 `initialize.instructions` 里，DSH 不消费那段。 */
@@ -90,12 +89,11 @@ const REQUIRED_IN_TEXT = {
     cocos_click_node: ['events', 'probe', 'space', 'uv', '运行态', '真鼠标事件', '不注册 DOM 监听', '_dispatchMouse'],
     cocos_send_keys: ['key', 'text', 'modifiers', 'focused', '焦点', '不注册 DOM 监听'],
     /**
-     * 运行态**只读**：判据（`previewState`）+ 两条来源 + 撤掉开关的理由都必须在描述里。
-     * ⚠ 2026-10-08 之后：`play` / `stop` / `pause` / `resume` / `step` 已经撤掉，
-     * 描述里必须留下"**为什么撤**"（黑屏/冻结诊断）与"**要看画面请人自己按工具栏**"这两句 ——
-     * 少了它们，模型只会看到"这工具怎么什么都不能做"。
+     * ⚠ `cocos_runtime` 那条**已于 2026-10-09 删除**，所以这里**故意没有它的条目** ——
+     * 它一旦被谁加回来，上面「工具名与预期一致」那条当场红（这是刻意的：删掉的那一格
+     * 曾经是「运行预览的开关」，而开关与两次画布事故同一条时间线，见 `docs/冻结诊断.md`）。
+     * 运行态本身没消失：判据在 `cocos_capture_view` 的 `mode` 与 `cocos_click_node` 的拒绝里。
      */
-    cocos_runtime: ['只读', 'state', 'game view', 'previewState', '撤掉', '冻结诊断', '工具栏'],
 };
 
 let failures = 0;

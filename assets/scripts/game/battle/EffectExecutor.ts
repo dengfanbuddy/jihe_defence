@@ -1,6 +1,8 @@
 import { DamageType, MODIFY_ATTR_TEMPLATE_ID } from './types';
 import { Projectile } from './Projectile';
 import { pickTargets } from './Targeting';
+import { HitShapeKind } from '../common/HitFeelConfig';
+import { publishSkillShape } from './SkillShape';
 import type { ConfigAction } from '../excel_table/Tb_AbilityConfig';
 import type { BattleContext } from './BattleContext';
 import type { Entity } from './Entity';
@@ -84,7 +86,27 @@ export class EffectExecutor {
             case 'aoe_damage': {
                 const center = target ?? actor;
                 const radius = action.radius;
-                for (const e of ctx.findEntitiesInRadius(center, radius)) {
+                const hits = ctx.findEntitiesInRadius(center, radius);
+                /**
+                 * **先上报形态、再结算伤害**（设计文档 §13.4 的"路 B"）。
+                 *
+                 * 为什么声明式的 AoE 也必须上报：这类技能的结算**一个 `OnAttackLanded` 锚点都没有**
+                 * （它是"技能自己"造成的伤害，不是"某次普攻引发的"），而表现层的几何推断
+                 * 完全依赖那个锚点 ⇒ 以前这一发爆炸在屏幕上**什么都不画**。
+                 * 上报之后，表现层直接拿到"圆心 + 真实半径"，画出来的扩散环就是作用范围本身。
+                 *
+                 * ⚠ 顺序有意为之：上报用的是**结算前**的圆心快照（实体随时可能被这次伤害打死并回收，
+                 *   之后再读 `center.position` 就是 (0,0)）。
+                 */
+                publishSkillShape(ctx, {
+                    shape: HitShapeKind.Blast,
+                    source: actor,
+                    target: center,
+                    cx: center?.position?.x ?? 0,
+                    cy: center?.position?.y ?? 0,
+                    radius,
+                });
+                for (const e of hits) {
                     ctx.damagePipeline.ApplyDamage(e, actor, action.value,
                         action.damage_type ?? DamageType.Magical);
                 }
@@ -193,7 +215,14 @@ export class EffectExecutor {
             }
             case 'execute_script': {
                 const fn = ctx.scriptRegistry.getAction(action.script_id);
-                if (fn) fn(actor, self, action);
+                /**
+                 * ⚠ **第四个参数（`context`）是 2026-11 补的，且必须留着**：
+                 * 脚本动作原先只拿得到 `(actor, self, action)`，**看不到这次动作的目标**
+                 * （`target` / `point` 都在 `ActionContext` 里）—— 于是"朝技能目标发射一枚
+                 * 攻击力加成的火球"这种脚本只能自己重新索敌一次，索到的目标可能已经变了。
+                 * 老脚本忽略第四个参数即可，签名向后兼容。
+                 */
+                if (fn) fn(actor, self, action, context);
                 else console.warn(`[EffectExecutor] script action 未注册: ${action.script_id}`);
                 break;
             }

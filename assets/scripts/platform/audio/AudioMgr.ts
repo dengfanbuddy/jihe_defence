@@ -69,8 +69,14 @@ export default class AudioMgr extends Component{
     // 语音音量
     private voiceVolume: number = 1.0;
 
-    // 当前播放的背景音乐ID
-    private currentBgmId: number = null;
+    /**
+     * 当前播放的 BGM 资源路径（`audio/xxx`；空字符串 = 现在没有 BGM）。
+     *
+     * 为什么存路径而不是"一个 id/一个 bool"：`playBGM` 要**幂等** ——
+     * 一局里换英雄（重新选）不该把音乐从头切一遍，而"同一首已经播过、且已经播到 40 秒"
+     * 只有比得出"现在这首 == 你要的那首"才判得了。
+     */
+    private currentBgmUrl: string = '';
 
     //自定义全局点击事件
     public touchStart:Function = null;
@@ -87,11 +93,57 @@ export default class AudioMgr extends Component{
 
 
 
-    // 播放背景音乐
-    public playBGM(): void {
-        if (this.bgm) {
-            this.bgm.play();
+    /**
+     * 播放背景音乐（**按资源路径**，不是"把 bgm 节点上挂着的那首播了"）。
+     *
+     * 口径与 `playSFX` 一致：**先查缓存 → 再加载 → 再播**，且加载失败只是"没声音"，绝不抛。
+     *
+     * @param url 资源路径。**不带扩展名**；`audio/` 前缀可省（本方法自己补），
+     *            例如 `playBGM('audio/normal_battle')` → 加载 `resources/audio/normal_battle`。
+     * @param volume 音量倍数（0~1）。**给了就写进 `bgmVolume`**（下一次播放仍然用它，
+     *               所以"战斗 BGM 0.6"这种口径由调用方在第一次播的时候定一次即可）。
+     *
+     * 三条保证：
+     *   ① **幂等** —— 同一首正在播时直接返回（换英雄/重进面板不会把音乐切回开头）；
+     *   ② **可关** —— `localStorage.local_bgm == '0'` 时整条不播（与 `local_sfx` 同一套开关）；
+     *   ③ **异步加载要预加载** —— 3.7 MB 的 mp3 首次加载有秒级延迟，
+     *      进战斗前先 `preloadBgm()`（同 `preloadSfx` 的理由：音乐晚半拍起 = 像卡住了）。
+     */
+    public async playBGM(url: string, volume?: number): Promise<void> {
+        //音量检查
+        if (sys.localStorage.getItem("local_bgm") == "0") {
+            console.log("背景音乐声为0");
+            return;
         }
+        if (volume !== undefined && Number.isFinite(volume)) {
+            this.setBGMVolume(volume);
+        }
+        if (!url) return;
+        if (!url.startsWith("audio/")) url = "audio/" + url;
+        if (!this.bgm) return;
+        // 幂等：同一首已经在播就什么都不做（`playing` 为假 = 暂停/播完，那种情况要重新起播）
+        if (this.currentBgmUrl === url && this.bgm.playing) return;
+
+        let clip: AudioClip = this.clipCache.get(url);
+        if (!clip) {
+            clip = await this.loadAudioClip(url);
+        }
+        if (!clip) return;   // 缺文件 / 加载失败：音乐是"可有可无"的东西，绝不能把一帧战斗打断
+        // ⚠ 记路径必须在 play() **之前**：await 期间可能又来了另一次 playBGM，
+        //   两个协程同时走到这里时，后写的那个才是"真正在播的"（play 是同步的，最后写的赢）
+        this.currentBgmUrl = url;
+        this.bgm.clip = clip;
+        this.bgm.loop = true;
+        this.bgm.volume = this.bgmVolume;
+        this.bgm.play();
+    }
+
+    /** 预加载一首 BGM（只进缓存，不出声）—— 进战斗前调，避免第一声音乐晚半拍 */
+    public async preloadBgm(url: string): Promise<void> {
+        if (!url) return;
+        if (!url.startsWith("audio/")) url = "audio/" + url;
+        if (this.clipCache.has(url)) return;
+        await this.loadAudioClip(url);
     }
 
     // 停止背景音乐
@@ -99,12 +151,21 @@ export default class AudioMgr extends Component{
         if (this.bgm ) {
             this.bgm .stop();
         }
+        // 记住"现在没有 BGM"：下次 playBGM 传同一首时要能重新起播（幂等判据靠它）
+        this.currentBgmUrl = '';
     }
 
     // 暂停背景音乐
     public pauseBGM(): void {
         if (this.bgm) {
             this.bgm.pause();
+        }
+    }
+
+    /** 继续播放背景音乐（暂停后恢复；**没有 BGM 时是空操作**，不会凭空起播某首曲子） */
+    public resumeBGM(): void {
+        if (this.bgm && !this.bgm.playing && this.currentBgmUrl) {
+            this.bgm.play();
         }
     }
 

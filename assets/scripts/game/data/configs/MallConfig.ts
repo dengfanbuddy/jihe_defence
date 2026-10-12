@@ -51,6 +51,8 @@ const DEFAULTS = {
     /** 本局增益券：一张券折算的效果数值（与 battle_constants 的 shopBoostTicketValues 一致） */
     boostTicketValues: {
         run_start_gold: 50,
+        // 局内初始击杀（红件词缀第 11 条 code）：一张券给 10 点，cap 100 ⇒ 顶满要 10 张
+        run_start_kill_points: 10,
         shop_option_plus: 1,
         shop_draw_discount: 10,
         ad_free_draw: 1,

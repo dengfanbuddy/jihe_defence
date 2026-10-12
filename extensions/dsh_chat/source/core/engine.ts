@@ -1196,6 +1196,15 @@ async function captureViewViaElectron(
     const runtime = (metrics.runtime || {}) as Record<string, any>;
     const running = runtime.running === true;
     const actualMode = typeof runtime.mode === 'string' ? runtime.mode : 'unknown';
+    /**
+     * 场景脚本自己那条**判据说明**（`readSceneMode` 的 `note`，例如
+     * 「读不到 `cce.PreviewPlay._state` —— 运行态只能按 facade 那几条猜，而真机实测它们判不出」）。
+     *
+     * ⚠ 它曾经只有 `cocos_runtime`（运行预览那个工具）会回；那个工具 **2026-10-09 删掉**之后，
+     * **这里是它唯一的出口** —— 少了它，"判据不可信"这件事就变成静默的，
+     * 而静默的误判正是坑 5 那一类病（工具没报错、图也在、就是不对）。
+     */
+    const sceneNote = typeof runtime.note === 'string' && runtime.note ? runtime.note : undefined;
 
     /**
      * 「没给出正确模式」时的如实说明。
@@ -1207,7 +1216,7 @@ async function captureViewViaElectron(
     if (options.view === 'game' && !running) {
         viewNote =
             '要的是**运行态**（game view）画面，但编辑器现在**不在**运行预览里 —— 这张图是**编辑器场景**。' +
-            '本扩展**已经开不了预览了**（那条能力 2026-10-08 撤掉了，理由见 `cocos_runtime` 的说明）：' +
+            '本扩展**没有开预览的能力**（2026-10-08 整体撤掉，理由见 `docs/冻结诊断.md`）：' +
             '要看游戏画面，请**自己在编辑器工具栏按那颗播放键**，回来再截。';
     } else if (options.view === 'scene' && running) {
         viewNote =
@@ -1392,7 +1401,12 @@ async function captureViewViaElectron(
             /** 预览自己是不是被冻住了（`PreviewPlay._state === 'pause'`；判不了就是 null） */
             paused: typeof runtime.paused === 'boolean' ? runtime.paused : null,
             sources: runtime.sources ?? null,
-            note: viewNote,
+            /**
+             * **有事才写**。两个来源，前者压后者：
+             * ① `viewNote` —— 要的那种画面与实际拿到的不一致；
+             * ② 场景脚本那条判据说明（`sceneNote`）—— 判据本身可信度有问题时明说。
+             */
+            note: viewNote ?? sceneNote,
         },
         // 抓的是哪一个 webContents —— 编辑器里可能同时有场景视图与游戏预览，抓错时靠它一眼看出来
         contents: outcome.target,
@@ -1666,33 +1680,6 @@ export async function readNodeGeometry(nodeRef: string): Promise<Record<string, 
             return { ok: false, error: describe((metrics && metrics.error) || 'viewMetrics 没给出几何') };
         }
         return metrics;
-    } catch (err) {
-        return { ok: false, error: describe(err) };
-    }
-}
-
-/**
- * 运行态探针：问场景脚本「这一页现在画的是编辑器场景，还是跑着的游戏」。
- *
- * 取的是 `viewMetrics` 的 `runtime` 那一块（见 `source/scene.ts` 的 `readSceneMode`）——
- * **不在主进程另抄一份判定**：模式是从场景进程里那几个 `cce` 单例读出来的，
- * 抄一份的下场是两处对同一个编辑器状态各说各话。
- *
- * 只带 `{}` 参数（不要节点矩形、不要取景），所以它很轻：一次场景进程往返。
- *
- * @returns 拿到就是 `{ok:true, runtime}`；场景不可用就 `{ok:false, error}`（不抛）。
- */
-export async function readSceneRuntime(): Promise<{ ok: boolean; runtime?: Record<string, unknown>; error?: string }> {
-    try {
-        const metrics = await callSceneScript<Record<string, any>>(SCENE_METHOD.viewMetrics, [{}]);
-        if (!metrics || metrics.ok !== true) {
-            return { ok: false, error: describe((metrics && metrics.error) || 'viewMetrics 没给出结果') };
-        }
-        const runtime = (metrics.runtime || null) as Record<string, unknown> | null;
-        if (!runtime) {
-            return { ok: false, error: '场景脚本没有报 runtime（这个版本的本扩展脚本比主进程旧？）' };
-        }
-        return { ok: true, runtime };
     } catch (err) {
         return { ok: false, error: describe(err) };
     }

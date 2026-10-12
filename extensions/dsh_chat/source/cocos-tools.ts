@@ -16,7 +16,7 @@
  * 编辑器在**打开场景**时把它加载进引擎进程 —— 所以「没打开场景」是唯一一个
  * 需要向模型解释清楚的失败模式（见 `SCENE_SCRIPT_HINT`）。
  *
- * ## 八个方法，其中几个是「别猜 / 别瞎试」的护栏
+ * ## 七个方法，其中几个是「别猜 / 别瞎试」的护栏
  *
  * IPC 协议要窄。语义方法越少，DSH 侧插件的参数校验与这里的实现越不容易错位。
  * 需要新能力时优先扩 `execute_code` 的用法（它就是通用逃生口），而不是加新方法。
@@ -30,7 +30,14 @@
  * | `read_logs` | **例外二**：读工程里的日志文件。控制台/日志文件里的字**代码拿不到**（那是另一个进程的输出），只能单独开一条通道。实现在 `logs.ts` |
  * | `click_node` | **例外三**：点下去。`sendInputEvent` 发的是**真事件**（走 Chromium 自己的输入管线），改不了状态的那种"调一下回调"不算数。实现在 `input.ts` |
  * | `send_keys` | 同上，键盘那一半（快捷键 / 输入文字） |
- * | `runtime` | 运行预览的状态与开关（play/stop/pause/resume/step）—— **"冻住再截图"**靠它消掉时序抖动 |
+ *
+ * ⛔ **原来还有第八个 `runtime`（运行预览的只读状态探针），2026-10-09 整条删掉了。**
+ * 它的前身是五个开关（`play` / `stop` / `pause` / `resume` / `step`，2026-10-08 撤掉，理由见
+ * `docs/冻结诊断.md`）；撤到最后发现**只读那一格也没有消费者**：运行态的判据早就在
+ * **截图与点击链路里**（场景脚本的 `viewMetrics.runtime` → `capture_view` 的 `mode` /
+ * `click_node` 的运行态拒绝），而它本身只回答"现在是不是运行态"这一句 ——
+ * 要看画面直接截图就够，多一个工具只是多一处要维护的说明。
+ * 谁想把它加回来：先读 `docs/冻结诊断.md`，并且**永远不要**加"能开预览"的入口。
  *
  * ## 出口统一补 `refs`
  *
@@ -58,12 +65,10 @@ import {
     executeCode,
     pingSceneScript as pingScene,
     readNodeGeometry,
-    readSceneRuntime,
 } from './core/engine';
 import { collectRefs, formatRefs } from './core/serialize';
 import { clickAt, sendKeys } from './input';
 import { readLogs } from './logs';
-import { querySceneMode } from './preview';
 
 export type { ToolReply };
 
@@ -393,11 +398,10 @@ export async function readEditorState(_params: Record<string, unknown>): Promise
         '- 编辑器 API 总览：cocos_describe_api({context:"editor"})',
         "- 列资源：cocos_execute_code({code:\"return (await Editor.Message.request('asset-db','query-assets',{pattern:'db://assets/**/*.prefab'})).slice(0,20).map(a=>a.url)\"})",
         /**
-         * 界面交互（点按 / 按键 / 看一眼运行态）是三条**独立通道**，不在 `execute_code` 的射程里 ——
+         * 界面交互（点按 / 按键）是两条**独立通道**，不在 `execute_code` 的射程里 ——
          * 这里必须点一次名：模型在"改完 UI 想验一下"时最容易只想到截图与读节点数据。
          */
         "- **点一下试试**：cocos_click_node({node:'<节点路径>'})（真鼠标事件；运行态下要改用坐标，见该工具说明）",
-        "- 看一眼运行态：cocos_runtime({action:'state'})（**只读**；要跑游戏请人在编辑器工具栏上按播放键，本工具不开预览）",
         /**
          * ⚠ 开场景这条**必须点出来**：真机实测 2026-11 —— `open-scene` 传 `db://` 路径
          * **不是"打开那个场景"**，而是开出一个**新的未命名 2D 场景**（根 uuid 每次都不同、
@@ -693,98 +697,6 @@ export async function runSendKeys(params: Record<string, unknown>): Promise<Tool
 }
 
 /**
- * 看**运行预览**（编辑器里那个 game view）的**状态** —— 只读。
- *
- * ## ⛔ 这里只剩 `state` 一个动作（2026-10-08 撤掉了开关）
- *
- * 原来有六个动作，其中 `play` / `stop` / `pause` / `resume` / `step` 会**从编辑器内部**
- * 起动那块画布上的游戏画面。**整条撤掉**了，两条理由：
- *
- * 1. **它与"编辑器画布黑掉"的两次现场都在同一条时间线上**（`docs/冻结诊断.md`：
- *    04:48 那次跑完预览起停之后场景面板画面停住、切场景也不更新，只能重启编辑器；
- *    14:59 那次面板 agent 加 `Cmp_Game` 时，同一块画布抓回来的是全空的一张图 = 用户看到的黑屏）。
- *    因果没有被单变量实验钉死（同一次窗口里还有"抓图前逼重绘"这一条，那条已按同一口径一起撤了），
- *    但**代价不对称**：留着它，用户随时可能再黑一次屏；撤掉它，损失的是一个在本工程里**跑不起来的**能力
- *    （编辑器内的游戏卡在首场景 `Loading` 的 `loadBundle('scripts')`、进度 `0%`，`bundles` 里只有 `internal`）。
- * 2. **要跑游戏有更干净的路**：编辑器工具栏那颗播放键。走那条路，画面出问题没人会怀疑是工具干的。
- *
- * ## 留下的 `state`：**两段独立来源都摆出来**
- *
- * | 来源 | 问法 | 说明 |
- * |---|---|---|
- * | 编辑器消息 | `query-scene-mode` | 只作一条来源；认不出来就是 `unknown`（见 `source/preview.ts`） |
- * | 场景进程 | `viewMetrics.runtime`（`cce.PreviewPlay._state`） | **运行态的真判据** —— facade 那两条真机实测判不出 |
- *
- * `running: true` 只可能来自**用户自己按了播放键**（本扩展已经开不了预览了）——
- * 这时节点投影 / 按节点裁图 / 按节点点击都不成立（那些都建立在编辑器相机上），
- * 回执里必须说清，别给一个"看着成功"。
- *
- * @param params - `{action?}`：只认 `'state'`（缺省就是它）；别的一律拒绝并说清为什么。
- */
-export async function runRuntime(params: Record<string, unknown>): Promise<ToolReply> {
-    const action = typeof params.action === 'string' && params.action.trim() ? params.action.trim() : 'state';
-    if (action !== 'state') {
-        return clickFail(
-            `\`cocos_runtime\` 只认 \`state\`（只读），收到 ${JSON.stringify(params.action)}。` +
-                '`play` / `stop` / `pause` / `resume` / `step` 这五个开关**已于 2026-10-08 撤掉** —— ' +
-                '它们与两次「编辑器场景画布黑屏/画面停住」的现场同一条时间线（见 `docs/冻结诊断.md`），' +
-                '而收益极小：编辑器内跑起来会卡在首场景 Loading 的 `loadBundle(\'scripts\')`（0%）。' +
-                '要看游戏画面请在**编辑器工具栏上自己按那颗播放键**，本工具不代劳。',
-        );
-    }
-
-    const payload: Record<string, unknown> = { ok: true, action: 'state' };
-
-    /** 主进程这一侧的问法（编辑器自己的消息）—— 只当一条来源摆出来 */
-    const modeProbe = await querySceneMode();
-    payload.editorMessage = {
-        message: 'query-scene-mode',
-        mode: modeProbe.mode,
-        raw: modeProbe.raw,
-        ok: modeProbe.ok,
-        error: modeProbe.error,
-        note: modeProbe.note,
-    };
-
-    /** 场景进程那一侧的问法（`cce` 单例）—— **运行态的判据在这边** */
-    const sceneProbe = await readSceneRuntime();
-    payload.scene = sceneProbe.ok ? sceneProbe.runtime : { error: sceneProbe.error };
-    payload.before = runtimeSummary(payload.scene as Record<string, unknown>);
-    payload.after = payload.before;
-    payload.readOnly = true;
-    payload.hint =
-        '`running: true` = 那一页现在画的是**跑着的游戏**（这时节点投影/裁节点都不成立，见 cocos_click_node）；' +
-        '`false` = 编辑器场景。判据是 `previewState`（`stop`/`play`/`pause`）—— 真机实测 facade 那两条**判不出**运行态。' +
-        '⚠ 本工具**只能看、不能开**：要跑游戏请在编辑器工具栏上自己按播放键。';
-    return { ok: true, text: JSON.stringify(payload, null, 2), data: payload };
-}
-
-/**
- * 从场景侧的 runtime 块里挑出"人要看的那几项"（原样搬，不做判断）。
- *
- * ⚠ `gamePaused` 是**引擎自己**的 `cc.game.isPaused()`；预览自己的暂停标志另有一格
- * `previewIsPause`（`cce.PreviewPlay.isPause()`）。两者含义不同，摆在一起看：
- * 实测 `pause(true)` 之后**三个都变 true**，但只有 `frames` 能证明"真的冻住了"。
- */
-function runtimeSummary(runtime: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
-    if (!runtime || typeof runtime !== 'object') return null;
-    const sources = (runtime.sources || {}) as Record<string, unknown>;
-    return {
-        mode: runtime.mode ?? 'unknown',
-        running: runtime.running === true,
-        paused: typeof runtime.paused === 'boolean' ? runtime.paused : null,
-        /** `PreviewPlay._state`（私有字段，原样搬）—— **运行态的唯一判据** */
-        previewState: sources.previewState ?? null,
-        previewIsPause: typeof sources.previewIsPause === 'boolean' ? sources.previewIsPause : null,
-        /** 帧计数：判「冻住没有 / step 有没有走」只有它能说话 */
-        frames: typeof sources.totalFrames === 'number' ? sources.totalFrames : null,
-        directorPaused: typeof sources.directorPaused === 'boolean' ? sources.directorPaused : null,
-        gamePaused: typeof sources.gamePaused === 'boolean' ? sources.gamePaused : null,
-        note: runtime.note,
-    };
-}
-
-/**
  * 给回执补一段 `refs`（可复用的标识）—— 每个方法都过这一道。
  *
  * 两条口径：
@@ -822,10 +734,14 @@ function withRefs(
 }
 
 /**
- * IPC 方法分发表。
+ * IPC 方法分发表 —— **七个**。
  *
  * ⚠ 键名必须与 DSH 侧插件里 `ipcCall('...')` 的字符串一致
  * （见 `dsh-profile/plugin/dsh-cocos-bridge/index.js`）。
+ *
+ * ⛔ 原来那张表里有第八个键 `runtime`（运行预览的只读状态探针），**2026-10-09 删掉**：
+ * 它的前身是五个开关（2026-10-08 撤掉），撤到只剩只读之后仍然**没有任何消费者** ——
+ * 运行态判据在截图/点击链路里，不在这个工具里（理由见文件头的表下面那一段）。
  */
 export const COCOS_IPC_METHODS: Record<string, (params: Record<string, unknown>) => Promise<ToolReply>> = {
     execute_code: withRefs(runExecuteCode),
@@ -835,5 +751,4 @@ export const COCOS_IPC_METHODS: Record<string, (params: Record<string, unknown>)
     read_logs: withRefs(readLogs),
     click_node: withRefs(runClickNode),
     send_keys: withRefs(runSendKeys),
-    runtime: withRefs(runRuntime),
 };

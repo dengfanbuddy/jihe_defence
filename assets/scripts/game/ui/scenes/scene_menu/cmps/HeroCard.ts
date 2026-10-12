@@ -23,6 +23,25 @@ const BTN_ENABLED_BG = '#3F9E9B';    // c-accent-action
 const BTN_DISABLED_BG = '#B9C1C1';   // c-disabled-pill
 
 /**
+ * 「升级花的经验不够」时，价格数字的颜色 = `c-warn` `#FF0000`（`tokens.json` 的语义色，
+ * 用法就写着「金币不足」）。
+ *
+ * ⚠ 与**按钮底图**的两态色是两件事，别混：
+ *   · 底图（`actionSprite`）回答"这一颗现在能不能点"—— 不可点一律 `c-disabled-pill` 灰 **环**；
+ *   · 价格数字回答"你还差多少经验"—— 经验不够时转红，**灰环 + 红数字**才是完整读数
+ *     （只灰不红时，玩家看不出是"经验不够"还是"这一格坏了"）。
+ * 口径与「遗物」页抽取按钮（`Cmp_OuterRelics.COST_LACK_COLOR`）、局内刷新键
+ * （`RefreshButtonView.COST_LACK_COLOR`）**同一支红**；判据是 VM 给的 `expLack`，本类不自己比大小。
+ *
+ * ⚠ 这是**运行期写**的色：`npm run audit:ui` 只扫预制件上序列化的值，扫不到这里
+ *   （同 `Cmp_OuterRelics` 记过的那条；那边由 `audit:draw` 的 G32 对 `tokens.json` 逐条核）。
+ */
+const COST_LACK_COLOR = '#FF0000';
+
+/** 价格数字的**常态色**（= 预制件里 `unlock/value` 的 `c-ink-400`；取不到原样时的兜底） */
+const COST_VALUE_BASE_FALLBACK = '#999999';
+
+/**
  * 「详 情」按钮的文案（点了**打开英雄详情弹窗**，不再切属性行的取值方式）。
  *
  * 2026-11 改：这个按钮原来是"在「当前值 / 每级成长」之间切一下"的显示开关（`expanded` 那套），
@@ -79,6 +98,8 @@ let warnedActionRef = false;
  *   ③ 价格**图标跟着花什么走**（`vm.costKind`）：解锁 = 金币图；升级 = 经验图（青绿本色）。
  *      卡片的价格口径在 2026-11 从"金币"改成"解锁花金币 / 升级花通用英雄经验"，图标不跟着换
  *      就会出现「文案说升级、旁边顶着一枚金币」。
+ *   ④ 价格**数字的颜色**：升级的经验不够（`vm.expLack`）→ `c-warn` 红，够了回 ink-400 灰
+ *      （2026-11 用户口径：经验不足时那个数字要是红的）。**只红数字**，按钮环照旧走灰/青两态。
  *
  * 节点契约（与 `Scene_Menu.prefab` 的 `content/right/heros/lists/HeroItem` 一致，
  * 同名模板资产在 `prefabs/ui/scenes/scene_menu/cmps/HeroItem.prefab`）：
@@ -153,6 +174,8 @@ export class HeroCard extends UIWidget {
     /** 价格图标的**预制件原样**（金币图 + 它的颜色），从经验图切回来时要用 */
     private costIconBaseFrame: SpriteFrame | null = null;
     private costIconBaseColor: Color | null = null;
+    /** 价格数字的**预制件原样**色（`unlock/value` 的 ink-400 灰）—— 经验够了要能切回来 */
+    private costValueBaseColor: Color | null = null;
     /** 「解 锁/升 级」按钮（`onInit` 记下来给 `onDispose` 用，见 onDispose 的注释） */
     private actionButton: Button | null = null;
     /** 「详 情」按钮（同上） */
@@ -306,6 +329,7 @@ export class HeroCard extends UIWidget {
             // 价格为 0 = 免费（配表把解锁价配成 0 时）→ 收起价格文字，免得显示一个孤零零的「0」
             this.actionValueLabel.string = vm.cost > 0 ? formatGold(vm.cost) : '';
             this.actionValueLabel.node.active = vm.cost > 0;
+            this.applyCostValueColor(vm);
         }
         this.applyCostIcon(vm);
 
@@ -315,6 +339,23 @@ export class HeroCard extends UIWidget {
             btn.transition = Button.Transition.NONE;
             btn.interactable = vm.enabled;
         }
+    }
+
+    /**
+     * 价格数字的颜色：**经验不够 → `c-warn` 红**，否则回预制件原样（ink-400 灰）。
+     *
+     * 只在**画得出来**的时候写（价格收起时那个 Label 是隐藏的，写不写都看不见）——
+     * 但颜色照写，这样"经验够了再刷一次"时颜色与文案是同一步恢复的，不会留下上一次的红。
+     * 判据是 VM 的 `expLack`（`HeroVM` 算一次），本类不自己比 `exp` 与 `cost`。
+     */
+    private applyCostValueColor(vm: HeroCardVM): void {
+        const label = this.actionValueLabel;
+        if (!label) return;
+        label.color = vm.expLack
+            ? new Color().fromHEX(COST_LACK_COLOR)
+            // 常态色 = 预制件里那个 ink-400 灰（`resolveRefs` 已存下原样）；
+            // 万一没存到（老预制件/引用是运行期才挂上的），回落到 `c-ink-400` 而不是白色
+            : (this.costValueBaseColor ? this.costValueBaseColor.clone() : new Color().fromHEX(COST_VALUE_BASE_FALLBACK));
     }
 
     /**
@@ -443,6 +484,11 @@ export class HeroCard extends UIWidget {
         this.actionSprite = unlockSprite ?? this.actionSprite;
         this.actionLabel = this.actionLabel ?? unlock?.getChildByName('Label')?.getComponent(Label);
         this.actionValueLabel = this.actionValueLabel ?? unlock?.getChildByName('value')?.getComponent(Label);
+        // 价格数字的**常态色**（`unlock/value` 的 ink-400）：进这里的第一时间记下来 ——
+        // 经验不够时它会被切成红，之后还要能切回来（与下面 `costIconBaseColor` 同一理由）
+        if (this.actionValueLabel && !this.costValueBaseColor) {
+            this.costValueBaseColor = this.actionValueLabel.color ? this.actionValueLabel.color.clone() : null;
+        }
         // 价格图标：`unlock/icon`（金币图）。**进这里的第一时间记下它的原样** ——
         // 升级语境会把它换成经验图，之后还要能切回来（见 applyCostIcon）。
         const costIcon = unlock?.getChildByName('icon')?.getComponent(Sprite) ?? null;

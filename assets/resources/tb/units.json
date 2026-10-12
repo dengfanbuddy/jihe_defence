@@ -65,7 +65,7 @@
       ],
       [
         3,
-        200
+        24
       ],
       [
         4,
@@ -257,7 +257,7 @@
       ],
       [
         3,
-        32
+        38
       ],
       [
         4,
@@ -394,70 +394,70 @@
   },
   {
     "id": 1009,
-    "name": "冥界亚龙",
-    "head_icon": "textures/heros/viper",
+    "name": "哈斯卡",
+    "head_icon": "textures/heros/hasika",
     "team": 1,
     "category": "hero",
     "base_attributes": [
       [
         1,
-        380
+        500
       ],
       [
         2,
-        160
+        80
       ],
       [
         3,
-        28
+        25
       ],
       [
         4,
-        120
+        130
       ],
       [
         16,
-        220
+        200
       ]
     ],
     "abilities": [
       27
     ],
-    "attack_interval": 1.1,
+    "attack_interval": 1,
     "attack_targeting": "nearest",
-    "attack_projectile": "venom",
+    "attack_projectile": "spear",
     "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
     "gold": 0,
     "collision_radius": 26,
     "growthValues": [
       [
         1,
-        14
+        20
       ],
       [
         3,
-        2.2
+        2
       ]
     ]
   },
   {
     "id": 1010,
-    "name": "谜团",
-    "head_icon": "textures/heros/mituan",
+    "name": "骷髅王",
+    "head_icon": "textures/heros/kulouwang",
     "team": 1,
     "category": "hero",
     "base_attributes": [
       [
         1,
-        400
+        460
       ],
       [
         2,
-        240
+        200
       ],
       [
         3,
-        26
+        24
       ],
       [
         4,
@@ -465,7 +465,7 @@
       ],
       [
         16,
-        220
+        210
       ]
     ],
     "abilities": [
@@ -473,7 +473,7 @@
     ],
     "attack_interval": 1.35,
     "attack_targeting": "strongest",
-    "attack_projectile": "shadow",
+    "attack_projectile": "bone",
     "attack_projectile_prefab": "prefabs/unit/projectiles/projectile_1",
     "gold": 0,
     "collision_radius": 26,
@@ -481,10 +481,6 @@
       [
         1,
         15
-      ],
-      [
-        2,
-        11
       ],
       [
         3,
@@ -513,7 +509,7 @@
       ],
       [
         3,
-        0
+        4
       ],
       [
         4,
@@ -533,10 +529,11 @@
       ]
     ],
     "abilities": [],
-    "attack_interval": 2,
+    "attack_interval": 3,
     "gold": 50,
     "goldReward": 2,
     "expReward": 8,
+    "killReward": 1,
     "rewardType": "normal",
     "ai": {
       "type": "chase"
@@ -589,6 +586,7 @@
     "gold": 80,
     "goldReward": 4,
     "expReward": 15,
+    "killReward": 1,
     "rewardType": "normal",
     "ai": {
       "type": "chase",
@@ -644,6 +642,7 @@
     "gold": 40,
     "goldReward": 2,
     "expReward": 6,
+    "killReward": 1,
     "rewardType": "normal",
     "ai": {
       "type": "wander",
@@ -703,6 +702,7 @@
     "gold": 60,
     "goldReward": 3,
     "expReward": 10,
+    "killReward": 1,
     "rewardType": "normal",
     "ai": {
       "type": "orbit",
@@ -760,6 +760,7 @@
     "gold": 100,
     "goldReward": 6,
     "expReward": 25,
+    "killReward": 1,
     "rewardType": "elite",
     "ai": {
       "type": "attack_stop",
@@ -812,18 +813,38 @@
       ]
     ],
     "abilities": [
-      1
+      1,
+      30,
+      31
     ],
     "attack_interval": 2.5,
     "gold": 500,
     "goldReward": 40,
     "expReward": 200,
+    "killReward": 1,
     "rewardType": "boss",
     "ai": {
       "type": "boss",
       "params": {
-        "skillInterval": 6,
-        "skillId": "fireball",
+        "skills": [
+          {
+            "abilityId": 1,
+            "interval": 6,
+            "delay": 3
+          },
+          {
+            "abilityId": 30,
+            "interval": 16,
+            "delay": 8,
+            "hpBelow": 0.65
+          },
+          {
+            "abilityId": 31,
+            "interval": 22,
+            "delay": 14,
+            "hpBelow": 0.35
+          }
+        ],
         "phases": [
           {
             "hpRatio": 1,
@@ -853,7 +874,9 @@
             "params": {
               "stopDuration": 1.2,
               "speedMul": 1.8
-            }
+            },
+            "onEnterModifier": 9,
+            "onEnterDuration": 8
           }
         ]
       }
@@ -906,6 +929,7 @@
     "gold": 300,
     "goldReward": 60,
     "expReward": 5,
+    "killReward": 1,
     "rewardType": "gold_boss",
     "ai": {
       "type": "chase",
@@ -961,12 +985,19 @@
     "gold": 100,
     "goldReward": 1,
     "expReward": 800,
+    "killReward": 1,
     "rewardType": "exp_boss",
     "ai": {
       "type": "boss",
       "params": {
-        "skillInterval": 8,
-        "skillId": "sun_light",
+        "skills": [
+          {
+            "abilityId": 3,
+            "interval": 8,
+            "delay": 2,
+            "selfCast": true
+          }
+        ],
         "phases": [
           {
             "hpRatio": 1,
@@ -1026,6 +1057,7 @@
     "gold": 400,
     "goldReward": 30,
     "expReward": 120,
+    "killReward": 150,
     "rewardType": "kill_boss",
     "ai": {
       "type": "chase",
@@ -1081,6 +1113,7 @@
     "gold": 600,
     "goldReward": 80,
     "expReward": 200,
+    "killReward": 1,
     "rewardType": "boss",
     "ai": {
       "type": "chase",

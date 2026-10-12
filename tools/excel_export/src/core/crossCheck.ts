@@ -260,7 +260,7 @@ export function crossCheck(outputs: Map<string, TableOutput>, report: Report, fa
         report.warn(`${emptyShopSkills} 个商店技能既没有 effects 也没有 script_id（能抽到、能进技能槽，但还没有战斗效果）`);
     }
 
-    // ---------- relics（一件遗物一行：局内版 270 / 两侧都有 28 / 仅局外版 9） ----------
+    // ---------- relics（一件遗物一行：2026-11 起 268 件**全是两侧都有** = 局内局外严格对齐） ----------
     let emptyRelics = 0;
     for (const { rec, where } of rowsOf('relics')) {
         const scope = rec.scope;
@@ -333,12 +333,121 @@ export function crossCheck(outputs: Map<string, TableOutput>, report: Report, fa
         report.warn(`${emptyRelics} 条遗物两侧都没有 modifiers 也没有 script_id（获得后不产生任何效果）`);
     }
 
-    // ---------- kill_buffs ----------
+    // ---------- kill_buffs（**神器**表） ----------
+    //
+    // 两类形态各查各的：
+    //   · 属性型 → attr_id 必须是真的属性编号；
+    //   · **机制型**（stat=special）→ 必须有 modifiers，且**被引用的行必须真的带 script_id**。
+    // 最后那条是本表的命门：script_id 挂在 `modifiers.json` 的行上（不在神器表里），
+    // 所以"神器引用了 250 号 Modifier、而那行没有 script_id"在**任何一侧单独看都是合法的**，
+    // 只有跨表对一下才看得出来 —— 而它的表现是"买了这件神器什么都没发生"。
+    // 2026-11 之前这里查的是神器表自己的 `script_id` 列，而那一列**全工程没有任何消费方**
+    // （`ModifierSystem` 读的是 ModifierCfg 的 script_id），于是 5 条 special 全是死行。
     for (const { rec, where } of rowsOf('kill_buffs')) {
         if (typeof rec.attr_id === 'number') checkAttrId(rec.attr_id, where);
-        if (rec.stat === 'special' && !rec.script_id) {
-            report.warn(`${where}: special 型击杀 Buff 未配置 script_id，运行时无法生效`);
+
+        const mods = Array.isArray(rec.modifiers) ? rec.modifiers : [];
+        if (rec.stat === 'special') {
+            if (!mods.length) {
+                report.warn(`${where}: 机制型（stat=special）神器没有配 modifiers —— `
+                    + '买了不会有任何效果（BuffShop 会把它过滤出摊位池）');
+            }
+            for (const m of mods) {
+                const entry = (m ?? {}) as Record<string, unknown>;
+                checkId(entry.modifier, modifierIds, 'Modifier', where);
+                if (typeof entry.modifier !== 'number') continue;
+                const def = modifierById.get(entry.modifier);
+                if (!def) continue;
+                if (!def.script_id) {
+                    report.error(`${where}: 机制型神器引用的 Modifier ${String(entry.modifier)}`
+                        + ` 没有 script_id（挂了也没有任何行为）`);
+                }
+            }
+        } else if (mods.length) {
+            report.warn(`${where}: 属性型神器（stat=${String(rec.stat)}）不该填 modifiers —— 属性请走 attr_id / per`);
         }
+    }
+
+    // ---------- battle_items（局内掉落 Buff / 可用道具） ----------
+    //
+    // 本表原先**一条校验都没有**（`duration` 与 `modifiers` 全靠自觉）。补上三条最容易静默出错的：
+    //   ① duration < 0 = 配错（本表只允许 > 0 限时 / 0 即刻生效）；
+    //   ② 引用的 Modifier 必须存在（不存在 → AddModifier 只 warn，玩家看到"用了没反应"）；
+    //   ③ 一条 modifiers 都没有 = 用了没效果。
+    let emptyItems = 0;
+    for (const { rec, where } of rowsOf('battle_items')) {
+        const duration = rec.duration;
+        if (typeof duration === 'number' && duration < 0) {
+            report.error(`${where}: duration=${duration} 非法（本表只允许 > 0 限时 / 0 即刻生效）`);
+        }
+        const mods = Array.isArray(rec.modifiers) ? rec.modifiers : [];
+        if (!mods.length) emptyItems++;
+        for (const m of mods) {
+            const entry = (m ?? {}) as Record<string, unknown>;
+            checkId(entry.modifier, modifierIds, 'Modifier', where);
+            if (typeof entry.modifier !== 'number') continue;
+            const def = modifierById.get(entry.modifier);
+            if (!def) continue;
+            // 即刻生效的道具（duration = 0）**必须**靠脚本在 OnCreated 里结算，
+            // 否则那条 Modifier 活一帧就被收走、什么都没做（静默空转）。
+            if (duration === 0 && !def.script_id) {
+                report.error(`${where}: duration=0（即刻生效）但引用的 Modifier ${String(entry.modifier)}`
+                    + ' 没有 script_id —— 它只会活一帧、什么都做不了');
+            }
+        }
+    }
+    if (emptyItems > 0) {
+        report.warn(`${emptyItems} 条掉落道具没有任何 modifiers（用掉了不产生任何效果）`);
+    }
+
+    // ---------- achievements（收集类成就的「共 N 种」文案 / 最高档 count ↔ 真表行数） ----------
+    //
+    // 收集类成就把「表里一共有多少种」抄进了**两个地方**：文案里的「（共 19 种）」和最高档的 `count`。
+    // 这类错**任何一侧单独看都是合法的** —— 改表的人不会去翻成就页，改成就的人不会去数表行数，
+    // 而它的表现是双重的：**最高档成就永远拿不到**（要求 20 种、池子里只有 19 种）+ 成就页写着假数字。
+    // 2026-11 就真的踩了一次：神器表把「血包」整条搬到掉落 Buff 侧（20 → 19 行），
+    // `co_buff` 三行文案与末档 `count=20` 全部滞留（见 docs/artifact-drop/README.md §13）。
+    // 数据源与代码的上报口径一一对应（`data/funcs/AchievementData.ts` 的 `peakProgress`）：
+    //   · buff_types      → `kill_buffs` 的行数                 （买过的神器**种类**）
+    //   · skills_picked   → `abilities` 里 scope 含 shop 的行数 （抽到过的肉鸽技能**种类**）
+    //   · relic_collected → `relics` 里 scope 含 outer 的行数   （局外遗物**图鉴件数**）
+    const collectSources: Record<string, { table: string; total: number }> = {};
+    for (const [target, src] of Object.entries({
+        buff_types: { table: 'kill_buffs', scope: '' },
+        skills_picked: { table: 'abilities', scope: 'shop' },
+        relic_collected: { table: 'relics', scope: 'outer' },
+    })) {
+        const rows = rowsOf(src.table);
+        // 表不在本次导出范围内时 rowsOf 已 warn 过并返回空 —— 不打 0 条的红，避免误报
+        if (!rows.length) continue;
+        const total = src.scope
+            ? rows.filter(({ rec }) => String(rec.scope ?? '') === src.scope || String(rec.scope ?? '') === 'both').length
+            : rows.length;
+        collectSources[target] = { table: src.table, total };
+    }
+    /** 每个 target 的最高档（= 要收集满的那一档） */
+    const topTiers = new Map<string, { count: number; desc: string; where: string }>();
+    for (const { rec, where } of rowsOf('achievements')) {
+        const target = typeof rec.target === 'string' ? rec.target : '';
+        const src = collectSources[target];
+        if (!src) continue;
+        const desc = typeof rec.desc === 'string' ? rec.desc : '';
+        // ① 文案里的「共 N 种 / 件 / 个」必须等于真表行数
+        const written = /共\s*(\d+)\s*([种件个])/.exec(desc);
+        if (written && Number(written[1]) !== src.total) {
+            report.error(`${where}: 文案写「共 ${written[1]} ${written[2]}」，但 ${src.table} 实际有 ${src.total} 条 `
+                + `—— 改表之后忘了改成就文案（这一行是给玩家看的）`);
+        }
+        // ② 最高档要求 > 池子大小 = 那一档永远拿不到
+        const count = typeof rec.count === 'number' ? rec.count : -1;
+        const top = topTiers.get(target);
+        if (!top || count > top.count) topTiers.set(target, { count, desc, where });
+    }
+    for (const [target, top] of topTiers) {
+        const src = collectSources[target];
+        if (!src || top.count <= src.total) continue;
+        report.error(`${top.where}: 最高档要求 ${top.count} 种，但 ${src.table} 只有 ${src.total} 条 `
+            + `—— 这一档**永远拿不到**，成就页的「${top.desc}」也是假的`);
     }
 
     // 同类重复错误合并提示

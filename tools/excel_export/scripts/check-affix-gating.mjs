@@ -22,12 +22,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     ATTR_NAME, LEGACY_ATTR_IDS, RELIC_SCOPES, TIER_LABEL,
-    classifyAttrAffix, collectRelicAttrs, hasInnerSide, hasOuterSide, illegalDescriptionClauses,
+    classifyAttrAffix, classifyCostAffix, collectRelicAttrs, hasInnerSide, hasOuterSide,
+    illegalDescriptionClauses, isCostEntry, looksLikeCost,
     parseTermBlock, relicSide, tierOfRarity,
 } from './lib/affix-rules.mjs';
 // 钩子文案反查（2026-10 局内遗物重做）：把钩子文案从描述里剥掉再解析属性词条，
 // 否则「普攻命中叠 1 层：攻击速度 +2%」这种**效果描述**会被误判成"低档承诺了攻速"。
-import { hookTextByModId } from './lib/relic-inner-design.mjs';
+import { hookTextByModId, attrText } from './lib/relic-inner-design.mjs';
 
 /**
  * 去掉描述里的**钩子文案**（逐条钩子按本件品质取原文，原样删除）。
@@ -81,12 +82,24 @@ function readJson(name) {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-/** 属性词条门禁：返回违规文本（无违规则 null） */
+/**
+ * 属性词条门禁：返回违规文本（无违规则 null）。
+ *
+ * 两条互斥的判据（2026-11 加代价件后拆分）：
+ *   · **代价**（`looksLikeCost`：负值 / 倒置轴 `12` 的正值）→ 走 `classifyCostAffix`。
+ *     代价**不受档位门禁约束**（门禁管"低档不许承诺高档**收益**"，代价是价钱、方向相反），
+ *     但它必须落在能真减的属性和正确的叠加方式上，否则运行时被钳成 0 = "配了却没变"。
+ *   · **收益** → 原有档位门禁。
+ */
 function checkAttrAffix(attr, tier, where) {
     const attrId = attr[0];
     const mode = attr[2];
-    const cls = classifyAttrAffix(attrId, mode);
     const name = ATTR_NAME[attrId] ?? `属性${attrId}`;
+    if (looksLikeCost(attr)) {
+        const cost = classifyCostAffix(attrId, attr[1], mode);
+        return cost.ok ? null : `${where}：代价条目写成这样不生效 —— ${cost.violation}`;
+    }
+    const cls = classifyAttrAffix(attrId, mode);
     if (cls.violation) return `${where}：${cls.violation}`;
     if (tier > 0 && tier < cls.minTier) {
         return `${where}：${name} ${attr[1]}${mode === 'percent' ? '%' : ''}（${mode ?? 'add'}）需要 ${TIER_LABEL[cls.minTier]} 起，当前 ${TIER_LABEL[tier]}`;
@@ -124,6 +137,9 @@ function checkUnits(units) {
 
 // ============================ 2. relics（一件遗物一行，局内版 / 局外版分两侧） ============================
 
+/** 代价件清点（有增有减的件）—— 体检顺带报出来，密度是设计口径的一部分 */
+const tradeoffs = [];
+
 function checkRelics(relics) {
     for (const r of relics) {
         const where = `relics id=${r.id} ${r.name}`;
@@ -153,6 +169,7 @@ function checkRelics(relics) {
 
         // 逐侧过门禁：属性词条 + 描述文案
         let hasEffect = false;
+        const costs = [];
         for (const s of [hasInnerSide(r) ? relicSide(r, 'inner') : null, hasOuterSide(r) ? relicSide(r, 'outer') : null]) {
             if (!s) continue;
             const sideWhere = `${where}（${s.label}版）`;
@@ -166,6 +183,11 @@ function checkRelics(relics) {
                 }
                 const msg = checkAttrAffix(attr, tier, sideWhere);
                 if (msg) err(msg);
+                if (s.side === 'inner' && isCostEntry(attr)) {
+                    // 标签直接用设计真源的 attrText —— 保证体检报出来的字和玩家在描述里看到的是同一句
+                    // （尤其 12 受伤减免是**倒置轴**：+10 是"多受伤 10%"，自己拼字符串必然拼反）
+                    costs.push(attrText(attr));
+                }
                 if (s.side === 'outer' && OUTER_FORBIDDEN_ATTRS.indexOf(attr[0]) >= 0) {
                     warn(`${sideWhere}：**局外版**给了 ${ATTR_NAME[attr[0]]}（数值配置手册 §4.3 铁律：局外永久加成不给攻速，待定案）`);
                 }
@@ -183,6 +205,9 @@ function checkRelics(relics) {
 
         // 空效果
         if (!hasEffect) warn(`${where}：既没有属性词条也没有 modifiers/script_id（获得后无任何效果）`);
+
+        // 代价件清点（只认局内版 —— 局外是永久且不可逆的，不该出现代价，见设计总表 §6）
+        if (costs.length) tradeoffs.push({ id: r.id, name: r.name, tier, costs });
     }
 }
 
@@ -205,6 +230,15 @@ function main() {
 
     checkUnits(readJson('units'));
     checkRelics(readJson('relics'));
+
+    // 代价件清点：有增有减的件（Brotato 式）。密度本身不是门禁项，但它是设计口径的一部分，
+    // 不报出来就没人知道"这批到底铺了多少件代价件"（试点批 4 件 / 全池 268 件）。
+    const byTier = {};
+    for (const t of tradeoffs) byTier[TIER_LABEL[t.tier]] = (byTier[TIER_LABEL[t.tier]] ?? 0) + 1;
+    console.log(`\n▌代价件（有增有减）：${tradeoffs.length} 件` + (
+        tradeoffs.length ? ` —— ${Object.entries(byTier).map(([k, v]) => `${k} ${v}`).join(' / ')}` : ''
+    ));
+    for (const t of tradeoffs) console.log(`  · ${t.id} ${t.name}（${TIER_LABEL[t.tier]}）代价：${t.costs.join('、')}`);
 
     const shown = LIMIT > 0 ? LIMIT : Number.MAX_SAFE_INTEGER;
     if (warnings.length) {

@@ -80,6 +80,15 @@ export interface HeroCardVM {
     costKind: HeroCostKind;
     /** 这一步要花多少：未解锁 = 解锁价（金币），已解锁 = 升下一级的价（通用经验）；0 = 免费/没口径 */
     cost: number;
+    /**
+     * 升级这一步**通用英雄经验不够**（= 价格数字该画红的**唯一判据**）。
+     *
+     * 与 `enabled` 的关系：`expLack` 是 `!enabled` 的**一部分**而不是全部 —— 另一部分是
+     * 「配表没给经验口径」（`cost <= 0`）。那一种**不红**：红的语义是"这就是你要攒的经验"，
+     * 不是"什么都算不出来"（同 `IOuterDrawPreview.costLack` 的注释）。
+     * ⚠ `unlocked = false`（花金币解锁）时恒为 `false` —— 解锁侧的价格今天不判红。
+     */
+    expLack: boolean;
     /** 这一步**现在能不能点**（判据由宿主算：解锁看金币、升级看经验池；false → 按钮置灰） */
     enabled: boolean;
     /** 属性行（`HeroConfig.getAttrRows` 的产出，已换算成展示文案） */
@@ -117,6 +126,11 @@ export interface HeroDetailVM {
     cost: number;
     /** 这一步现在能不能点（解锁看金币、升级看经验池 —— 与卡片同一套判据） */
     enabled: boolean;
+    /**
+     * 升级这一步**通用英雄经验不够**（与卡片那份逐字同源；弹窗据此把底部那格价格数字画红）。
+     * 语义与"为什么不靠 `!enabled` 判红"见 `HeroCardVM.expLack`。
+     */
+    expLack: boolean;
     /** 持有金币（解锁语境用；「金币只用于解锁英雄」） */
     gold: number;
     /**

@@ -5,5 +5,5 @@
  * 在任意组件中 import useBattleStore 后调用即可拿到同一个 store 实例。
  */
 
-export { useBattleStore } from './useBattleStore'
+export { useBattleStore, KILL_POINTS_PER_KILL } from './useBattleStore'
 export { useUIStore } from './useUIStore'

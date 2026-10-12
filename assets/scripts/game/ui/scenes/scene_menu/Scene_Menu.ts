@@ -7,7 +7,8 @@ import { Scene_Game_Stage } from '../scene_game_stage/Scene_Game_Stage';
 import { View_TaskUI } from '../../views/task/View_TaskUI';
 import { View_Shop } from '../../views/shop/View_Shop';
 import { View_Bag } from '../../views/bag/View_Bag';
-import { CurrencyType, DataCenter, type IHeroActionResult } from '../../../data';
+import { CurrencyType, DataCenter, type IHeroActionResult, type IOuterDrawLine } from '../../../data';
+import { formatCount } from '../../../common/GoldText';
 import { ScopeKey } from 'db://assets/scripts/platform/ui/UIScope';
 import { ref } from 'db://assets/scripts/platform/reactivity';
 import { Cmp_Difficulty } from './cmps/Cmp_Difficulty';
@@ -18,6 +19,8 @@ import { Cmp_Game } from './cmps/Cmp_Game';
 import { Cmp_HeroDetail } from './cmps/Cmp_HeroDetail';
 import { HeroScopeEvents } from './cmps/HeroScope';
 import { buildDetailVM } from './cmps/HeroVM';
+import { Cmp_OuterDrawResult } from './cmps/Cmp_OuterDrawResult';
+import { OuterDrawScopeEvents } from './cmps/OuterDrawScope';
 import { HeroConfig } from '../../../data/configs/HeroConfig';
 
 
@@ -35,6 +38,12 @@ const GAME_PAGE_PATH = 'content/right/game';
 
 /** 英雄详情弹窗节点的名字（同上；**必须在 `ui_difficulty` 之后**，见预制件的子节点顺序） */
 const HERO_DETAIL_NODE_NAME = 'ui_hero_detail';
+
+/**
+ * 遗物抽取结果弹窗节点的名字（同上；**在 `ui_hero_detail` 之后**，三者互斥、不同时可见）。
+ * 宿主是 `Scene_Menu` 而不是「遗物」页 —— 理由与英雄详情弹窗逐字相同（遮罩要盖整屏），见 `OuterDrawScope.ts`。
+ */
+const DRAW_RESULT_NODE_NAME = 'ui_draw_result';
 
 /**
  * 商城入口（一）：底部左侧页签 `bottom/left/shop`（与 `bag` / `task` 同形：**纯 `Sprite` 节点、
@@ -58,11 +67,15 @@ const VIEW_PAGES: Array<[any, string]> = [
 
 /**
  * 商城入口（二）：顶栏 `head/coins` 下三格各自的 `add`（同样是纯 Sprite 节点）。
- * 三格 `value` 的读数还没接（`ernergy-001/002` 指代什么要先定，见 `docs/shop/README.md` §3.1）。
+ *
+ * ⚠ **2026-11 改名**：原来的 `ernergy-001` 那一格现在是 **`hero_exp`（通用英雄经验）** ——
+ * 图标换成 `textures/common/exp_icon`、`active` 打开、节点改名，于是这条路径也得跟着改，
+ * 否则那一格的「+」会静默失效（`wireShopEntries` 只 warn 一句就跳过）。
+ * 剩下的 `ernergy-002` 语义仍未拍板（见 `docs/shop/README.md` §3.1），保持原样。
  */
 const SHOP_ENTRY_PATHS = [
     'head/coins/gold/add',
-    'head/coins/ernergy-001/add',
+    'head/coins/hero_exp/add',
     'head/coins/ernergy-002/add',
 ];
 
@@ -71,6 +84,14 @@ const SHOP_ENTRY_PATHS = [
  * 与上面两个进度标签同口径）。
  */
 const GOLD_VALUE_PATH = 'head/coins/gold/value';
+
+/**
+ * 顶栏**通用英雄经验**读数 = `head/coins/hero_exp/value`（同上，`@property heroExpValueNode` 没拖时兜底）。
+ *
+ * 这一格的数据源是 `HeroData.getSharedExp()` —— 与「英雄」页卡片的经验条、英雄详情弹窗的
+ * 「持有通用英雄经验」、商城页顶部资源条**同一个数**（口径见 `docs/shop/README.md` §3.1）。
+ */
+const HERO_EXP_VALUE_PATH = 'head/coins/hero_exp/value';
 
 @uiview({
     prefabPath: 'prefabs/ui/scenes/scene_menu/Scene_Menu', // 预制件路径
@@ -98,6 +119,11 @@ export class Scene_Menu extends BaseView {
     private heroWired = false;
     /** 弹窗当前给谁开着（0 = 没开；解锁/升级后据此判断要不要重推 VM） */
     private heroDetailHeroId = 0;
+
+    /** 遗物抽取结果弹窗的节点 + 控制器（组件挂在 `ui_draw_result` 上） */
+    private drawResult: Cmp_OuterDrawResult = null;
+    /** 「遗物」页那条向上事件是否已接（幂等守卫，同上） */
+    private drawWired = false;
     /**
      * 「游戏」页的控制器（组件挂在 `content/right/game` 上，这里只是引用）。
      *
@@ -130,8 +156,16 @@ export class Scene_Menu extends BaseView {
     @property(Node)
     heroDetailNode: Node = null;
 
+    /** 遗物抽取结果弹窗的节点（`ui_draw_result`；同上，没拖就按名字兜底解析） */
+    @property(Node)
+    drawResultNode: Node = null;
+
     @property(Label)
     goldValueNode: Label = null;
+
+    /** 顶栏「通用英雄经验」读数（`head/coins/hero_exp/value`；同上，没拖就按路径兜底解析） */
+    @property(Label)
+    heroExpValueNode: Label = null;
 
     start() {
         // 进入游戏：先弹**难度选择**，由弹窗「确定」再真正开战（见 enterGame）
@@ -174,6 +208,7 @@ export class Scene_Menu extends BaseView {
         this.closeViewPages('View_Bag');
         this.closeDifficultyPanel();
         this.closeHeroDetail();
+        this.closeDrawResult();
         UIManager.ins.showUI(View_Bag);
     }
 
@@ -233,6 +268,7 @@ export class Scene_Menu extends BaseView {
         this.closeViewPages('View_Shop');
         this.closeDifficultyPanel();
         this.closeHeroDetail();
+        this.closeDrawResult();
         UIManager.ins.showUI(View_Shop);
     }
 
@@ -241,6 +277,7 @@ export class Scene_Menu extends BaseView {
         this.closeViewPages('View_TaskUI');
         this.closeDifficultyPanel();
         this.closeHeroDetail();
+        this.closeDrawResult();
         UIManager.ins.showUI(View_TaskUI);
     }
 
@@ -285,6 +322,7 @@ export class Scene_Menu extends BaseView {
         }
         // 两个全屏弹窗**不同时开**（叠在一起时上面那个会盖住下面那个的关闭按钮，见 README §3.1）
         this.closeHeroDetail();
+        this.closeDrawResult();
         // 节点显隐由**持有节点的宿主**写（弹窗自己不动自己的 active）。
         // 打开这一下会触发弹窗的 onShow → 它按最新进度重铺/重画（不用宿主去喂数据）。
         // ⚠ 弹窗读的是**当前模式**那套进度（`LevelData.getSelectedLevel()` 默认取当前模式），
@@ -460,6 +498,60 @@ export class Scene_Menu extends BaseView {
         }
     }
 
+    /* ===================================================================
+     * 遗物抽取结果弹窗（宿主侧：持有节点 + 显隐 + 接「遗物」页冒泡上来的两件事）
+     *
+     * 与英雄详情弹窗逐字同口径：`UIScope.emit` **只沿 `node.parent` 向上冒泡**，而
+     * `ui_draw_result` 是**根节点的子节点**（弹窗要盖住整屏）⇒ 根节点的 `Scene_Menu`
+     * 是唯一同时能看到「遗物」页与弹窗两侧的宿主。
+     *
+     * 分工：`Cmp_OuterRelics` 只管把 `DataCenter.drawOuterRelic()` 的结果 `emit` 上来，
+     * 弹窗只管把 `lines` 铺成卡并上报「关闭」—— 抽什么、扣多少、下一抽多少钱全在数据层，
+     * **本文件一行数值都不算**（连"抽到几件"都不碰：那个数已按用户口径从按钮上撤掉了）。
+     * =================================================================== */
+
+    /**
+     * 解析弹窗节点、拿到控制器组件。
+     * 幂等（`init()` 与每次开弹窗各调一次）：**不管显隐**（显隐见 `openDrawResult` / `closeDrawResult`）。
+     */
+    private setupDrawResultPanel(): void {
+        this.drawResultNode = this.drawResultNode ?? this.node.getChildByName(DRAW_RESULT_NODE_NAME);
+        if (!this.drawResultNode) return;
+        this.drawResult = this.drawResult ?? this.drawResultNode.getComponent(Cmp_OuterDrawResult)
+            ?? this.drawResultNode.addComponent(Cmp_OuterDrawResult);
+    }
+
+    /**
+     * 接「遗物」页冒泡上来的两件事（开结果面板 / 关结果面板）。
+     * 单独一步 + `drawWired` 守卫：与另两个弹窗同一个理由 —— 它**不能**跟着节点解析一起判幂等，
+     * 万一第一次解析时弹窗还没就位（拿不到节点），事件也不能就此永久不接。
+     */
+    private wireDrawEvents(): void {
+        if (this.drawWired) return;
+        this.drawWired = true;
+        this.scope.on(OuterDrawScopeEvents.ShowResult, this.openDrawResult, this);
+        this.scope.on(OuterDrawScopeEvents.CloseResult, this.closeDrawResult, this);
+    }
+
+    /** 抽完了 → 把这一批结果交给弹窗并显示（`lines` 一件一张卡，重复的件在卡上写份数） */
+    private openDrawResult(lines: IOuterDrawLine[]): void {
+        this.setupDrawResultPanel();
+        if (!this.drawResultNode || !this.drawResult) {
+            ezgame.warn(`[遗物抽取] 结果弹窗不可用（预制件里没有 ${DRAW_RESULT_NODE_NAME} 节点？）→ 本次不弹`);
+            return;
+        }
+        // 三个全屏弹窗不同时开（叠在一起时上面那个会盖住下面那个的关闭按钮，同 onClickEnterGame 的说明）
+        this.closeDifficultyPanel();
+        this.closeHeroDetail();
+        // ⚠ 顺序不能反：先下发数据再写 `active` —— 显示的瞬间 `onShow` 才会按新数据重铺 + 放动画
+        this.drawResult.setLines(lines);
+        this.drawResultNode.active = true;
+    }
+
+    private closeDrawResult(): void {
+        if (this.drawResultNode && this.drawResultNode.isValid) this.drawResultNode.active = false;
+    }
+
     /**
      * 成就红点：左侧功能页签 `achivement/icon/red_dot` 的显隐。
      *
@@ -496,6 +588,14 @@ export class Scene_Menu extends BaseView {
         } else {
             this.closeHeroDetail();
         }
+        // 遗物抽取结果弹窗：同上（事件只有「开 / 关」两件，见 `openDrawResult` 上面那一段）
+        this.wireDrawEvents();
+        this.setupDrawResultPanel();
+        if (!this.drawResultNode) {
+            ezgame.warn(`[遗物抽取] 预制件里找不到结果弹窗节点（${DRAW_RESULT_NODE_NAME}）→ 抽完不会弹面板`);
+        } else {
+            this.closeDrawResult();
+        }
         // 「游戏」页：确保 `Cmp_Game` 在（模式卡的选中态 + 顶部「最高通过 / 上次玩过」都归它画）。
         // ⚠ 这里**不刷**那两格进度：它自己 `onInit` 就会画一次，之后靠自己的 watcher 跟。
         //   （宿主原来是直接写 `content/right/game/info/**` 的，那属于"越过页面去写它的子节点"，
@@ -515,6 +615,18 @@ export class Scene_Menu extends BaseView {
             () => DataCenter.ins.itemData.getCurrency(CurrencyType.Gold),
             () => this.refreshGold(),
         );
+        // 顶栏「通用英雄经验」：与金币那格**逐条同口径**（先解析 → 先刷一次 → 再挂监听）。
+        // 数据源 = `heroData.getSharedExp()`：商城买经验 / 一局通关发经验 / 英雄升级扣经验都会改它。
+        this.heroExpValueNode = this.heroExpValueNode ?? this.node.getChildByPath(HERO_EXP_VALUE_PATH)?.getComponent(Label);
+        if (!this.heroExpValueNode) {
+            ezgame.warn(`[英雄经验] 顶栏找不到读数节点 ${HERO_EXP_VALUE_PATH} → 顶栏经验不会刷新`);
+        } else {
+            this.refreshHeroExp();
+        }
+        this.scope.watch(
+            () => DataCenter.ins.heroData.getSharedExp(),
+            () => this.refreshHeroExp(),
+        );
     }
 
     /**
@@ -531,6 +643,21 @@ export class Scene_Menu extends BaseView {
     private refreshGold(): void {
         if (!this.goldValueNode || !this.goldValueNode.isValid) return;
         this.goldValueNode.string = `${DataCenter.ins.itemData.getCurrency(CurrencyType.Gold)}`;
+    }
+
+    /**
+     * 顶栏「通用英雄经验」读数：把 `HeroData` 里的**通用经验池**画到 `head/coins/hero_exp/value` 上。
+     *
+     * ⚠ 与 `refreshGold` 逐条同理由：`scope.watch` 不带 `immediate`（初次只取一遍旧值、**不回调**），
+     *   所以"首次绘制"必须由本方法补 —— 否则第一眼看到的是预制件里烤死的静态文案，
+     *   要等经验**变化一次**才被改对（`init()` 与 `show()` 各调一次）。
+     * 数字走 `formatCount`（千分位、不缩写）：它与商城页顶部资源条的同一个读数
+     *   （`View_Shop` → `formatCount(vm.resBar.heroExp)`）以及英雄详情弹窗的「持有通用英雄经验」
+     *   是**同一个写法** —— 顶栏与页内对不上账是最容易被玩家抓到的分歧。
+     */
+    private refreshHeroExp(): void {
+        if (!this.heroExpValueNode || !this.heroExpValueNode.isValid) return;
+        this.heroExpValueNode.string = formatCount(DataCenter.ins.heroData.getSharedExp());
     }
 
     private refreshAchieveRedDot(count: number): void {
@@ -553,14 +680,16 @@ export class Scene_Menu extends BaseView {
     }
 
     protected show(): void {
-        // 回到主界面（局内 `exit()` → showUI(Scene_Menu)）：两个弹窗一律是收起的。
+        // 回到主界面（局内 `exit()` → showUI(Scene_Menu)）：三个弹窗一律是收起的。
         // ⚠ 「最高通过 / 上次玩过」不在这里补 —— 那两格归 `Cmp_Game`（它 `onShow` 会按当前数据重画，
         //   而且它的节点自始至终是激活的、watcher 一直是活的，回来时不会漏）。
         this.closeDifficultyPanel();
         this.closeHeroDetail();
+        this.closeDrawResult();
         // 金币同理：本屏是被缓存的（`closeView` 只 `active=false`、不销毁），回来时**不走 `init()`**，
         // 所以这里也兜一次现值（watcher 的补播是另一条保险，两条都在才不怕时序）
         this.refreshGold();
+        this.refreshHeroExp();
     }
 
     protected close(): void {

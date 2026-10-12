@@ -35,6 +35,11 @@ import { evaluateRefreshGate, type RefreshGate } from './RefreshGate';
  *   `heroSelectCandidateCount`（默认 4）· `heroSelectRefreshCost`（默认 100）
  *   `heroSelectAdFreePerRun`（默认 1）
  *
+ * ⚠ **候选池 = 局外已解锁的英雄**（用户口径「局内英雄也只能随机解锁的英雄」）：
+ *   本类不认识存档，池子由宿主通过 `deps.getUnlockedHeroIds()` 注入（`DataCenter.heroData`），
+ *   本类只与 `units.json` 的 hero 段求交集 → 没解锁的英雄**一个都不会出现**在候选里。
+ *   默认解锁 2 位（`DEFAULT_UNLOCKED_HERO_IDS`）时，面板上就是那 2 个候选。
+ *
  * 成就特殊效果（`hero_select_free`）：额外免费刷新次数由宿主通过 `deps.getAchAdFreeBonus()`
  *   注入，**叠加**在 `heroSelectAdFreePerRun` 之上；宿主取的是**本局开局快照**（见设计稿 §5.2）。
  */
@@ -55,6 +60,20 @@ export interface HeroSelectDeps {
      * ⚠ 本类**不许**自己调 `AchievementData.getEffects()`（实时值会让"打到一半突然多一次免费刷新"）。
      */
     getAchAdFreeBonus?(): number;
+    /**
+     * **本局候选池 = 局外已解锁的英雄**（用户口径「局内英雄也只能随机解锁的英雄」）。
+     *
+     * 宿主实现：`() => DataCenter.ins.heroData.getUnlocked().map((r) => r.id)`
+     *   —— 已解锁档案（`records`）是唯一真源，本类只做「与 `units.json` 的 hero 段求交集」。
+     *
+     * ⚠ **为什么走回调而不是 `import DataCenter`**：本类是纯 TS 战斗功能类，不认识存档、不认识界面
+     *   （同 `BuffShop.getAchPriceDiscount` / `SkillSlots.onSkillGranted` 的分层口径）；
+     *   顺带让"未解锁的英雄进不了候选"这件事能在体检里用假档案直接跑（见 `tools/hero-select-audit`）。
+     *
+     * ⚠ 未注入（或返回空）时**回退整池**并打警告 —— 宁可让玩家抽到没解锁的英雄，
+     *   也不能让候选为空（面板会变成一块点不动的空板，选不了英雄就进不了战斗）。
+     */
+    getUnlockedHeroIds?(): number[];
 }
 
 /**
@@ -161,6 +180,8 @@ export class HeroSelect {
             this.candidates.value = [];
             return;
         }
+        // 池子比槽位少时**有几个铺几个**（面板会把没铺到的槽位整格收起，见 `HeroSelectPanel.checkHeroList`）：
+        // 解锁 1~4 位时面板上看到的恰好是"你拥有的全部英雄"。
         this.candidates.value = RandomUtil.getRandomElements(pool, this.candidateCount());
     }
 
@@ -241,12 +262,42 @@ export class HeroSelect {
      * 内部
      * =================================================================== */
 
-    /** 英雄池 = units.json 里 category=hero 的条目（id 1000 段） */
+    /**
+     * **本局候选池 = 已解锁英雄 ∩ `units.json` 的 hero 段**（唯一真源；`rollCandidates` 只认它）。
+     *
+     * 三条口径：
+     *   ① 池子按 `units.json` 的条目顺序（id 升序），只保留**已解锁**的 id ——
+     *      没解锁的英雄**一个都不会出现在候选里**，哪怕它就在表里；
+     *   ② 脏存档里的 id（表里根本没有的英雄、或旧版本删掉的英雄）自然被交集滤掉；
+     *   ③ 交集为空（宿主忘了注入 / 存档里一个已解锁的都没有 / 配表还没加载）→ **回退整池 + 警告**，
+     *      绝不让候选为空（空候选 = 选不了英雄 = 卡在选人阶段进不去）。
+     */
     private heroPoolIds(): number[] {
+        const all = this.allHeroIds();
+        if (!all.length) return [];
+
+        const unlocked = this.deps.getUnlockedHeroIds?.() ?? [];
+        if (!unlocked.length) {
+            console.warn('[选英雄] 没有拿到已解锁英雄（未注入 getUnlockedHeroIds 或档案为空），本次回退整池');
+            return all;
+        }
+
+        const unlockedSet = new Set(unlocked.filter((id) => Number.isFinite(id) && id > 0));
+        const pool = all.filter((id) => unlockedSet.has(id));
+        if (!pool.length) {
+            console.warn(`[选英雄] 已解锁的 id（${unlocked.join(',')}）在 units.json 里一个都对不上，本次回退整池`);
+            return all;
+        }
+        return pool;
+    }
+
+    /** `units.json` 里 `category=hero` 的全部条目（id 升序；表未加载时返回空数组） */
+    private allHeroIds(): number[] {
         try {
             return TbRoot.ins.getTbContainer(UnitCfgContainer).cfgs
                 .filter((cfg) => cfg.category === 'hero')
-                .map((cfg) => cfg.id);
+                .map((cfg) => cfg.id)
+                .sort((a, b) => a - b);
         } catch {
             // 配表还没加载（正常不会：候选是在 show 之后才抽的）
             return [];

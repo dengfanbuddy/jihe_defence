@@ -42,10 +42,41 @@ import type { RelicShopVM } from '../../../../battle/RelicShop';
 import type { BuffShopVM } from '../../../../battle/BuffShop';
 import type { SkillSlotsVM } from '../../../../battle/SkillSlots';
 import type { BossSchedulerVM } from '../../../../battle/BossScheduler';
+import type { ItemBagVM } from '../../../../battle/ItemBag';
+import type { ArchetypeTallyVM } from '../../../../battle/ArchetypeTally';
+import type { StatusBarVM } from '../../../../battle/StatusBar';
+import type { Ref } from '../../../../../platform/reactivity';
+import type { HeroPropertiesVM } from './hero_properties/HeroPropertiesVM';
+
+/**
+ * 「游戏规则说明」面板的开关（**唯一真源**）。
+ *
+ * 它不是功能类（面板只读文案、不改任何战斗状态），但同样必须由宿主持有：
+ *   · HUD 只 `open()` / `close()` 翻开关，节点 `active` 由 HUD 按 `visible` 写；
+ *   · 宿主 `Scene_Game_Stage` watch `visible` → 面板开着时**冻结本局**（同三个商店面板，
+ *     见 `syncPanelPaused`）—— 全屏面板挡着战场，不暂停的话玩家读完规则回来已经被打死了。
+ */
+export interface HelpPanelVM {
+    /** 面板是否开着（HUD 写、宿主读；两边都不另存第二份） */
+    readonly visible: Ref<boolean>;
+    /** 打开规则说明（HUD 的问号按钮调它） */
+    open(): void;
+    /** 关闭规则说明（面板的关闭按钮 / 压暗层调它） */
+    close(): void;
+}
 
 export const StageScopeKeys = {
     /** 退出战斗（动作）：由 `Scene_Game_Stage` 提供，战斗 UI 内任意深度都能调用 */
     ExitBattle: 'stage:exitBattle',
+
+    /**
+     * 英雄属性快照（动作）：由 `Scene_Game_Stage` 提供（`buildHeroPropertiesVM(this.hero, …)`）。
+     *
+     * 属性真源在**出战英雄实体的 `AttributeSystem`**（遗物 / 击杀商店 Buff 的贡献都合在里面），
+     * 场景之外的任何地方都拿不到它 —— HUD 只在"点头像开面板"时调一次，取完就画，不缓存、不响应式。
+     * 返回 null = 还没有出战英雄（HUD 据此**不打开**面板，而不是开一块空板子）。
+     */
+    HeroProperties: 'heroProperties:snapshot',
 
     /** 选英雄功能门面（`HeroSelectVM`：候选 / 面板开关 / 选中态 / 刷新费用与广告额度 / 刷新判据） */
     HeroSelect: 'heroSelect:vm',
@@ -64,6 +95,46 @@ export const StageScopeKeys = {
      * HUD 的 `bosses` 子树读它渲染；点击向上发 `StageScopeEvents.BossDeploy`。
      */
     BossScheduler: 'bossScheduler:vm',
+
+    /**
+     * **局内掉落 Buff 小背包**功能门面（`ItemBagVM`：6 个格子 / 每格的配置 / 可不可用 / 空格数）。
+     *
+     * ⚠ 与 `BuffShop`（**神器**：永久 + 可叠层 + 花击杀数买）是**两条轨**，别混：
+     *   这个背包装的是**打阶段 Boss 掉的限时道具**，捡到不生效，玩家点格子才生效。
+     *   HUD 的 6 格读它渲染；**双击**格子向上发 `StageScopeEvents.BattleItemUse`。
+     *   （单击"看描述"是背包面板内部的私事，走 `item_bag/ItemBagCell.ts` 的 `ITEM_BAG_PICKED`，
+     *     不占本文件的键 —— 这里只放**宿主需要知道**的事。）
+     */
+    ItemBag: 'itemBag:vm',
+
+    /**
+     * 「游戏规则说明」面板的开关（`HelpPanelVM`）。
+     * HUD 的问号按钮 `open()`、面板的关闭按钮 `close()`；节点显隐由 HUD 写，
+     * 宿主读它做战斗冻结（同三个商店面板）。
+     */
+    HelpPanel: 'helpPanel:vm',
+
+    /**
+     * **本局流派进度**（`ArchetypeTallyVM`：8 个流派各拿了几件 / 谁已成型）。
+     *
+     * 为什么是页面级而不是 `useBattleStore`：按本文件的判据 —— *删掉那个控件，这个值还有意义吗？*
+     * 没有。它**不参与任何战斗规则**（不改伤害、不改抽取），纯粹是把"你堆的是哪条线"画给玩家看，
+     * 所以属于「界面怎么摆」。宿主在「买到遗物 / 技能落槽 / 买到神器 / 重开一局」后 `recount()`，
+     * HUD 只 `watch(tally.revision)` 重画。
+     */
+    ArchetypeTally: 'archetypeTally:vm',
+
+    /**
+     * **HUD 状态栏**（`StatusBarVM`：本帧该显示的几条状态 / 短标 / 剩余秒数 / 层数）。
+     *
+     * 为什么是页面级而不是 store：按本文件的判据 —— *删掉那一行控件，这些值还有意义吗？*
+     * 没有。它是把**英雄身上此刻挂着什么**画出来的纯投影，不参与任何战斗规则
+     * （判据在 `battle/StatusBar.ts`，本组件一个字都不算）。
+     *
+     * ⚠ 它是**每帧读一次**的门面（倒计时在变），与其它"状态变了才通知"的门面不同：
+     *   两条路都行，但订阅 `OnModifierAdded/Removed` 只回答"增删了"、回答不了"还剩几秒"。
+     */
+    StatusBar: 'statusBar:vm',
 } as const;
 
 /**
@@ -72,11 +143,16 @@ export const StageScopeKeys = {
  */
 export interface StageScopeMap {
     [StageScopeKeys.ExitBattle]: () => void;
+    [StageScopeKeys.HeroProperties]: () => HeroPropertiesVM | null;
     [StageScopeKeys.HeroSelect]: HeroSelectVM;
     [StageScopeKeys.RelicShop]: RelicShopVM;
     [StageScopeKeys.BuffShop]: BuffShopVM;
     [StageScopeKeys.SkillSlots]: SkillSlotsVM;
     [StageScopeKeys.BossScheduler]: BossSchedulerVM;
+    [StageScopeKeys.ItemBag]: ItemBagVM;
+    [StageScopeKeys.HelpPanel]: HelpPanelVM;
+    [StageScopeKeys.ArchetypeTally]: ArchetypeTallyVM;
+    [StageScopeKeys.StatusBar]: StatusBarVM;
 }
 
 /** 局内 UI 的作用域事件（每个 UIWidget 一条独立总线，随作用域销毁自动清空，不用手写 off） */
@@ -128,6 +204,30 @@ export const StageScopeEvents = {
      * 宿主转给 `BossScheduler.deploy(key)` —— 由它校验库存与场上上限（HUD 不判能不能放）。
      */
     BossDeploy: 'boss:deploy',
+
+    /* ── 掉落 Buff 背包：格子组件 → 宿主 ── */
+
+    /**
+     * **双击**背包第 `index` 格想**使用**那件道具：参数 `(index: number)`。
+     * 宿主转给 `ItemBag.use(index)` —— 由它校验格子有没有东西、英雄在不在场，并施加效果后清格。
+     * （HUD 不判能不能用；只读面有 `canUse(index)` 供它置灰。**单击看描述**是面板内部事件，
+     *   不发到宿主这里 —— 见 `item_bag/ItemBagCell.ts` 的 `ITEM_BAG_PICKED`。）
+     */
+    BattleItemUse: 'itemBag:use',
+
+    /* ── 结算面板：广告位 → 宿主 ── */
+
+    /**
+     * **结算面板的广告位被点了一下**：参数无。
+     *
+     * 为什么走冒泡而不是 HUD 自己拉广告：这一格发的是**局外资源**（金币 + 通用英雄经验），
+     * 规则（倍率不重掷 / 只补差额 / 一局一次）与落库都在宿主那一侧
+     * （`Scene_Game_Stage.onSettleAdRequested` → `common/RewardAdBonus` + `DataCenter`）。
+     * HUD 只负责画三态（可点 / 播放中 / 已翻倍置灰）—— 与三个商店的 `playAd` 依赖逐字同构。
+     *
+     * ⚠ 它**不认局内广告券**（`ad_ticket` 只覆盖局内那两个商店广告位，见 `docs/meta-growth/README.md` §3）。
+     */
+    SettleAdRequested: 'settle:adRequested',
 } as const;
 
 /* ===================================================================
@@ -143,7 +243,12 @@ export const StageScopeEvents = {
 //  Buff 商店面板 shopBuffPanel       | HUD `View_Game_Stage`           | `BuffShopVM.panelVisible`
 //  遗物面板    relicPanelNode        | 场景 `Scene_Game_Stage`          | `RelicShopVM.panelVisible`
 //  技能详情浮层 skill_details       | HUD `View_Game_Stage`（节点在预制件里）| 不驻留（按住才看，见 SkillDetail* 事件）
-//  结算面板    endNode               | HUD `View_Game_Stage`           | `showEnd(victory)` 直接写（非响应式）
+//  英雄属性浮层 hero_properties      | HUD `View_Game_Stage`（节点在预制件里）| HUD 自己翻（点头像切换，非响应式）
+//  游戏规则面板 help_panel           | HUD `View_Game_Stage`（节点在预制件里）| `HelpPanelVM.visible`（宿主 provide）
+//  掉落 Buff 背包 item_bags          | HUD `View_Game_Stage`（节点在预制件里）| 面板自己一份（默认收起，非响应式）
+//  结算面板    endNode               | HUD `View_Game_Stage`           | `showEnd(victory, runGold, heroExp, elapsed, adMul)` 直接写（非响应式）
+//                                    |                                | runGold / heroExp = 本局结算金币与英雄经验，见 common/RunClearReward · RunClearHeroExp
+//  结算面板的广告位 end/ad_btn        | HUD `View_Game_Stage`           | 同上（倍率由宿主掷好递进来，HUD 只画三态；点击冒泡 `SettleAdRequested`）
 //
 //  遗物面板的节点在场景名下（历史原因：入口按钮与面板都摆在了场景预制件上），
 //  其余面板在 HUD 预制件里 —— 想统一就把节点挪进 HUD 子树，代码不用改（换持有者即可）。

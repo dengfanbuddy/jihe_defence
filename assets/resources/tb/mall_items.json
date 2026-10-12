@@ -4,11 +4,11 @@
     "key": "daily_free",
     "kind": "free",
     "name": "每日补给",
-    "amount_text": "金币 200 + 通用英雄经验 100",
+    "amount_text": "金币 100 + 通用英雄经验 100",
     "grants": [
       {
         "type": "gold",
-        "amount": 200
+        "amount": 100
       },
       {
         "type": "hero_exp",
@@ -23,11 +23,11 @@
     "key": "gold",
     "kind": "ad",
     "name": "金币袋",
-    "amount_text": "+300 金币",
+    "amount_text": "+200 金币",
     "grants": [
       {
         "type": "gold",
-        "amount": 300
+        "amount": 200
       }
     ],
     "daily_limit": 3,

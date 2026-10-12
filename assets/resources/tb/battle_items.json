@@ -1,0 +1,449 @@
+[
+  {
+    "id": 1,
+    "code": "bi_power_draught",
+    "name": "力量药剂",
+    "desc": "12 秒内攻击力 +25%",
+    "icon": "textures/buffs/bi_power_draught",
+    "rarity": "common",
+    "weight": 6,
+    "duration": 12,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              3,
+              25,
+              "percent"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "白档垫底：常见但收益小，给玩家“先用掉一个腾格子”的余地"
+  },
+  {
+    "id": 2,
+    "code": "bi_hide_draught",
+    "name": "皮糙药剂",
+    "desc": "15 秒内护甲 +8",
+    "icon": "textures/buffs/bi_hide_draught",
+    "rarity": "common",
+    "weight": 6,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              6,
+              8
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "护甲 base=0 → 必须 add；护甲上限 200，8 点只是垫子"
+  },
+  {
+    "id": 3,
+    "code": "bi_rage_elixir",
+    "name": "狂暴药剂",
+    "desc": "15 秒内攻击力 +60%",
+    "icon": "textures/buffs/bi_rage_elixir",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              3,
+              60,
+              "percent"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "攻击力是数值属性 → percent 对基础值乘算，与其他 percent 来源加法叠加"
+  },
+  {
+    "id": 4,
+    "code": "bi_haste_elixir",
+    "name": "疾风药水",
+    "desc": "15 秒内攻击速度 +60",
+    "icon": "textures/buffs/bi_haste_elixir",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              4,
+              60,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "攻速是百分比型属性（100 = 1.0 次/秒）→ 必须 add；100 → 160，远低于上限 500"
+  },
+  {
+    "id": 5,
+    "code": "bi_iron_elixir",
+    "name": "铁壁药剂",
+    "desc": "20 秒内护甲 +20",
+    "icon": "textures/buffs/bi_iron_elixir",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 20,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              6,
+              20
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "护甲 20 → 按 Dota 双曲公式约 54.5% 物理减伤"
+  },
+  {
+    "id": 6,
+    "code": "bi_hawk_elixir",
+    "name": "鹰眼药剂",
+    "desc": "20 秒内攻击距离 +80",
+    "icon": "textures/buffs/bi_hawk_elixir",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 20,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              16,
+              80
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "远程点杀"
+    ],
+    "note": "量级对齐现有遗物（1179 冈格尼尔 +70 / 1267 高远 +60）；英雄基础 200 → 280"
+  },
+  {
+    "id": 7,
+    "code": "bi_regen_spring",
+    "name": "复苏之泉",
+    "desc": "20 秒内生命恢复 +5/秒",
+    "icon": "textures/buffs/bi_regen_spring",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 20,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              9,
+              5
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "生命恢复 base=0 → 必须 add（percent 乘出来恒为 0）。20 秒共回 100 点"
+  },
+  {
+    "id": 8,
+    "code": "bi_vamp_elixir",
+    "name": "嗜血药剂",
+    "desc": "15 秒内吸血 +25%",
+    "icon": "textures/buffs/bi_vamp_elixir",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              25,
+              25,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "吸血是百分比型属性（100 = 100%）→ 必须 add；消费点在 Entity.resolveAttackHit，只对普攻生效"
+  },
+  {
+    "id": 9,
+    "code": "bi_crit_elixir",
+    "name": "暴走药剂",
+    "desc": "12 秒内暴击率 +40%",
+    "icon": "textures/buffs/bi_crit_elixir",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 12,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              14,
+              40,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "暴击率 base=0 → 必须 add；上限 100，40 点不越界。⚠ 要真暴击还得 暴击倍率 > 1（base 150 已满足）"
+  },
+  {
+    "id": 10,
+    "code": "bi_spike_elixir",
+    "name": "尖刺药剂",
+    "desc": "15 秒内受到的伤害 -40%",
+    "icon": "textures/buffs/bi_spike_elixir",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              12,
+              -40,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "属性 12 是**全能减免**（物理与法术都减）：base 100 = 受 100% 伤害，-40 → 受 60%。min 20 → 不会穿模"
+  },
+  {
+    "id": 11,
+    "code": "bi_greed_elixir",
+    "name": "贪婪药剂",
+    "desc": "20 秒内金币获取 +80%",
+    "icon": "textures/buffs/bi_greed_elixir",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 20,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              21,
+              80,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "经济成长"
+    ],
+    "note": "消费点在 Scene_Game_Stage.grantKillReward —— 所以要在**刷怪密的那一段**按下去才划算（一条操作决策）"
+  },
+  {
+    "id": 12,
+    "code": "bi_invuln_potion",
+    "name": "无敌药水",
+    "desc": "10 秒内免疫所有伤害",
+    "icon": "textures/buffs/bi_invuln_potion",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 10,
+    "modifiers": [
+      {
+        "modifier": 6,
+        "kv": {}
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "**零新机制**：mod 6「无敌」= apply_state invulnerable 是现成的（默认时长 5 秒，这里用本行 duration 覆盖成 10）。DamagePipeline / Projectile 都已在消费该状态"
+  },
+  {
+    "id": 13,
+    "code": "bi_hourglass",
+    "name": "时之沙漏",
+    "desc": "15 秒内技能冷却 -50%",
+    "icon": "textures/buffs/bi_hourglass",
+    "rarity": "legendary",
+    "weight": 1,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              23,
+              50,
+              "add"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "法术爆发"
+    ],
+    "note": "冷却缩减上限 50 → 这一瓶就是顶格（消费点 Ability.Cast）。传奇档：拿到就是“这 15 秒技能连发”"
+  },
+  {
+    "id": 14,
+    "code": "bi_colossus_elixir",
+    "name": "巨力药水",
+    "desc": "12 秒内暴击倍率 300%",
+    "icon": "textures/buffs/bi_colossus_elixir",
+    "rarity": "legendary",
+    "weight": 1,
+    "duration": 12,
+    "modifiers": [
+      {
+        "modifier": 1000,
+        "kv": {
+          "attrs": [
+            [
+              15,
+              300,
+              "best"
+            ]
+          ]
+        }
+      }
+    ],
+    "tags": [
+      "物理暴击"
+    ],
+    "note": "暴击倍率必须显式写 best（取最强的一件生效）；写 add 会变成 base+Σv 累加"
+  },
+  {
+    "id": 15,
+    "code": "bi_blood_bag",
+    "name": "血包",
+    "desc": "立刻回复 25% 最大生命",
+    "icon": "textures/buffs/bi_blood_bag",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 0,
+    "modifiers": [
+      {
+        "modifier": 250,
+        "kv": {
+          "healPct": 25
+        }
+      }
+    ],
+    "tags": [
+      "坦克反伤"
+    ],
+    "note": "**本表唯一一条「即刻生效」道具**（duration = 0，见 Tb_BattleItemConfig.duration）：本来的身份是 kill_buffs 的 id 17「血包」，2026-11 拆轨时整条移到掉落 Buff 侧 —— 它是一件道具，不是构筑件。按**最大生命**算（不是已损失生命）：满血按下去就是浪费，这个取舍正是 6 格背包「什么时候按」那条决策"
+  },
+  {
+    "id": 16,
+    "code": "bi_mine_decoy",
+    "name": "诡雷",
+    "desc": "15 秒内布雷间隔减半、爆炸伤害 +50%",
+    "icon": "textures/buffs/bi_mine_decoy",
+    "rarity": "epic",
+    "weight": 2,
+    "duration": 15,
+    "modifiers": [
+      {
+        "modifier": 251,
+        "kv": {
+          "mineYieldPct": 50,
+          "mineBlastPct": 50
+        }
+      }
+    ],
+    "tags": [
+      "召唤增殖"
+    ],
+    "note": "纯标记型（BattleMines 每帧现读 kv）；到期由 ModifierSystem 收走，不需要任何记账。⚠ 与遗物「急造 / 重装」同轴但**形式不同**：遗物是永久常态，这件是手动择时（打 Boss 前铺场）。"
+  },
+  {
+    "id": 17,
+    "code": "bi_mine_trigger",
+    "name": "引爆器",
+    "desc": "立刻引爆场上全部骷髅地雷，每颗伤害 +50%",
+    "icon": "textures/buffs/bi_mine_trigger",
+    "rarity": "rare",
+    "weight": 4,
+    "duration": 0,
+    "modifiers": [
+      {
+        "modifier": 252,
+        "kv": {
+          "bonusPct": 50
+        }
+      }
+    ],
+    "tags": [
+      "召唤增殖"
+    ],
+    "note": "**即刻生效**（第二件 duration=0 的道具）：攒满 5 颗再按，收益远大于一颗颗被踩掉 ——「什么时候按」就是这件道具的全部价值。场上没雷时返回 0（宿主据此决定飘不飘字）。"
+  }
+]

@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     resolveFinalItems, descriptionOf, hookModId, hookKv, DROP_IDS,
+    RELIC_ARCHETYPES, tagsOf, costEntriesOf,
 } from './lib/relic-inner-design.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -80,6 +81,7 @@ for (const row of relics) {
     next.rarity = item.r;                       // 品质按池深 4:3:2:1 重分档
     next.scope = row.scope;
     if (row.category !== undefined) next.category = row.category;
+    next.tags = tagsOf(item);                   // 流派标签：从钩子与属性推出来（`t` 可显式覆盖）
     next.description_inner = descriptionOf(item);
     next.modifiers_inner = toModifiers(item);
     if (row.description_outer !== undefined) next.description_outer = row.description_outer;
@@ -90,8 +92,38 @@ for (const row of relics) {
 
     const oldRarity = row.rarity;
     const oldDesc = row.description_inner;
-    if (oldRarity !== item.r || oldDesc !== next.description_inner) touched++;
+    // `tags` 也算"有变化"：它是 2026-11 新加的一列，不纳入比较的话
+    // "JSON 被单独改过、没回灌 xlsx"这种漂移会漏报（改标签不算改文案）
+    const oldTags = JSON.stringify(row.tags ?? []);
+    if (oldRarity !== item.r || oldDesc !== next.description_inner || oldTags !== JSON.stringify(next.tags)) touched++;
     out.push(next);
+}
+
+/* --------------------------------------------------- 红线：标签覆盖 / 词表 / 代价件 */
+
+/**
+ * 三条红线（违规直接抛，因为落表是设计真源的最后一道闸）：
+ *   ① 每个局内件都要有 ≥1 个标签 —— 否则它不在任何流派里，玩家抽到也看不出归属；
+ *   ② 标签必须来自共用词表（`tagsOf` 内部也会抛，这里再对着落表结果核一遍，防"手改 JSON"绕过）；
+ *   ③ 局内件的标签必须与**设计真源**当前推导出来的一致 —— 抓"JSON 被单独改过、没回灌 xlsx"。
+ */
+const tagCount = {};
+const unknownTags = [];
+const tagless = [];
+for (const r of out) {
+    if (r.scope === 'outer') continue;
+    const tags = r.tags ?? [];
+    if (!tags.length) { tagless.push(`${r.id} ${r.name}`); continue; }
+    for (const t of tags) {
+        if (!RELIC_ARCHETYPES.includes(t)) unknownTags.push(`${r.id} ${r.name}: ${t}`);
+        tagCount[t] = (tagCount[t] ?? 0) + 1;
+    }
+}
+if (unknownTags.length) {
+    throw new Error(`有 ${unknownTags.length} 处标签不在共用词表里（${RELIC_ARCHETYPES.join('/')}）：\n  · ${unknownTags.slice(0, 10).join('\n  · ')}`);
+}
+if (tagless.length) {
+    throw new Error(`有 ${tagless.length} 件局内遗物没有任何流派标签：\n  · ${tagless.slice(0, 10).join('\n  · ')}`);
 }
 
 /* --------------------------------------------------- 报告 */
@@ -102,6 +134,22 @@ console.log(`[遗物落表] 行数 ${relics.length} → ${out.length}（删除 $
 console.log(`[遗物落表] 局内版品质分布：` + ['common', 'rare', 'epic', 'legendary'].map((r) => `${r} ${rarityCount[r] ?? 0}`).join(' / '));
 console.log(`[遗物落表] 品质或文案有变化 ${touched} 件；丢弃死 script_id ${droppedScriptIds.length} 处`);
 for (const s of droppedScriptIds) console.log('   · ' + s);
+
+console.log(`\n[遗物落表] 流派标签（共用词表 ${RELIC_ARCHETYPES.length} 个词）：`);
+for (const t of RELIC_ARCHETYPES) {
+    const n = tagCount[t] ?? 0;
+    console.log(`   ${n === 0 ? '⚠ 0 件' : `${String(n).padStart(3)} 件`}  ${t}${n === 0 ? '  ← 缺口：遗物侧没有任何支撑件' : ''}`);
+}
+const innerTotal = out.filter((r) => r.scope !== 'outer').length;
+const avgTags = (out.filter((r) => r.scope !== 'outer').reduce((s, r) => s + r.tags.length, 0) / Math.max(1, innerTotal)).toFixed(2);
+console.log(`   （平均每件 ${avgTags} 个标签，共 ${innerTotal} 件）`);
+
+const tradeoffs = resolveFinalItems().filter((i) => costEntriesOf(i).length);
+console.log(`\n[遗物落表] 代价件（有增有减）：${tradeoffs.length} 件`);
+for (const it of tradeoffs) {
+    const row = out.find((r) => r.id === it.id);
+    console.log(`   · ${it.id} ${row?.name} [${it.r}] 代价：${costEntriesOf(it).map((e) => `${e[0]}=${e[1]}`).join('、')}`);
+}
 
 if (SAMPLE > 0) {
     for (const item of resolveFinalItems().slice(0, SAMPLE)) {

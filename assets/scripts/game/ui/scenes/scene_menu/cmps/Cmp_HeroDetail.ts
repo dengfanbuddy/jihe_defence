@@ -26,6 +26,12 @@ const COLOR = {
     btnEnabled: '#3F9E9B',
     /** `c-disabled-pill`：不可点的主按钮（与 `HeroCard.BTN_DISABLED_BG` 同一对常量） */
     btnDisabled: '#B9C1C1',
+    /**
+     * `c-warn` `#FF0000`：**升级的经验不够**时底部那格价格数字的红。
+     * 与卡片（`HeroCard.COST_LACK_COLOR`）、遗物页抽取按钮、局内刷新键**同一支红**；
+     * 判据是 VM 的 `expLack`，本类不自己比 `exp` 与 `cost`。
+     */
+    warn: '#FF0000',
     /** 本色（不染色） */
     plain: '#FFFFFF',
 } as const;
@@ -337,6 +343,10 @@ export class Cmp_HeroDetail extends UIWidget {
     /**
      * 底部「这一步花什么」：**图标跟着花什么走**（升级 = 经验图标青绿本色；解锁 = 金币图标染 `c-gold`）。
      * 价格为 0（配表没给价）时收起数字，免得显示一个孤零零的「0」。
+     *
+     * ⚠ 价格**数字**的色不是直接取 `style.valueColor`：**升级的经验不够**时改画 `c-warn` 红
+     *   （`vm.expLack`，2026-11 用户口径「英雄升级按钮那里，如果经验不足，文字应该是红色」）——
+     *   与卡片上那个价格数字是同一个判据、同一支红。解锁（金币）那一侧恒为常态色。
      */
     private applyCost(vm: HeroDetailVM): void {
         const style = COST_STYLE[vm.costKind] ?? COST_STYLE.gold;
@@ -347,7 +357,7 @@ export class Cmp_HeroDetail extends UIWidget {
         }
         if (this.costValueLabel) {
             this.costValueLabel.string = vm.cost > 0 ? formatCount(vm.cost) : '';
-            this.costValueLabel.color = new Color().fromHEX(style.valueColor);
+            this.costValueLabel.color = new Color().fromHEX(vm.expLack ? COLOR.warn : style.valueColor);
             this.costValueLabel.node.active = vm.cost > 0;
         }
         if (this.costIconSprite) {

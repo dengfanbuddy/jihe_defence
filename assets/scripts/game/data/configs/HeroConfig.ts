@@ -19,9 +19,10 @@ import { TbRoot } from '../../../platform/excel_table/TbRoot';
 import { UnitCfgContainer, type UnitCfg } from '../../excel_table/Tb_UnitConfig';
 import { AbilityCfgContainer } from '../../excel_table/Tb_AbilityConfig';
 import { AttributeCfgContainer } from '../../excel_table/Tb_AttributeConfig';
-import { AttributeType } from '../../battle/core/Types';
+import { AttributeType, OuterBonusGroup } from '../../battle/core/Types';
 import { AttributeScaling } from '../../battle/core/AttributeScaling';
 import { BattleConstUtil } from '../../battle/core/BattleConstUtil';
+import { formatNumber } from '../../common/GoldText';
 
 /**
  * 卡片上固定展示的 4 行属性（顺序即行序 `property` / `property-001` / `property-002` / `property-003`）。
@@ -240,14 +241,29 @@ export class HeroConfig {
      *     一乘一除正好抵消，所以**运行时成长值就是表里的原值**；
      *   · 等级 1 时成长一次都不加（只有 2 级起才有）。
      *
-     * ⚠ **不含局外遗物加成**：那条链路（`OuterAttributeCalculator`）目前还没有运行时消费点
-     *   （见《数值配置参考手册》§3.3.2），玩家在局内也吃不到 —— 本页要是先叠上，
-     *   就成了「英雄页写着 20 护甲、进游戏是 0」。接线之后在这里加一层即可。
+     * ⚠ **局外遗物那一层要由调用方传进来**（`outer` 参数，2026-11 接线）：
+     *   本文件**刻意不 import `EquipmentConfig`** —— 它 import `DataCenter`，而 `DataCenter` import 本文件
+     *   （见文件头"不碰 DataCenter"那条），拉进来就是一个循环依赖。所以判据仍是"一份"，
+     *   只是**由调用方把那份 `OuterBonusGroup` 递进来**（`HeroVM` 两处都递了 `getAllEquipmentBonuses()`）。
+     *   不传 = 不加局外那一层（诚实，但不是玩家进游戏后看到的数）。
+     *
+     * 局外那一层的落点与顺序**与局内逐字一致**（`battle/OuterAttributeApply.ts`）：
+     *   `值 = (配置基础值 × (1 + percent) + flat)` **再** `+ 成长 × (等级-1)` ——
+     *   局外加成只放大**配置基础值**，不放大等级成长出来的那部分（局内是 `addBase` 加法叠加）。
+     *   中间那一步还刻意**过一遍 int 精度**（`denormalize` → `normalize`），因为局内写基础属性时
+     *   就是按配置 int 存的（见 `applyOuterBonuses`）—— 不过这一遍，英雄页会显示 `4.96%`
+     *   而进游戏是 `5%`，那种 0.04 的差没人查得出来，但它就是两个口径。
      *
      * @param level 英雄等级（`HeroData` 里的等级；< 1 按 1 处理）
      * @param attrIds 要铺哪几行（默认卡片那 4 行；**详情弹窗传 `HERO_DETAIL_ATTR_ROWS`**）
+     * @param outer 局外加成组（`EquipmentConfig.getAllEquipmentBonuses()`；省略 = 不加这一层）
      */
-    static getAttrRows(heroId: number, level: number, attrIds: AttributeType[] = HERO_ATTR_ROWS): HeroAttrRow[] {
+    static getAttrRows(
+        heroId: number,
+        level: number,
+        attrIds: AttributeType[] = HERO_ATTR_ROWS,
+        outer: OuterBonusGroup | null = null,
+    ): HeroAttrRow[] {
         const cfg = HeroConfig.getHero(heroId);
         if (!cfg) return [];
 
@@ -259,7 +275,7 @@ export class HeroConfig {
             const baseInt = HeroConfig._baseConfigOf(cfg, attrId, attrTb);
             const growth = HeroConfig._growthOf(cfg, attrId);
             const base = AttributeScaling.normalize(attrId, baseInt);
-            const value = base + growth * levels;
+            const value = HeroConfig._applyOuter(attrId, base, outer) + growth * levels;
 
             const row: HeroAttrRow = {
                 attrId,
@@ -275,14 +291,35 @@ export class HeroConfig {
     }
 
     /**
+     * 局外加成落到**一个基础值**上（`final = base × (1 + percent) + flat`，并过一遍 int 精度）。
+     * 与 `battle/OuterAttributeApply` 逐字同一条公式 —— 那边落的是真属性，这边落的是展示值。
+     */
+    private static _applyOuter(attrId: AttributeType, base: number, outer: OuterBonusGroup | null): number {
+        if (!outer) return base;
+        const flat = Number(outer.flat?.[attrId] ?? 0);
+        const percent = Number(outer.percent?.[attrId] ?? 0);
+        if (!Number.isFinite(flat) || !Number.isFinite(percent)) return base;
+        if (flat === 0 && percent === 0) return base;
+        const applied = base * (1 + percent) + flat;
+        return AttributeScaling.normalize(attrId, AttributeScaling.denormalize(attrId, applied));
+    }
+
+    /**
      * 属性值的展示文案：比例型属性（攻速/魔抗/闪避/暴击…，见 `AttributeScaling.SCALE`）显示成百分数
-     * （运行时 `1.2` → `120%`），其余取整（`320`）。
+     * （运行时 `1.2` → `120%`），其余取整（`320`），**≥1000 走缩写口径**（`1.2k` / `1.2万`，
+     * 与金币/商店价格同一份实现 —— 局内属性面板是玩家读数的地方，后期攻击力/回血都是四位数，
+     * 不缩写会把两列版式顶开）。
+     *
+     * ⚠ `formatNumber` 内部把负数钳成 0（它是为金币/血量/价格写的），而护甲(6) / 金币获取(21) /
+     * 经验获取(22) 的 `attributes.json.min` 是**负数** —— 所以这里自己带符号，
+     * 别让「护甲 -20」显示成「0」。
      */
     static formatAttrValue(attrId: number, value: number): string {
         if (AttributeScaling.isScaled(attrId)) {
             return `${HeroConfig._trim2(value * 100)}%`;
         }
-        return `${Math.round(value)}`;
+        const v = Math.round(value);
+        return v < 0 ? `-${formatNumber(-v)}` : formatNumber(v);
     }
 
     /* ===================================================================

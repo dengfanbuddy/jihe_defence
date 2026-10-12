@@ -135,9 +135,23 @@ export class DamagePipeline {
 
         // ---- Phase 8: 死亡检查 ----
         if (target.IsDead()) {
+            /**
+             * 死后坐标快照 —— **必须在 `publish(OnDeath)` 之前取**。
+             *
+             * 为什么：场景的 `OnDeath` 监听里当场就 `recycleMonster` 回对象池了
+             * （`MonsterPool.release` → `EntityPool.release` → `Entity.ResetForPool()`，
+             * 那里的 `this.position = { x: 0, y: 0 }` 把坐标清零），而 `OnKill` 是在那之后才发的。
+             * ⇒ `OnKill` 的监听者拿到 `victim` 时，它的 `position` **已经是 (0,0)**。
+             * 任何"以死者位置为圆心"的效果（范围伤害/掉落/尸体）都只能读这份快照。
+             *
+             * 这是**踩过的坑**（2026-11）：技能 122「击杀回响」与遗物「死亡回响」都拿 `victim`
+             * 当圆心，实际圆心恒为地图原点 —— 范围伤害只在原点附近生效，画面上极难看出。
+             * 同族的第三个受害者见 `Scene_Game_Stage` 里"掉落点坐标必须在 recycleMonster 之前取"。
+             */
+            const deathPos = { x: target.position?.x ?? 0, y: target.position?.y ?? 0 };
             target.Die(source);
-            this.ctx.bus.publish(BattleEvents.OnDeath, { entity: target, killer: source });
-            if (source) this.ctx.bus.publish(BattleEvents.OnKill, { killer: source, victim: target });
+            this.ctx.bus.publish(BattleEvents.OnDeath, { entity: target, killer: source, deathPos });
+            if (source) this.ctx.bus.publish(BattleEvents.OnKill, { killer: source, victim: target, deathPos });
         }
 
         return finalDamage;

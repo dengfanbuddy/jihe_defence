@@ -17,7 +17,8 @@
  * ```
  *
  * ⚠ 2026-07：遗物表改成「一件遗物一行」，局内版 / 局外版**共用同一个 id**，本模块存的 id 即 relic id。
- * 有局外版的遗物用它的局内 id（1001~1293 段），只有局外版的遗物是 1294~1302。
+ * **2026-11 起局内局外严格对齐**：268 件全是两侧都有（手工 demo 1~5 + 设计稿 1001~1293），
+ * 本模块存的 id 与局内是同一个 id 空间。
  * （更早的两次数值/结构迁移：装备 id 1~45 → +2000 → 再并入遗物并用局内 id，见
  *  `tools/excel_export/reports/equipments-into-relics.md` 与 `reports/relics-scope-restructure.md`）
  *
@@ -83,7 +84,7 @@ export class EquipmentCollectionModule extends DataModule<IEquipmentCollection> 
 
     /**
      * 添加收集一次装备
-     * @param equipId 装备配置 ID（= relics.json 里**有局外版**的遗物 id：两侧都有的用局内 id，只有局外版的是 1294~1302）
+     * @param equipId 装备配置 ID（= relics.json 里**有局外版**的遗物 id，2026-11 起 = 全表 268 件）
      * @param count   收集次数（默认 1，装备掉落可指定数量）
      */
     addCollected(equipId: number, count: number = 1): void {

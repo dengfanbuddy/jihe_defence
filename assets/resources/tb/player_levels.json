@@ -11,12 +11,12 @@
   {
     "id": 2,
     "exp": 120,
-    "reward_gold": 120
+    "reward_gold": 30
   },
   {
     "id": 3,
     "exp": 140,
-    "reward_gold": 180,
+    "reward_gold": 50,
     "unlock_features": [
       "weekly_task"
     ],
@@ -25,12 +25,12 @@
   {
     "id": 4,
     "exp": 170,
-    "reward_gold": 240
+    "reward_gold": 70
   },
   {
     "id": 5,
     "exp": 210,
-    "reward_gold": 300,
+    "reward_gold": 80,
     "unlock_features": [
       "relic_outer"
     ],
@@ -39,52 +39,52 @@
   {
     "id": 6,
     "exp": 250,
-    "reward_gold": 360
+    "reward_gold": 100
   },
   {
     "id": 7,
     "exp": 300,
-    "reward_gold": 420
+    "reward_gold": 120
   },
   {
     "id": 8,
     "exp": 360,
-    "reward_gold": 480
+    "reward_gold": 130
   },
   {
     "id": 9,
     "exp": 430,
-    "reward_gold": 540
+    "reward_gold": 150
   },
   {
     "id": 10,
     "exp": 520,
-    "reward_gold": 600
+    "reward_gold": 170
   },
   {
     "id": 11,
     "exp": 620,
-    "reward_gold": 660
+    "reward_gold": 180
   },
   {
     "id": 12,
-    "exp": 740,
-    "reward_gold": 720
+    "exp": 720,
+    "reward_gold": 200
   },
   {
     "id": 13,
-    "exp": 890,
-    "reward_gold": 780
+    "exp": 820,
+    "reward_gold": 210
   },
   {
     "id": 14,
-    "exp": 1070,
-    "reward_gold": 840
+    "exp": 920,
+    "reward_gold": 230
   },
   {
     "id": 15,
-    "exp": 1280,
-    "reward_gold": 900,
+    "exp": 1020,
+    "reward_gold": 250,
     "unlock_features": [
       "relic_outer_upgrade"
     ],
@@ -92,78 +92,428 @@
   },
   {
     "id": 16,
-    "exp": 1540,
-    "reward_gold": 960
+    "exp": 1120,
+    "reward_gold": 260
   },
   {
     "id": 17,
-    "exp": 1850,
-    "reward_gold": 1020
+    "exp": 1220,
+    "reward_gold": 280
   },
   {
     "id": 18,
-    "exp": 2220,
-    "reward_gold": 1080
+    "exp": 1320,
+    "reward_gold": 300
   },
   {
     "id": 19,
-    "exp": 2660,
-    "reward_gold": 1140
+    "exp": 1420,
+    "reward_gold": 310
   },
   {
     "id": 20,
-    "exp": 3190,
-    "reward_gold": 1200
+    "exp": 1520,
+    "reward_gold": 330
   },
   {
     "id": 21,
-    "exp": 3830,
-    "reward_gold": 1260
+    "exp": 1620,
+    "reward_gold": 350
   },
   {
     "id": 22,
-    "exp": 4600,
-    "reward_gold": 1320
+    "exp": 1720,
+    "reward_gold": 360
   },
   {
     "id": 23,
-    "exp": 5520,
-    "reward_gold": 1380
+    "exp": 1820,
+    "reward_gold": 380
   },
   {
     "id": 24,
-    "exp": 6620,
-    "reward_gold": 1440
+    "exp": 1920,
+    "reward_gold": 400
   },
   {
     "id": 25,
-    "exp": 7950,
-    "reward_gold": 1500
+    "exp": 2020,
+    "reward_gold": 410
   },
   {
     "id": 26,
-    "exp": 9540,
-    "reward_gold": 1560
+    "exp": 2120,
+    "reward_gold": 430
   },
   {
     "id": 27,
-    "exp": 11450,
-    "reward_gold": 1620
+    "exp": 2220,
+    "reward_gold": 450
   },
   {
     "id": 28,
-    "exp": 13740,
-    "reward_gold": 1680
+    "exp": 2320,
+    "reward_gold": 460
   },
   {
     "id": 29,
-    "exp": 16480,
-    "reward_gold": 1740
+    "exp": 2420,
+    "reward_gold": 480
   },
   {
     "id": 30,
+    "exp": 2520,
+    "reward_gold": 800
+  },
+  {
+    "id": 31,
+    "exp": 2620,
+    "reward_gold": 120
+  },
+  {
+    "id": 32,
+    "exp": 2720,
+    "reward_gold": 120
+  },
+  {
+    "id": 33,
+    "exp": 2820,
+    "reward_gold": 120
+  },
+  {
+    "id": 34,
+    "exp": 2920,
+    "reward_gold": 120
+  },
+  {
+    "id": 35,
+    "exp": 3020,
+    "reward_gold": 120
+  },
+  {
+    "id": 36,
+    "exp": 3120,
+    "reward_gold": 120
+  },
+  {
+    "id": 37,
+    "exp": 3220,
+    "reward_gold": 120
+  },
+  {
+    "id": 38,
+    "exp": 3320,
+    "reward_gold": 120
+  },
+  {
+    "id": 39,
+    "exp": 3420,
+    "reward_gold": 120
+  },
+  {
+    "id": 40,
+    "exp": 3520,
+    "reward_gold": 300
+  },
+  {
+    "id": 41,
+    "exp": 3620,
+    "reward_gold": 120
+  },
+  {
+    "id": 42,
+    "exp": 3720,
+    "reward_gold": 120
+  },
+  {
+    "id": 43,
+    "exp": 3820,
+    "reward_gold": 120
+  },
+  {
+    "id": 44,
+    "exp": 3920,
+    "reward_gold": 120
+  },
+  {
+    "id": 45,
+    "exp": 4020,
+    "reward_gold": 120
+  },
+  {
+    "id": 46,
+    "exp": 4120,
+    "reward_gold": 120
+  },
+  {
+    "id": 47,
+    "exp": 4220,
+    "reward_gold": 120
+  },
+  {
+    "id": 48,
+    "exp": 4320,
+    "reward_gold": 120
+  },
+  {
+    "id": 49,
+    "exp": 4420,
+    "reward_gold": 120
+  },
+  {
+    "id": 50,
+    "exp": 4520,
+    "reward_gold": 300
+  },
+  {
+    "id": 51,
+    "exp": 4620,
+    "reward_gold": 120
+  },
+  {
+    "id": 52,
+    "exp": 4720,
+    "reward_gold": 120
+  },
+  {
+    "id": 53,
+    "exp": 4820,
+    "reward_gold": 120
+  },
+  {
+    "id": 54,
+    "exp": 4920,
+    "reward_gold": 120
+  },
+  {
+    "id": 55,
+    "exp": 5020,
+    "reward_gold": 120
+  },
+  {
+    "id": 56,
+    "exp": 5120,
+    "reward_gold": 120
+  },
+  {
+    "id": 57,
+    "exp": 5220,
+    "reward_gold": 120
+  },
+  {
+    "id": 58,
+    "exp": 5320,
+    "reward_gold": 120
+  },
+  {
+    "id": 59,
+    "exp": 5420,
+    "reward_gold": 120
+  },
+  {
+    "id": 60,
+    "exp": 5520,
+    "reward_gold": 300
+  },
+  {
+    "id": 61,
+    "exp": 5620,
+    "reward_gold": 120
+  },
+  {
+    "id": 62,
+    "exp": 5720,
+    "reward_gold": 120
+  },
+  {
+    "id": 63,
+    "exp": 5820,
+    "reward_gold": 120
+  },
+  {
+    "id": 64,
+    "exp": 5920,
+    "reward_gold": 120
+  },
+  {
+    "id": 65,
+    "exp": 6020,
+    "reward_gold": 120
+  },
+  {
+    "id": 66,
+    "exp": 6120,
+    "reward_gold": 120
+  },
+  {
+    "id": 67,
+    "exp": 6220,
+    "reward_gold": 120
+  },
+  {
+    "id": 68,
+    "exp": 6320,
+    "reward_gold": 120
+  },
+  {
+    "id": 69,
+    "exp": 6420,
+    "reward_gold": 120
+  },
+  {
+    "id": 70,
+    "exp": 6520,
+    "reward_gold": 300
+  },
+  {
+    "id": 71,
+    "exp": 6620,
+    "reward_gold": 120
+  },
+  {
+    "id": 72,
+    "exp": 6720,
+    "reward_gold": 120
+  },
+  {
+    "id": 73,
+    "exp": 6820,
+    "reward_gold": 120
+  },
+  {
+    "id": 74,
+    "exp": 6920,
+    "reward_gold": 120
+  },
+  {
+    "id": 75,
+    "exp": 7020,
+    "reward_gold": 120
+  },
+  {
+    "id": 76,
+    "exp": 7120,
+    "reward_gold": 120
+  },
+  {
+    "id": 77,
+    "exp": 7220,
+    "reward_gold": 120
+  },
+  {
+    "id": 78,
+    "exp": 7320,
+    "reward_gold": 120
+  },
+  {
+    "id": 79,
+    "exp": 7420,
+    "reward_gold": 120
+  },
+  {
+    "id": 80,
+    "exp": 7520,
+    "reward_gold": 300
+  },
+  {
+    "id": 81,
+    "exp": 7620,
+    "reward_gold": 120
+  },
+  {
+    "id": 82,
+    "exp": 7720,
+    "reward_gold": 120
+  },
+  {
+    "id": 83,
+    "exp": 7820,
+    "reward_gold": 120
+  },
+  {
+    "id": 84,
+    "exp": 7920,
+    "reward_gold": 120
+  },
+  {
+    "id": 85,
+    "exp": 8020,
+    "reward_gold": 120
+  },
+  {
+    "id": 86,
+    "exp": 8120,
+    "reward_gold": 120
+  },
+  {
+    "id": 87,
+    "exp": 8220,
+    "reward_gold": 120
+  },
+  {
+    "id": 88,
+    "exp": 8320,
+    "reward_gold": 120
+  },
+  {
+    "id": 89,
+    "exp": 8420,
+    "reward_gold": 120
+  },
+  {
+    "id": 90,
+    "exp": 8520,
+    "reward_gold": 300
+  },
+  {
+    "id": 91,
+    "exp": 8620,
+    "reward_gold": 120
+  },
+  {
+    "id": 92,
+    "exp": 8720,
+    "reward_gold": 120
+  },
+  {
+    "id": 93,
+    "exp": 8820,
+    "reward_gold": 120
+  },
+  {
+    "id": 94,
+    "exp": 8920,
+    "reward_gold": 120
+  },
+  {
+    "id": 95,
+    "exp": 9020,
+    "reward_gold": 120
+  },
+  {
+    "id": 96,
+    "exp": 9120,
+    "reward_gold": 120
+  },
+  {
+    "id": 97,
+    "exp": 9220,
+    "reward_gold": 120
+  },
+  {
+    "id": 98,
+    "exp": 9320,
+    "reward_gold": 120
+  },
+  {
+    "id": 99,
+    "exp": 9420,
+    "reward_gold": 120
+  },
+  {
+    "id": 100,
     "exp": 0,
-    "reward_gold": 3000,
+    "reward_gold": 800,
     "unlock_features": [
       "all_content"
     ],

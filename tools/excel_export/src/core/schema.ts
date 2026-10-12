@@ -50,6 +50,11 @@ export const TABLES: TableSchema[] = [
             { key: 'goldReward', type: 'number', desc: '击杀金币基数（缺省取 battle_constants.enemyDropGoldDefault）' },
             { key: 'expReward', type: 'number', desc: '击杀经验基数（缺省取 battle_constants.enemyDropExpDefault）' },
             {
+                key: 'killReward', type: 'number',
+                desc: '击杀数奖励（击杀商店的货币；每杀该单位给几点，缺省 1）。'
+                    + '玩家自己放的「击杀怪」（rewardType=kill_boss）靠这一列给一次性大额',
+            },
+            {
                 key: 'rewardType', type: 'enum', desc: '奖励类型（gold_boss/exp_boss 为经济BOSS，kill_boss 为击杀BOSS）',
                 enumValues: ['normal', 'elite', 'boss', 'gold_boss', 'exp_boss', 'kill_boss'],
             },
@@ -91,8 +96,11 @@ export const TABLES: TableSchema[] = [
     //    scope=both  两侧都出
     //  多级统一为「一行多级」：`max_level` 说明最高几级（1~3），`lv1/lv2/lv3` 是各级效果描述，
     //  `effects` 是 1 级效果，`effects_lv2/effects_lv3` 是更高一级的**整体覆盖**（留空 = 沿用上一级）。
-    //  ⚠ 单位技能里那条老的 `upgrades_to` 链（火枪鹰眼 12→13→14→15、宙斯 19→20→21→22）保持不变：
-    //    它们一行 = 一个形态、`max_level=1`，靠换 id 升阶；商店技能靠 `max_level` 原地升级。两套并存，按行各自生效。
+    //  ⚠ 单位技能那条老的 `upgrades_to` 链**只剩兜底**（火枪鹰眼 12→13→14→15 是孤儿行，没有引用方）：
+    //    它一行 = 一个形态、`max_level=1`，靠换 id 升阶。**2026-11 起现役英雄技能都改成一行多级**
+    //    （赏金 7「悬赏」/ 宙斯 19「雷霆之核」= `max_level 3`，随英雄 Lv.15/Lv.30 升级；
+    //    宙斯原来那条 19→20→21→22 的四阶链已收敛进 19，20/21/22 三行删除）。
+    //    两套机制并存、按行各自生效，但**新技能一律用一行多级**。
     {
         name: 'abilities',
         label: '技能表',
@@ -177,7 +185,27 @@ export const TABLES: TableSchema[] = [
             { key: 'icon', type: 'string', desc: '图标资源路径' },
             { key: 'is_debuff', type: 'bool', desc: '是否负面效果（1/0）', required: true },
             { key: 'is_hidden', type: 'bool', desc: '是否在 Buff 栏隐藏（1/0）' },
+            {
+                key: 'bar_show', type: 'bool',
+                desc: '**允许进 HUD 状态栏**（1/0；2026-11 新增）—— 白名单：只有标 1 的行才可能出现在英雄头像下方那一行。'
+                    + '标 1 的两类：① 会挂到**英雄**身上的限时/负面（如 燃烧 / 无敌 / 属性修改共享模板）；'
+                    + '② 常驻载体里「有就绪/层数可讲」的脚本行（如 遗物·蓄力 / 不屈 / 圣盾）。'
+                    + '⚠ 只打怪的 debuff（遗物减速 / 毒 / 点燃那一族）**一律不标** —— 英雄栏看不到它们',
+            },
+            {
+                key: 'bar_text', type: 'string',
+                desc: '状态栏格子的**占位短标**（≤2 汉字，如「燃烧」「蓄力」）。'
+                    + '留空 = 运行期按来源取名兜底（共享模板 1000 的限时实例按 origin 取药水/遗物/技能名）。'
+                    + '⚠ 图标素材就绪后走**已有**的 `icon` 列（图标资源路径），本列不改成路径',
+            },
             { key: 'dispel_level', type: 'int', desc: '可驱散等级：0=不可驱散 1=普通 2=强 3=极强' },
+            {
+                key: 'desc', type: 'string',
+                desc: '**状态说明**（2026-11 新增）：点 HUD 状态栏那一格时弹出的说明面板上写的那句话。'
+                    + '留空 = 面板退化成一个通用句（「持续 N 秒 / 永久」+ 正面/负面）。'
+                    + '⚠ 只对 `bar_show = 1`（可能出现在英雄状态栏上）的行有意义 —— 其余行玩家点不到。'
+                    + '⚠ 正文框宽约 270px、字号 16：建议 ≤ 30 汉字，超了会换行（面板高度按两行预留）',
+            },
             { key: 'duration', type: 'number', desc: '默认持续（秒），-1 = 永久', required: true },
             { key: 'cd', type: 'number', desc: '该效果自己的冷却（秒），0/留空 = 无冷却；带 cd 的被动各实例独立计时' },
             {
@@ -228,6 +256,13 @@ export const TABLES: TableSchema[] = [
                 enumValues: ['inner', 'outer', 'both'],
             },
             { key: 'category', type: 'string', desc: '局外分类 d2_basic / d2_upgrade / d2_neutral（只有局外版才填）' },
+            {
+                key: 'tags', type: 'stringarray',
+                desc: '流派标签（1~3 个，**由设计真源的 tagsOf() 从钩子与属性推出来**，不手写）。'
+                    + '词表与 abilities.tags / kill_buffs.tags **共用同一套 8 个词**：'
+                    + '远程点杀 / 坦克反伤 / 物理暴击 / 法术爆发 / 召唤增殖 / 元素持续 / 经济成长 / 控制减速。'
+                    + '⚠ 与 `category`（Dota2 来源分类）不是一回事 —— category 只有 37 件局外版有，且不可当流派用',
+            },
             { key: 'description_inner', type: 'string', desc: '**局内版**效果描述（给玩家看；没有局内版则留空）' },
             {
                 key: 'modifiers_inner', type: 'json',
@@ -237,7 +272,16 @@ export const TABLES: TableSchema[] = [
             { key: 'description_outer', type: 'string', desc: '**局外版**效果描述（没有局外版则留空）' },
             {
                 key: 'modifiers_outer', type: 'json',
-                desc: '**局外版**永久 Modifier 列表 JSON（口径同上；局外是跨局永久加成，一般只给固定值 add）',
+                desc: '**局外版**永久 Modifier 列表 JSON（口径同上；局外是跨局永久加成，**只给固定值 add**）。'
+                    + '⚠ 形状（给哪几条属性）由局内身份决定、数值由品质预算决定，生成器 `scripts/gen-relics-outer.mjs`，'
+                    + '规则真源 `scripts/lib/relic-outer-design.mjs`；比例型属性（攻速/暴击/闪避/魔抗…）一律不给',
+            },
+            {
+                key: 'effects_outer', type: 'json',
+                desc: '**局外版的「局内开局初始值」**（只有红件填，一件一条）：`[{"code":"run_start_gold","value":10}]`，'
+                    + '`code` 取自 `common/AchievementEffectMeta.ts` 的 `ACH_EFFECT_CODES`（红件词缀与成就 / 增益券**共用同一套 code 与封顶**）。'
+                    + '⚠ 它不是 Modifier —— 由 `Scene_Game_Stage.snapshotAchieveEffects()` 在开局快照里读走，'
+                    + '写成 Modifier 会变成"战斗里挂一个没人读的被动"',
             },
             { key: 'script_id', type: 'string', desc: '复杂遗物逻辑代码类名（逃逸口；局内局外共用一行）' },
         ],
@@ -247,31 +291,90 @@ export const TABLES: TableSchema[] = [
 
     // ==================== （shop_skills 表已并入 abilities：同一张技能表，靠 scope 区分归属） ====================
 
-    // ==================== kill_buffs：击杀商店 Buff 表 ====================
+    // ==================== kill_buffs：**神器**表（局内击杀数商店；名字沿用旧称，见 docs/artifact-drop/README.md） ===
     {
         name: 'kill_buffs',
-        label: '击杀商店 Buff 表',
+        label: '神器表（击杀数商店 · 永久可叠层）',
         format: 'array',
         jsonPath: `${JSON_DIR}/kill_buffs.json`,
         excelFile: 'kill_buffs.xlsx',
         primaryKey: 'id',
         fields: [
-            { key: 'id', type: 'int', desc: 'Buff ID', required: true },
+            { key: 'id', type: 'int', desc: '神器 ID', required: true },
             { key: 'code', type: 'string', desc: '唯一代码（英文，程序引用用）', required: true },
             { key: 'name', type: 'string', desc: '名称', required: true },
             {
-                key: 'stat', type: 'enum', desc: '作用属性；special = 特殊机制（用 script_id 实现）', required: true,
+                key: 'icon', type: 'string',
+                desc: '图标资源路径（`textures/artifacts/<code>`，resources 相对、**不带扩展名**）。'
+                    + '2026-11 补齐：出图 → `make-delivery.py` → `build-atlas.py` 打成 `textures/artifacts/artifacts.plist`，'
+                    + '**帧名就是本行的 `code`**；写法与遗物 / 技能图标完全一致（见 docs/artifact-buff-icons/README.md）。'
+                    + '⚠ 留空 = 摊位 `content/head/inner` 什么都不画（那张占位图已随遗物图集一起退场）',
+            },
+            {
+                key: 'stat', type: 'enum', required: true,
+                desc: '作用属性；special = **机制型**（天怒/波次补给/战地急救/滚雪球）—— 属性列表达不出来，'
+                    + '效果写在 modifiers 列（引用有 script_id 的 Modifier 行），实现在 battle/SpecialBuffs.ts',
                 enumValues: ['atk', 'hp', 'range', 'def', 'aspd', 'crit', 'dodge', 'regen', 'special'],
             },
             { key: 'attr_id', type: 'int', desc: '对应 AttributeType 编号（atk=3 / hp=1 / range=16 / def=6 / aspd=4 / crit=14 / dodge=8 / regen=9；stat=special 留空）' },
-            { key: 'per', type: 'number', desc: '每层加成（百分比整数：8 = +8%，0.6 = +0.6%），special 型填 0' },
-            { key: 'per_desc', type: 'string', desc: '每层效果原文（设计稿 per），配置校对用' },
-            { key: 'max_stack', type: 'int', desc: '层数上限' },
-            { key: 'price', type: 'int', desc: '首层价格（击杀点）' },
-            { key: 'price_growth', type: 'number', desc: '每次购买后的价格系数（1.35 = 每次 ×1.35）' },
+            { key: 'per', type: 'number', desc: '每层加成（百分比整数：8 = +8%，0.6 = +0.6%），special 型填 0（数值全在 modifiers[].kv）' },
+            { key: 'per_desc', type: 'string', desc: '每层效果原文 —— ⚠ **会显示在商店格子上**，随层数变化的部分要写全（如「（每层 +50%）」）' },
+            { key: 'max_stack', type: 'int', desc: '层数上限；**已满层的神器不再进摊位**（见 BuffShop.pool）' },
+            { key: 'price', type: 'int', desc: '首层价格（击杀数）' },
+            { key: 'price_growth', type: 'number', desc: '同一件**每买一层**的价格系数（1.35 = 每层 ×1.35）；与「刷新费阶梯」是两回事' },
             { key: 'tags', type: 'stringarray', desc: '流派标签' },
-            { key: 'script_id', type: 'string', desc: '复杂逻辑代码类名（逃逸口，special 型必经）' },
+            {
+                key: 'modifiers', type: 'json',
+                desc: '**机制型专用**（stat=special）：效果引用的 Modifier 列表 JSON，写法同 relics.modifiers_inner。'
+                    + '例如 [{"modifier":240,"kv":{"killsPer":10,"boomPct":200,"boomPctPerStack":50}}]。'
+                    + '⚠ 被引用的行**必须有 script_id**（否则挂了也没有任何行为）；'
+                    + '⚠ 这里不写 duration（神器一律永久）、也不写 stack（当前层数由 BuffShop 注入）；'
+                    + '⚠ 属性型神器**留空**（属性走 attr_id / per，不在这里配）',
+            },
             { key: 'note', type: 'string', desc: '设计备注（上限/叠加说明）' },
+        ],
+    },
+
+    // ==================== battle_items：局内掉落 Buff 表（**可用道具**，装进 6 格小背包） ====================
+    //  ⚠ 与 `kill_buffs`（**神器**：永久、可叠层、花击杀数买）是**两条轨**，别混：
+    //     · 神器 = 构筑决策（抽到什么就永久变强）；
+    //     · 本表 = 操作决策（**什么时候按**）—— 捡到不生效，玩家点格子才生效，一次性消耗
+    //       （绝大多数**限时**，一条 `duration = 0` 即刻生效）。
+    //  口径见 docs/artifact-drop/README.md。
+    //  ⚠ 与 `bag_items`（**局外**背包 80 格、跨局、全屏页）也不是一回事。
+    {
+        name: 'battle_items',
+        label: '局内掉落 Buff 表（可用道具）',
+        format: 'array',
+        jsonPath: `${JSON_DIR}/battle_items.json`,
+        excelFile: 'battle_items.xlsx',
+        primaryKey: 'id',
+        fields: [
+            { key: 'id', type: 'int', desc: '道具 ID', required: true },
+            { key: 'code', type: 'string', desc: '唯一代码（英文，程序引用用）', required: true },
+            { key: 'name', type: 'string', desc: '名称', required: true },
+            { key: 'desc', type: 'string', desc: '一句话效果（飘字 / 背包 tooltip 用）', required: true },
+            { key: 'icon', type: 'string', desc: '图标资源路径（HUD 背包格子用；本批不接 UI，先留空）' },
+            {
+                key: 'rarity', type: 'enum', desc: '品质（决定展示色；掉落权重另由 weight 决定）', required: true,
+                enumValues: ['common', 'rare', 'epic', 'legendary'],
+            },
+            { key: 'weight', type: 'int', desc: '掉落权重（留空按 1）；同一池子里按权重随机' },
+            {
+                key: 'duration', type: 'number', required: true,
+                desc: '效果时长（秒）。`> 0` = 限时（本表绝大多数）；`= 0` = **即刻生效**'
+                    + '（施加那一帧就结算完、不留状态，现只有「血包」一条）—— 两种都要真配。'
+                    + '⚠ 不要给「最大生命」这类上限类属性：上限回落而当前生命不回落会出现 hp > maxHp 的脏数据',
+            },
+            {
+                key: 'modifiers', type: 'json',
+                desc: '生效时施加到**英雄**身上的 Modifier 列表 JSON，写法同 relics.modifiers_inner。'
+                    + '例如 [{"modifier":6,"kv":{}}] = 无敌（mod 6 是现成的 apply_state invulnerable）；'
+                    + '纯属性走共享模板 1000：{"modifier":1000,"kv":{"attrs":[[3,60,"percent"]]}}。'
+                    + '时长由**本行的 duration** 统一注入，条目里不用再写 duration',
+            },
+            { key: 'tags', type: 'stringarray', desc: '流派标签（与 abilities / kill_buffs / relics 共用一套 8 个词）' },
+            { key: 'note', type: 'string', desc: '设计备注' },
         ],
     },
 
@@ -327,9 +430,15 @@ export const TABLES: TableSchema[] = [
             adExtraPickEnabled: '是否开放「看广告额外选 1 个」（1=开放；在本次已置灰的选项中再选 1 个）',
             adExtraPickCount: '广告额外可选的选项数',
             adRefreshEnabled: '是否开放「看广告免费刷新本次抽取」（1=开放，重抽但选项数不变）',
-            killBuffPriceGrowth: '击杀商店 Buff 默认价格系数（单个 Buff 的 price_growth 优先）',
-            killBuffMaxStackDefault: '击杀商店 Buff 默认层数上限（单个 Buff 的 max_stack 优先）',
-            killBuffRefreshCost: '击杀商店刷新一次摊位的费用（单位 = **击杀数**，不是金币；金币只用于选英雄刷新与遗物抽取）',
+            killBuffPriceGrowth: '神器默认价格系数（**同一件每买一层**的价格 ×；单个神器的 price_growth 优先）',
+            killBuffMaxStackDefault: '神器默认层数上限（单个神器的 max_stack 优先）',
+            killBuffRefreshCost: '击杀商店（神器）刷新一次摊位的**首次**费用（单位 = **击杀数**，不是金币；金币只用于选英雄刷新与遗物抽取）',
+            killBuffRefreshCostStep: '神器**付费刷新**每次递增的费用（击杀数）；免费刷新 / 广告刷新**不递增**（见 docs/artifact-drop/README.md §12）',
+            killBuffRefreshCostCap: '神器单次刷新费用上限（击杀数）；到达后保持不再增长（0 = 不封顶）。⚠ 刷新**次数**本身不封顶，封的只是单价',
+            killBuffFreeRefreshPerRun: '每局**开局白送**的神器免费刷新次数（不花击杀数、也不抬高后续单价）；0 = 不白送',
+            killBuffRefreshAdFreePerRun: '每局神器的「看广告免费刷新」次数（同样不抬高单价）；0 = 关掉这条通道。'
+                + '⚠ 这个键原先只在代码里当默认值（1），配表里没有 ⇒ 设计者改不动，2026-11 补上',
+            heroSelectRefreshCost: '选英雄面板刷新一次候选的费用（金币）',
         },
     },
 
@@ -412,8 +521,9 @@ export const TABLES: TableSchema[] = [
                 key: 'effect_code', type: 'enum',
                 desc: '**增益券专用**：这张券对应哪条成就效果（`boost_*` 行必填，其它行留空）',
                 enumValues: [
-                    'run_start_gold', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw', 'kill_buff_discount',
-                    'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free', 'relic_start_gift',
+                    'run_start_gold', 'run_start_kill_points', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw',
+                    'kill_buff_discount', 'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level',
+                    'hero_select_free', 'relic_start_gift',
                 ],
             },
             { key: 'sort', type: 'int', desc: '排序（升序；决定背包里格子的先后）', required: true },
@@ -462,10 +572,16 @@ export const TABLES: TableSchema[] = [
     //    · tasks = 日/周**周期性**任务，奖励账号经验 + 金币，周期到了会重置；
     //    · achievements = **一次性永久**目标，奖励金币，**核心成就的末档**额外给 1 个特殊效果。
     //  **一行 = 一档**（不是一行一成就）：同一条成就的多档用 `group` 串起来，
-    //  好处是每档能写各自的 `count` / `reward_gold` / `effect_code`，且"已领到第几档"天然是一个游标。
-    //  id 段位：31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战。
-    //  门禁（`npm run check` 校验）：同 group 的 tier 从 1 连续、count 与 reward_gold 严格递增、
-    //  `effect_code` **只允许出现在该 group 的最大 tier**、且同一 effect_code 全表最多 1 个来源。
+    //  好处是每档能写各自的 `count` / `param` / `desc` / `reward_gold` / `effect_code`，
+    //  且"已领到第几档"天然是一个游标。
+    //  id 段位：31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战（段内顺序编号）。
+    //  ⚠ **档位数不固定**（2026-11 起）：以前恰好 3 档（铜/银/金），现在按成长空间定 ——
+    //  账号等级 20 档（每 5 级一阶直到 100 级）/ 收集类 6~7 档 / 通关类 5~6 档，
+    //  界面文案相应改成「阶段N」。全表由 `scripts/gen-achievements.mjs` 生成（设计真源在那个脚本里）。
+    //  门禁（运行时 `AchievementCfgContainer.afterHandle` 告警 + `npm run audit:achieve` 硬校验）：
+    //  同 group 的 tier 从 1 连续、count 与 reward_gold 严格递增、
+    //  `effect_code` **只允许出现在该 group 的最大 tier**、同一 effect_code 全表最多 1 个来源、
+    //  `run_*` 型必须写正整数 `param`。
     {
         name: 'achievements',
         label: '成就表',
@@ -476,14 +592,14 @@ export const TABLES: TableSchema[] = [
         fields: [
             { key: 'id', type: 'int', desc: '成就ID（31xx 等级 / 32xx 闯关 / 33xx 战斗 / 34xx 经济 / 35xx 收集 / 36xx 挑战）', required: true },
             { key: 'group', type: 'string', desc: '成就组（**同一条成就的多档共用**，如 st_clear；程序按它归并成一条展示）', required: true },
-            { key: 'tier', type: 'int', desc: '档位：1=铜 / 2=银 / 3=金（同一 group 内必须从 1 连续）', required: true },
+            { key: 'tier', type: 'int', desc: '档位序号（**1 起、组内连续**；界面文案 = 「阶段N」，**档位数不限**：账号等级 20 档 / 收集类 6~7 档）', required: true },
             {
                 key: 'category', type: 'enum', required: true,
                 desc: '分类（界面页签）',
                 enumValues: ['level', 'stage', 'combat', 'economy', 'collect', 'challenge'],
             },
-            { key: 'name', type: 'string', desc: '成就名（同一 group 三行写同一个名字）', required: true },
-            { key: 'desc', type: 'string', desc: '成就描述（列表副标题，可换行 \\n）' },
+            { key: 'name', type: 'string', desc: '成就名（同一 group 的各行写同一个名字）', required: true },
+            { key: 'desc', type: 'string', desc: '成就描述（**逐档可不同**，卡面显示的是「下一档」那一行；⚠ 卡面只有 2 行位置 ≈ ≤26 个汉字宽）' },
             { key: 'icon', type: 'string', desc: '图标资源路径（textures/achievements/<group>，不带扩展名）；空 = 回落占位图' },
             {
                 key: 'target', type: 'enum', required: true,
@@ -492,21 +608,24 @@ export const TABLES: TableSchema[] = [
                     // 与 tasks 共用的 12 个
                     'login', 'play_games', 'victory', 'kill_enemies', 'gold_earned', 'spend_gold',
                     'relics_picked', 'skills_used', 'buffs_bought', 'stage_reached', 'hero_level', 'level_reached',
-                    // 成就新增
+                    // 成就新增（累计 / 峰值 / 标记）
                     'level_up_count', 'login_streak', 'survive_time', 'kill_in_run', 'gold_in_run',
                     'clear_no_damage', 'clear_fast', 'clear_low_hp', 'run_no_relic_clear', 'clear_one_skill',
                     'damage_dealt', 'crit_hits', 'draw_count', 'relic_collected', 'buff_types', 'skills_picked',
+                    // 成就新增·「门槛 × 局数」（**计数单位是「局」**，门槛写在 param；见 ACH_RUN_TARGETS）
+                    'run_stage', 'run_hero_level', 'run_kill', 'run_gold', 'run_survive',
                 ],
             },
-            { key: 'param', type: 'string', desc: '条件参数（预留：如指定英雄/分类 id，留空 = 不限）' },
+            { key: 'param', type: 'string', desc: '条件参数：`run_*` 型 = **门槛**（正整数：阶段数/等级/击杀数/金币/秒），其余类型留空（容器会对漏填/错填告警）' },
             { key: 'count', type: 'int', desc: '目标数量（累加型 = 累计到这么多；峰值型 = 达到这么多），必须 > 0', required: true },
             { key: 'reward_gold', type: 'int', desc: '奖励·**局外金币**（进 ItemData.currencies.gold；**不发账号经验**）', required: true },
             {
                 key: 'effect_code', type: 'enum',
                 desc: '**特殊效果**标识（只允许出现在该 group 的最大 tier 上；留空 = 该档纯金币）',
                 enumValues: [
-                    'run_start_gold', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw', 'kill_buff_discount',
-                    'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free', 'relic_start_gift',
+                    'run_start_gold', 'run_start_kill_points', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw',
+                    'kill_buff_discount', 'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level',
+                    'hero_select_free', 'relic_start_gift',
                 ],
             },
             { key: 'effect_value', type: 'int', desc: '效果数值（effect_code 非空时必填；百分比类填**百分数**：10 = 10%）' },
@@ -584,9 +703,12 @@ export const TABLES: TableSchema[] = [
             playerExpFormulaRatio: '玩家升级经验系数（⚠ 同上：等级表不可用时的回落值）',
             battleExpFormulaBase: '局内升级经验基数',
             battleExpFormulaRatio: '局内升级经验系数',
-            battleLevelMax: '局内等级上限',
+            // ⚠ 这里**没有** `battleLevelMax`：局内英雄等级不封顶（2026-11 用户口径
+            //   「取消等级限制，以前是 30 级」）—— 这个键连同行一起从表里删掉了。
+            //   想再加回上限，请连 `Scene_Game_Stage.addBattleExp` 的 while 条件一起改，
+            //   并想清楚"后期经验白吃"这条（见该方法的注释）。
             clearRewardPlayerExpBase: '通关奖励·玩家经验基数（⚠ 已无消费方：奖励改为「完成任务发放」，见 tasks.json）',
-            clearRewardHeroExpBase: '通关奖励·英雄经验基数（⚠ 已无消费方：奖励改为「完成任务发放」，见 tasks.json）',
+            clearRewardHeroExpBase: '**一局结算·通用英雄经验基数**（键名里的 clear 是历史读法：2026-11 起它不是"通关才发"那个数，而是「阶段 × 时间」加权后的**满额**。口径真源 = assets/scripts/game/common/RunClearHeroExp.ts 的文件头；通关约等于满额 ⇒ 80 与旧口径"通关固定 80"逐字相同）',
             enemyDropExpDefault: '怪物掉落经验默认值',
             enemyDropGoldDefault: '怪物掉落金币默认值',
             rewardTimeBasePerSec: '时间通胀系数（每秒）',
@@ -609,6 +731,19 @@ export const TABLES: TableSchema[] = [
             outerDrawCostBase: '局外遗物抽取·当天第一次抽取的价格（金币；每天 0 点重置回本值）',
             outerDrawCostStep: '局外遗物抽取·每付费抽一次涨多少（当天第 N 抽 = 基数 + 步长 × (N-1)，付费才涨；抽券不涨）',
             outerDrawCostCap: '局外遗物抽取·当天单抽价格封顶（0 = 不封顶；十连 = 接下来 10 抽价格逐个累加）',
+            runClearGoldBase: '一局打完发的局外金币·**第 1 局**的曲线值（口径真源 = `assets/scripts/game/common/RunClearReward.ts` 的文件头；只算"真正打完一局"，中途退出不发）',
+            runClearGoldDecay: '一局打完发的局外金币·**每往后一局的衰减系数**（0.6 = 每局只剩 60%；到 floor 就停）',
+            runClearGoldFloor: '一局打完发的局外金币·曲线下限（衰减到这里不再降 —— 这就是"头几局高、后面很少"的那个"很少"）',
+            runClearGoldStageDivisor: '一局打完发的局外金币·完成系数分母（到达第几阶段算打满；3 = 阶段 1/2/3+ 分别给 1/3、2/3、满额。用来堵"反复开局送死刷金币"）',
+            runHeroExpWeightStage: '**一局结算·英雄经验**·阶段维度的权重（现 0.6；与下一行之和 = 1。口径真源 = assets/scripts/game/common/RunClearHeroExp.ts 的文件头，**胜负都发**、不是只有通关）',
+            runHeroExpWeightTime: '一局结算·英雄经验·**时间维度**的权重（现 0.4；两个维度是**相加**不是相乘 —— 打得快与打得久各自都能换经验）',
+            runHeroExpStageFull: '一局结算·英雄经验·阶段**打满**的档位（现 5 = 打到 Boss 阶段就满；阶段进度 = 到达阶段 ÷ 本值，夹 0~1）',
+            runHeroExpTimeFull: '一局结算·英雄经验·时间**打满**的秒数（现 600 = 存活 10 分钟就满；时间进度 = 存活秒数 ÷ 本值，夹 0~1）',
+            runHeroExpMin: '一局结算·英雄经验·**保底下限**（现 8：真正打完一局就有，准备期阵亡也给；这一对上下限就是用户口径「给一个范围」）',
+            runHeroExpMax: '一局结算·英雄经验·**单局上限**（现 1600；难度 100 档满额 ≈ 80 × 17.96 ≈ 1437，所以正常玩法够不到封顶，它只兜底配表被调歪）',
+            settleAdMulMin: '结算面板「看广告翻倍」·**倍率下限**（现 1.0；倍率在面板弹出时就掷好并画在按钮上，配 1.0 表示允许出现"这一档没赚头"，见 common/RewardAdBonus 口径 ①）',
+            settleAdMulMax: '结算面板「看广告翻倍」·**倍率上限**（现 3.0；用户口径「看广告给 1~3 倍的奖励」）',
+            settleAdMulDecimals: '结算面板「看广告翻倍」·**小数位数**（现 1 = 用户口径「可以有一位小数」；倍率按档位掷，保证掷出来的数逐字节等于显示的「×2.3」）',
             shopAdDailyTotalLimit: '局外商城·每日广告总次数上限（跨商品共用一本账，界面底部「今日广告 N/14」）',
             reviveAdPerRun: '局内·**每局**「看广告复活」的次数上限（0 = 关掉这一条：英雄阵亡时只认背包里的局内复活券；复活券本身能用几次由背包存量决定，不受本键约束）',
             shopAdCardNeedWatches: '局外商城·免广告卡需要累计观看的广告次数（攒满即可领；= 每日上限 × 期望天数）',
@@ -616,7 +751,7 @@ export const TABLES: TableSchema[] = [
             shopStreakMuls: '局外商城·每日补给的连续登录加成（**下标 = 连续天数 - 1**：`[1,1,1.5,1.5,1.5,1.5,2]` = 1~2 天 ×1 / 3~6 天 ×1.5 / ≥7 天 ×2；超出长度按最后一项）',
             shopStreakGiftDay: '局外商城·每日补给在连续登录达到该天数时额外送券（0 = 不送）',
             shopStreakGiftTickets: '局外商城·上面那条额外送的本局增益券张数',
-            shopBoostTicketValues: '局外商城·**本局增益券**（A5）每种效果一张券给多少：`{"run_start_gold":50,…}`，键 = `achievements.effect_code` 的 10 个候选取值之一，值 = **一张券折算的效果数值**（百分比类填百分数，如 10 = 10%）；券的合计仍受 `AchievementEffectMeta` 的 `cap` 约束（已达 cap 的效果不再发券）',
+            shopBoostTicketValues: '局外商城·**本局增益券**（A5）每种效果一张券给多少：`{"run_start_gold":50,…}`，键 = `achievements.effect_code` 的 11 个候选取值之一（2026-11 起含 `run_start_kill_points`），值 = **一张券折算的效果数值**（百分比类填百分数，如 10 = 10%）；券的合计仍受 `AchievementEffectMeta` 的 `cap` 约束（已达 cap 的效果不再发券）',
         },
     },
 ];

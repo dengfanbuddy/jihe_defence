@@ -60,6 +60,19 @@ export interface UnitCfg {
     /** 击杀奖励——经验基数（可选）。缺省取战斗常量 enemyDropExpDefault。 */
     expReward?: number;
     /**
+     * 击杀奖励——**击杀数**（击杀商店的货币）基数（可选，缺省 1）。
+     *
+     * 与 `goldReward`/`expReward` 是同一族的三兄弟，对应局内三种货币（金币 / 经验 / 击杀数）。
+     * 杂兵一律 1；**玩家自己放的「击杀怪」（`rewardType = 'kill_boss'`，units id 2009）**靠它
+     * 给一次性大额 —— 那个槽位（`BossScheduler.BOSS_SLOTS` 的 `kill`）的设计就是
+     * "用一场硬仗换一叠击杀数"。
+     *
+     * ⚠ 与金币/经验不同，这一项**不吃** `currentRewardScale()`（阶段难度 × 时间通胀）：
+     *   击杀数买的是局内神器，通胀它等于让后期的神器越来越便宜。
+     * 实发口径见 `Scene_Game_Stage.killPointsOf`。
+     */
+    killReward?: number;
+    /**
      * 奖励类型：normal/elite/boss/gold_boss/exp_boss/kill_boss。
      * gold_boss/exp_boss 为专门的经济 BUFF boss，击杀一次性大量奖励（见数值设计文档）。
      * kill_boss 为「击杀 Boss」——表现层与 gold_boss 同色同体型（E74C3C ×1.5），

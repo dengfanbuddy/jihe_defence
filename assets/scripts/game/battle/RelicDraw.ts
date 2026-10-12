@@ -134,7 +134,7 @@ export class RelicDraw {
      * 遗物池：配置里的商店遗物（**有局内版**）∩ 白名单 − 已拥有。
      *
      * ⚠ relics 表是「一件遗物一行」（局内版 / 局外版共用 id 与品质），所以**必须按 scope 过滤**，
-     *   否则只有局外版的遗物（id 1294~1302）会混进局内商店抽取池。
+     *   否则只有局外版的遗物（`scope='outer'`；2026-11 起表里已经没有）会混进局内商店抽取池。
      */
     static relicPool(poolIds?: number[], owned?: ReadonlySet<number> | number[]): RelicCfg[] {
         const ownedSet = RelicDraw.toIdSet(owned);

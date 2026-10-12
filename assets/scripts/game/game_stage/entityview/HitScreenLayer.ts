@@ -3,6 +3,7 @@ import { BattleEvents } from '../../battle';
 import type { BattleContext } from '../../battle';
 import { UnitKind } from '../../common/EntityVisualConfig';
 import { HIT_FEEL_INFO, HIT_FEEL_MARK, clampBattleDt } from '../../common/HitFeelConfig';
+import { formatNumber } from '../../common/GoldText';
 import { HitFeelDirector } from './HitFeelDirector';
 import { drawDigits, measureDigits } from './GeometricDigits';
 const { ccclass } = _decorator;
@@ -433,7 +434,7 @@ export class HitScreenLayer extends Component {
         if (alpha <= 0) return;
         const left = -this.viewW * 0.5 + HIT_FEEL_INFO.comboInsetX;
         const cy = HIT_FEEL_INFO.comboOffsetY;
-        const text = String(this.comboCount);
+        const text = formatNumber(this.comboCount);
         const crossW = size * 0.42;
         const gap = size * 0.22;
         const digitsW = measureDigits(text, size);
@@ -502,7 +503,7 @@ export class HitScreenLayer extends Component {
 
         this.setPaint(g, HIT_FEEL_MARK.ink, alpha);
         g.lineWidth = Math.max(1, size * 0.1);
-        drawDigits(g, String(it.amount), cx, cy - size * 0.5, size);
+        drawDigits(g, formatNumber(it.amount), cx, cy - size * 0.5, size);
     }
 
     /**

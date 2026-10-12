@@ -1,15 +1,20 @@
 import { _decorator, assetManager, Component, director, Label, ProgressBar } from 'cc';
 import { DataCenter } from '../data';
 import { TbRoot } from '../../platform/excel_table/TbRoot';
+import { IconPreload } from '../common/IconPreload';
 const { ccclass, property } = _decorator;
 
 /**
- * 启动进度的两段权重（加起来 = 1），按"体感耗时"分配：
- * ① `scripts` 分包（全部脚本）最重；② 配表 14 张 JSON 次之。
+ * 启动进度的三段权重（加起来 = 1），按"体感耗时"分配：
+ * ① `scripts` 分包（全部脚本）最重；② 配表 14 张 JSON 次之；③ 图标预载（图集 + 碎图）再次之。
  * `DataCenter.ins.init()` 是同步的（瞬间完成），不单独占权重，收尾时直接补到 100%。
+ *
+ * ⚠ 图标那段（`IconPreload`）是"进游戏不再先闪占位图"的保证：它必须在切 `Main` 场景**之前**跑完，
+ *   否则英雄卡 / 遗物图鉴 / 神器摊位又会各自现加载一遍。
  */
-const STAGE_BUNDLE = 0.55;
-const STAGE_TABLES = 0.45;
+const STAGE_BUNDLE = 0.45;
+const STAGE_TABLES = 0.35;
+const STAGE_ICONS = 0.2;
 
 /** 进度条最短走完时长（秒）：加载再快也要让玩家看见它从 0 走到 100%，否则界面像闪了一下 */
 const MIN_SHOW_TIME = 0.8;
@@ -23,10 +28,14 @@ const SNAP_EPSILON = 0.002;
 /**
  * 首场景（`Loading.scene`）的加载宿主。
  *
- * 启动顺序（全工程唯一保证「分包 → 配表 → 数据」顺序的地方）：
- * `loadBundle('scripts')` → `TbRoot.loadTbs()` → `DataCenter.init()` → `director.loadScene('Main')`。
+ * 启动顺序（全工程唯一保证「分包 → 配表 → 图标 → 数据」顺序的地方）：
+ * `loadBundle('scripts')` → `TbRoot.loadTbs()` → `IconPreload.preloadAll()` → `DataCenter.init()`
+ * → `director.loadScene('Main')`。
  *
- * 进度条口径：**只反映真实进度**（分包 onProgress / 配表逐张完成），
+ * 图标预载排在配表之后是必须的（它读的就是配表里的 `icon` 列），排在 `DataCenter.init()` 之前
+ * 只是为了"数据层收尾"仍在最后一段；两者没有依赖关系。
+ *
+ * 进度条口径：**只反映真实进度**（分包 onProgress / 配表逐张完成 / 图标逐张解析），
  * 不掺假的定时推演；显示值每帧向真实值平滑逼近，且**只增不减**。
  */
 @ccclass('Loading')
@@ -53,6 +62,8 @@ export class Loading extends Component {
 
         try {
             await this.loadscripts();
+            // 图标预载：英雄头像 / 遗物 / 技能 / 掉落与状态 Buff / 神器 / 背包道具（读配表，见 IconPreload）
+            await this.preloadIcons();
             // 数据层初始化（同步，内含等级表对齐 / 跨天重置 / 存档迁移）
             DataCenter.ins.init();
         } catch (e) {
@@ -90,6 +101,20 @@ export class Loading extends Component {
                     .catch(reject);
             });
         });
+    }
+
+    /**
+     * 图标预载（第三段）：把英雄头像 / 遗物 / 技能 / 掉落与状态 Buff / 神器 / 背包道具的图标
+     * 全部解析进 `AtlasIcon` 的缓存，之后各界面拿到的是"已就绪"的图（见 `common/IconPreload.ts`）。
+     *
+     * 失败**不抛**：`IconPreload` 内部逐张容错、且带超时兜底 —— 少几张图也比卡在 Loading 强。
+     * 进度口径与配表那段一致（逐张回报），所以进度条在图标阶段是**连续**走的，不会停住不动。
+     */
+    private async preloadIcons() {
+        await IconPreload.preloadAll((finished, total) => {
+            this._setTarget(STAGE_BUNDLE + STAGE_TABLES + this._stageProgress(STAGE_ICONS, finished, total));
+        });
+        this._setTarget(STAGE_BUNDLE + STAGE_TABLES + STAGE_ICONS);
     }
 
     update(deltaTime: number) {

@@ -19,12 +19,14 @@
  * ```ts
  * // 对局侧上报（与 taskData 并排一行，见 Scene_Game_Stage 的各上报点）
  * achieveData.addProgress('kill_enemies', 1);     // 累加型
- * achieveData.peakProgress('stage_reached', 5);   // 峰值型（只增不减）
+ * achieveData.peakProgress('level_reached', 12);  // 峰值型（只增不减）
  * achieveData.markFlag('login');                  // 置为完成
+ * achieveData.reportRunGoals({ stage: 5, heroLevel: 27, kills: 1200, gold: 2400, survive: 1110 });
+ *                                                 // 「门槛 × 局数」型：**每局结算调一次**
  *
  * // 界面侧
  * const list  = achieveData.getGroups('stage');        // 某分类的成就（已排序 + 隐藏过滤）
- * const state = achieveData.getGroupState('st_clear'); // { tier, progress, count, state, nextReward, effect... }
+ * const state = achieveData.getGroupState('st_clear'); // { tier, progress, count, state, nextReward, nextDesc, effect... }
  * const n     = achieveData.getClaimableCount();       // 红点
  * const res   = achieveData.claim('st_clear');         // 领「下一档」
  *
@@ -33,18 +35,32 @@
  * ```
  */
 import { DataModule } from '../DataModule';
-import { AchievementConfig } from '../configs/AchievementConfig';
+import { AchievementConfig, ACH_RUN_TARGETS, isRunTarget } from '../configs/AchievementConfig';
 import { ACH_EFFECT_META } from '../../common/AchievementEffectMeta';
 import type { AchEffectCode, AchGroupCfg, AchTarget } from '../../excel_table/Tb_AchievementConfig';
 
-/** 单条成就的进度记录 */
+/**
+ * 单条成就的进度记录。
+ *
+ * ⚠ **两套进度字段**（2026-11 起）：
+ *   · `progress` —— 累加 / 峰值型（击杀数、通关次数、账号等级…）的进度，一条成就一个数；
+ *   · `runCounts` —— **「门槛 × 局数」型**（`run_*`：`run_stage` / `run_hero_level` /…）的进度，
+ *     **逐档一个计数**（`runCounts[i]` = 满足第 i+1 档门槛的**局数**）。
+ *
+ * 为什么局数型不能用 `progress` 一个数：门槛是**逐档抬高**的（第2阶段×3局 → 第3阶段×5局…），
+ * 而「达到第3阶段的局数」≤「达到第2阶段的局数」—— 共用一个计数器会**多算**
+ * （打完第 2 阶段的那几局会把"达到第 3 阶段"的计数一起顶上去 ⇒ 提前发奖）。
+ * 逐档计数天然单调、且领奖不需要清零。
+ */
 export interface AchRecord {
     /** 成就组（= 配表 `group`，一条成就一条记录） */
     group: string;
-    /** 当前进度（**只增不减**；峰值型取历史峰值，已按最高档目标钳制） */
+    /** 当前进度（**只增不减**；峰值型取历史峰值，已按最高档目标钳制）。`run_*` 型恒为 0 */
     progress: number;
     /** 已领到第几档（0 = 一档都没领） */
     claimedTier: number;
+    /** `run_*` 型的**逐档局数**（缺省 = 还没推进过；旧存档里没有这个字段，按全 0 处理） */
+    runCounts?: number[];
 }
 
 /** 成就数据模块的数据结构 */
@@ -76,23 +92,25 @@ export interface AchGroupState {
     category: string;
     /** 成就名 */
     name: string;
-    /** 描述 */
+    /** 描述（= 这一条成就**第 1 档**的 desc；卡面通常显示 `nextDesc`） */
     desc: string;
+    /** **下一档**自己的描述（逐档可不同，如「累计3局把战线推进到第2阶段。」）；`done` 时 = 末档 desc */
+    nextDesc: string;
     /** 图标（resources 相对路径，空 = 用占位图） */
     icon: string;
     /** 是否隐藏成就（达成前不展示） */
     silent: boolean;
-    /** 展示档位：已领则=已领最高档，未领=第 1 档（卡面染色 / `lv` 文案用它） */
+    /** 展示档位：已领则=已领最高档，未领=第 1 档（卡面染色 / `阶段N` 文案用它） */
     tier: number;
     /** 下一档档位（`state==='done'` 时 = maxTier） */
     nextTier: number;
     /** 已领到第几档 */
     claimedTier: number;
-    /** 最高档 */
+    /** 最高档（**档位数不固定**：3~20 档，别假设 3） */
     maxTier: number;
     /** 当前进度（已钳到**下一档**目标，界面直接显示） */
     progress: number;
-    /** 下一档目标数量 */
+    /** 下一档目标数量（`run_*` 型 = **局数**） */
     count: number;
     /** 状态 */
     state: AchState;
@@ -116,6 +134,32 @@ export interface AchClaimResult {
     /** 实发金币 */
     gold?: number;
 }
+
+/**
+ * 一局打完时的「本局读数」—— `reportRunGoals()` 的入参。
+ * 全部可选：没传的项 → 对应的 `run_*` target 整族不推进（"这项本局没测到" ≠ "这项是 0"）。
+ */
+export interface RunGoals {
+    /** 本局到达的最高阶段（`run_stage`） */
+    stage?: number;
+    /** 本局英雄最高等级（`run_hero_level`） */
+    heroLevel?: number;
+    /** 本局击杀数（`run_kill`） */
+    kills?: number;
+    /** 本局持有的金币峰值（`run_gold`） */
+    gold?: number;
+    /** 本局存活时长（秒，`run_survive`） */
+    survive?: number;
+}
+
+/** target → `RunGoals` 里的字段名（两处必须一起改：这里 + `RunGoals`） */
+const RUN_GOAL_KEY: Record<string, keyof RunGoals> = {
+    run_stage: 'stage',
+    run_hero_level: 'heroLevel',
+    run_kill: 'kills',
+    run_gold: 'gold',
+    run_survive: 'survive',
+};
 
 /**
  * 成就模块的宿主能力（由 `DataCenter` 在构造时注入）。
@@ -178,7 +222,15 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
         }
     }
 
-    /** 取峰值（stage_reached / hero_level / kill_in_run / login_streak：只增不减） */
+    /**
+     * 取峰值（只增不减）。
+     *
+     * ⚠ 2026-11 档位改版后，真正的**局内峰值**（`kill_in_run` / `gold_in_run` / `survive_time`）
+     * 已经没有成就行在用了（换成了 `run_kill` / `run_gold` / `run_survive`，见 `reportRunGoals`）；
+     * 现在走这里的主要是 `level_reached`（账号等级）/ `login_streak`（连续登录）/
+     * `relic_collected` / `buff_types` / `skills_picked`（三个"种类数"）以及任务表的
+     * `stage_reached` / `hero_level`。
+     */
     peakProgress(target: AchTarget, value: number): void {
         if (!(value > 0)) return;
         if (AchievementConfig.getTargetMode(target) !== 'max') {
@@ -198,6 +250,51 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
             const rec = this._record(g.group, true);
             if (!rec) continue;
             this._write(rec, g, this._maxCount(g));
+        }
+    }
+
+    /**
+     * 上报「本局达成情况」—— **`run_*`（门槛 × 局数）型成就的唯一推进口**，每局结算调一次。
+     *
+     * 语义：对每一条 `run_*` 成就的**每一档**，只要本局的数值 ≥ 那一档的门槛（`param`），
+     * 那一档的局数计数 **+1**（一局最多 +1，所以"打很多局"才是达成条件）。
+     *
+     * 为什么用「逐档计数」而不是一个计数器：门槛逐档抬高（第2阶段×3局 → 第3阶段×5局…），
+     * 「达到第3阶段的局数」≤「达到第2阶段的局数」—— 共用一个计数器会多算（提前发奖）。
+     *
+     * @param goals 本局读数（缺省/负数按 0 处理；**只有传了的那几项**会推进对应的 target）
+     * @example
+     * ```ts
+     * // Scene_Game_Stage.reportRunTasks 里（结算，**每局一次**）
+     * achieveData.reportRunGoals({
+     *     stage: this.stage, heroLevel: this.battleStore.level ?? 1,
+     *     kills: this.killCount, gold: this.hero ? this.hero.gold : 0, survive: this.elapsed,
+     * });
+     * ```
+     */
+    reportRunGoals(goals: RunGoals): void {
+        for (const target of ACH_RUN_TARGETS) {
+            const value = goals[RUN_GOAL_KEY[target]] ?? 0;
+            if (!(value > 0)) continue;                 // 本局没这项读数 / 读数是 0 → 整族跳过
+            for (const g of this._groupsOf(target)) {
+                // ⚠ **先判有没有档位达标，再建记录**：这一族每局都会调一次，
+                //   无条件建记录会让存档里每次多出 5 条全 0 的空记录（而它们什么都不影响）。
+                //   门槛写坏（= 0）的档位**永远不推进**（容器装载时已 warn 过），而不是当成"无门槛"。
+                let hit = false;
+                for (const tier of g.tiers) {
+                    const need = AchievementConfig.getRunParam(tier);
+                    if (need > 0 && value >= need) { hit = true; break; }
+                }
+                if (!hit) continue;
+
+                const rec = this._record(g.group, true);
+                if (!rec) continue;
+                const counts = this._countsOf(rec, g);
+                for (let i = 0; i < g.tiers.length; i++) {
+                    const need = AchievementConfig.getRunParam(g.tiers[i]);
+                    if (need > 0 && value >= need) counts[i] = (counts[i] ?? 0) + 1;
+                }
+            }
         }
     }
 
@@ -380,7 +477,21 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
         return rec;
     }
 
-    /** 写进度（钳到**最高档**目标：领完金档后进度不再无限涨） */
+    /**
+     * 取 `run_*` 型的**逐档局数**数组（按需创建并挂到记录上）。
+     * 挂上去之后是**响应式**的：界面读 `runCounts[i]` 就建立了依赖，`reportRunGoals` 改它即自动重刷。
+     */
+    private _countsOf(rec: AchRecord, g: AchGroupCfg): number[] {
+        const size = Math.max(1, g.tiers.length);
+        if (!rec.runCounts || rec.runCounts.length < size) {
+            const next = new Array<number>(size).fill(0);
+            if (rec.runCounts) for (let i = 0; i < rec.runCounts.length; i++) next[i] = rec.runCounts[i] ?? 0;
+            rec.runCounts = next;
+        }
+        return rec.runCounts;
+    }
+
+    /** 写进度（钳到**最高档**目标：领完末档后进度不再无限涨） */
     private _write(rec: AchRecord, g: AchGroupCfg, value: number): void {
         const next = Math.min(this._maxCount(g), Math.max(0, Math.floor(value)));
         if (rec.progress !== next) rec.progress = next;
@@ -395,7 +506,6 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
     /** 组装一条成就的展示状态（**判据只在这里**，界面不重算） */
     private _stateOf(g: AchGroupCfg): AchGroupState {
         const rec = this._find(g.group);
-        const rawProgress = rec?.progress ?? 0;
         const claimedTier = rec?.claimedTier ?? 0;
         const maxTier = g.maxTier;
 
@@ -404,6 +514,11 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
         const nextCfg = AchievementConfig.getTierCfg(g.group, nextTier);
         const count = nextCfg ? AchievementConfig.getCount(nextCfg) : 0;
         const done = claimedTier >= maxTier;
+
+        // ⚠ 进度取哪一套：`run_*` 型读**下一档自己的局数**（逐档计数），其余读 `progress`
+        const rawProgress = isRunTarget(g.target)
+            ? (rec?.runCounts?.[nextTier - 1] ?? 0)
+            : (rec?.progress ?? 0);
 
         let state: AchState;
         if (done) state = 'done';
@@ -416,13 +531,15 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
             category: g.category,
             name: g.name,
             desc: g.desc,
+            // 卡面显示「下一档」自己的文案（逐档 desc：门槛写在里面，如「累计3局把第…推进到第2阶段」）
+            nextDesc: (nextCfg?.desc ?? '') || g.desc,
             icon: g.icon,
             silent: g.silent,
             tier: Math.max(1, claimedTier),
             nextTier,
             claimedTier,
             maxTier,
-            // 进度显示按「下一档目标」钳制（领完金档时进度就是它的目标值）
+            // 进度显示按「下一档目标」钳制（领完末档时进度就是它的目标值）
             progress: done ? count : Math.min(rawProgress, count),
             count,
             state,
@@ -434,7 +551,7 @@ export class AchievementDataModule extends DataModule<IAchievementData> {
     }
 }
 
-/** 档位中文（日志用，UI 走 `AchievementTierColor.tierName`） */
+/** 档位文案（日志用，UI 走 `AchievementTierColor.tierName`） */
 function tierLabel(tier: number): string {
-    return tier === 3 ? '金' : tier === 2 ? '银' : '铜';
+    return `阶段${tier}`;
 }

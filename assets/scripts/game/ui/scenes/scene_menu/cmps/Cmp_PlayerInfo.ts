@@ -5,6 +5,14 @@ import type { IPlayerInfo } from '../../../../data';
 const { ccclass, property } = _decorator;
 
 /**
+ * 等级数字的字号：**两位数以内**用预制件里作者摆的 66（`content/left/info/lv`），
+ * **三位数（100 级）**降到 48 —— 那个 Label 是 66 号字、框宽 73，`overflow=NONE` 会自己撑宽，
+ * 三位数不降字号就会把「等级」整块的左边缘顶出去（账号等级上限 2026-11 抬到了 100）。
+ */
+const LV_FONT_NORMAL = 66;
+const LV_FONT_SMALL = 48;
+
+/**
  * 玩家信息条（菜单界面顶部：头像 / 等级 / 名字 / 经验条）
  *
  * 数据源：`DataCenter.ins.playerInfo.data` —— 它本身是 `reactive()` 代理，
@@ -66,9 +74,15 @@ export class PlayerInfoCmp extends UIWidget {
     }
 
     private refreshLevel(): void {
-        if (this.lvLabel) {
-            this.lvLabel.string = this.info.level<10?`0${this.info.level}`:`{this.info.level}`;
-        }
+        if (!this.lvLabel) return;
+        const lv = Math.max(1, Math.floor(this.info.level || 1));
+        const text = lv < 10 ? `0${lv}` : `${lv}`;
+        this.lvLabel.string = text;
+        // ⚠ 账号等级上限 2026-11 从 30 抬到 **100**（见 tools/excel_export/scripts/gen-player-levels.mjs），
+        //   而预制件里这个 Label 是 66 号字、框宽 73（`content/left/info/lv`，`overflow=NONE` 会自己撑宽）
+        //   —— 三位数（"100"）在 66 号字下约 108px，会把「等级」那块的左边缘顶出去。
+        //   所以三位数时降字号（48）把宽度收回来，两位数/一位数保持作者摆的 66。
+        this.lvLabel.fontSize = text.length >= 3 ? LV_FONT_SMALL : LV_FONT_NORMAL;
     }
 
     private refreshExp(): void {

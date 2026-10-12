@@ -1,7 +1,8 @@
 import { _decorator, Button, instantiate, Label, Node } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { DataCenter } from '../../../../data';
-import { DIFFICULTY_MAX, levelLabel } from '../../../../common/DifficultyConfig';
+import { DIFFICULTY_MAX } from '../../../../common/DifficultyConfig';
+import { detailTitleOf } from '../../../../common/DifficultyRecommend';
 import { gameModeDifficultyCount, gameModeDifficultyTitle } from '../../../../common/GameModeConfig';
 import { Cmp_DifficultyCell } from './Cmp_DifficultyCell';
 import type { DifficultyCellState } from './Cmp_DifficultyCell';
@@ -47,7 +48,7 @@ function cellName(level: number): string {
  * └── panel
  *     ├── bg / header           header: title(阶段模式 · 选难度) / count(共 100 关) / btn_close
  *     ├── legend                三态图例（纯展示，代码不碰）
- *     ├── detail                title(关卡 09) / btn_start(确定)
+ *     ├── detail                title(关卡 09 · 推荐) / btn_start(确定)
  *     └── list(ScrollView) → content(GRID Layout) → cell   ← 模板（DifficuteCell 实例）
  * ```
  *
@@ -56,7 +57,10 @@ function cellName(level: number): string {
  *   · **定状态**：按 `LevelData` 给每格算三态（当前选择 / 已解锁 / 未解锁）并下发；
  *   · **选择**：收格子冒泡上来的 `Pick`（**确认前不落盘**）；
  *   · **通知宿主**：点「确定」`emit(Confirm, level)`、点关闭 `emit(Close)` —— 落盘（`LevelData.selectLevel`）
- *     与进游戏都由 `Scene_Menu` 做（弹窗不知道"下一屏是谁"）。
+ *     与进游戏都由 `Scene_Menu` 做（弹窗不知道"下一屏是谁"）；
+ *   · **推荐难度**（2026-11）：默认落点取「推荐档位」与上次选择的**高者**，详情条在推荐那一档后加「· 推荐」。
+ *     ⚠ 它**不进格子状态** —— 三态图例（当前选择 / 已解锁 / 未解锁）语义不变，
+ *     所以这一条不需要动预制件、也不用改图例。判据全在 `common/DifficultyRecommend`。
  *
  * ── 三态（与图例一一对应；配色真源在 `Cmp_DifficultyCell`）──
  * | 状态 | 判据 | 底 | 数字 | 徽记 | 选中环 |
@@ -102,6 +106,13 @@ export class Cmp_Difficulty extends UIWidget {
     private built = false;
     /** 本次打开时**待确认**的档位（确认前不落盘；每次 onShow 从数据层重新取） */
     private pending = 1;
+    /**
+     * 「按你的局外成长该打哪一档」（`LevelData.getRecommendLevel()`，口径见
+     * `common/DifficultyRecommend` 文件头）—— 只用来给详情条加「· 推荐」后缀。
+     * **不参与格子状态**：三态图例（当前选择 / 已解锁 / 未解锁）的语义保持不变，
+     * 所以推荐这件事不需要动预制件、也不用改图例。
+     */
+    private recommend = 1;
 
     /* ===================================================================
      * 生命周期（Cocos 回调由基类接管，子类只用 onInit / onShow / onDispose）
@@ -118,8 +129,15 @@ export class Cmp_Difficulty extends UIWidget {
 
     /** 每次打开都按**最新进度**重画（进度只可能在局内变，所以不需要 watch） */
     protected onShow(): void {
-        // 默认落点 = **当前模式**上次准备打的那一档（档位按模式各记一份，见 `LevelData` 文件头）
-        this.pending = DataCenter.ins.levelData.getSelectedLevel();
+        const data = DataCenter.ins.levelData;
+        // 「按你的局外成长该打哪一档」—— 详情条据此标「· 推荐」
+        this.recommend = data.getRecommendLevel();
+        // 默认落点 = **推荐档位**与「当前模式上次准备打的那一档」**取高**。
+        //   为什么取高而不是直接改成推荐：玩家自己挑过更高的档时不许把他拽回来。
+        //   为什么必须掺进推荐：原先只认 `getSelectedLevel()`，一个该打档 80 的玩家
+        //   一开弹窗就停在档 3 —— 而那一段是**给新号准备的**（档 3 最低成长都要 89 秒），
+        //   于是他的体感就是"一路秒杀，包括 Boss"。推荐档位是把这件事讲明白的唯一出口。
+        this.pending = Math.max(this.recommend, data.getSelectedLevel());
         this.buildGrid();
         this.render();
     }
@@ -250,7 +268,7 @@ export class Cmp_Difficulty extends UIWidget {
         // ⚠ count 那一格保持「共 100 关」不加模式名 —— 它右边 24px 就是关闭按钮，加了会盖上去。
         if (this.titleLabel) this.titleLabel.string = gameModeDifficultyTitle(data.getMode());
         if (this.countLabel) this.countLabel.string = gameModeDifficultyCount(DIFFICULTY_MAX);
-        if (this.detailTitle) this.detailTitle.string = levelLabel(this.pending);
+        if (this.detailTitle) this.detailTitle.string = detailTitleOf(this.pending, this.recommend);
 
         for (const cell of this.cells) {
             if (!cell || !cell.isValid) continue;

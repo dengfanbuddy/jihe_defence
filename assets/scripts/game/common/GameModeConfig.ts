@@ -19,10 +19,10 @@
  *      `stage` 共用同一条解锁阶梯（`LevelData.getUnlockedLevel()` = 已通关的最高档 + 1）——
  *      设计稿的口径是「无尽模式 = 在已解锁难度上无限阶段」（`docs/prd/肉鸽塔防_游戏设计定案.md` §14.3）。
  *
- * ⚠ **局内的差异尚未落地**：`Scene_Game_Stage` 现在只把模式读进
- *   `battleStore.mode`（HUD 左上角会显示模式名），**还没有按模式改玩法规则** ——
- *   无尽模式目前仍会走到最终 Boss 阶段结束。要落地就在这里加标记位，
- *   在 `Scene_Game_Stage.checkStage` 一处消费（见 `docs/game-mode/README.md` §5）。
+ * ⚠ **局内的玩法差异不在本文件**（本文件只管界面侧的四件事）：两种模式**怎么玩**的判据
+ *   （有没有终点 / 阶段上限 / 怪按阶段怎么长 / 最终 Boss 出不出）全在同目录的
+ *   **`GameModeRules.ts`**（纯函数、可体检），由 `Scene_Game_Stage` 持有并消费 ——
+ *   2026-11 无尽模式本体已落地，别再照着旧注释以为"模式只做了投影"。
  *
  * @example
  * ```ts
@@ -37,7 +37,7 @@
 export const GameMode = {
     /** 阶段模式：1~100 档，打到最终 Boss 通关（现役唯一有终点的模式） */
     Stage: 'stage',
-    /** 无尽模式：先选一个基准难度，局内无阶段上限（**局内规则待落地**，见文件头） */
+    /** 无尽模式：先选一个基准难度，局内无阶段上限（玩法差异见 `GameModeRules.ts`） */
     NoEnding: 'no_ending',
 } as const;
 

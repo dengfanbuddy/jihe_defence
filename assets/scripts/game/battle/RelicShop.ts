@@ -140,8 +140,32 @@ export interface RelicShopDeps {
 
     /** 一轮抽取真的成功了（宿主用它上报成就 `draw_count`；付费抽与广告免费抽都算一次） */
     onDraw?(): void;
-    /** 遗物真的发到手里了（宿主用它写遗物图鉴 + 上报成就 `relic_collected`） */
-    onRelicGranted?(relicId: number): void;
+    /**
+     * 遗物真的发到手里了（宿主用它写遗物图鉴 + 上报成就 `relic_collected`）。
+     * @param via 到手路径：`draw` = 商店抽取 / `start_gift` = 成就「开局赠遗物」。
+     *            **只给统计用**（`RunStats` 拿它把开局赠礼与抽到的分开列）；老实现只接第一个参数，照样兼容。
+     */
+    onRelicGranted?(relicId: number, via?: 'draw' | 'start_gift'): void;
+    /**
+     * 一轮抽取的**明细**（花费 / 付费通道 / 本轮候选）—— 供局内统计（`RunStats`）记账。
+     *
+     * ⚠ 与 `onDraw` **刻意分开**：`onDraw` 是成就口径（"抽了几次"，target=`draw_count`），
+     *   语义窄且已经被成就系统消费；本回调是**埋点口径**（花了多少钱、走的哪条通道、出了什么），
+     *   将来加字段只动这边，不会把成就进度带偏。
+     */
+    onRoll?(info: RelicRollInfo): void;
+}
+
+/** 一次抽取的明细（`RelicShopDeps.onRoll` 的载荷） */
+export interface RelicRollInfo {
+    /** 这一轮花掉的金币（0 = 广告免费 / 券免费） */
+    cost: number;
+    /** 走的是哪条通道：`gold` 花金币 · `ad` 看完广告 · `ticket` 花局内广告券 */
+    via: 'gold' | 'ad' | 'ticket';
+    /** 本轮候选（遗物 + 技能；面板上那几格就是它） */
+    options: ShopOption[];
+    /** 抽取用的英雄等级（品质档位，报表里用来对账"越抽越好"） */
+    heroLevel: number;
 }
 
 /**
@@ -301,12 +325,12 @@ export class RelicShop {
         const cost = this.refreshCost.value;
         const gate = this.refreshGate();
         if (gate.canPay) {
-            this.roll(false);
+            this.roll(false, 'gold');
             return;
         }
         // ② 有券：扣券 → 走"免费"那一支（**局内配额照扣**，见 deps.getAdTicketCount 的说明）
         if (gate.viaTicket && this.tryUseAdTicket()) {
-            this.roll(true);
+            this.roll(true, 'ticket');
             return;
         }
         if (!gate.viaAd) {
@@ -314,7 +338,7 @@ export class RelicShop {
             return;
         }
         this.deps.playAd('relic_refresh').then((ok) => {
-            if (ok) this.roll(true);
+            if (ok) this.roll(true, 'ad');
         });
     }
 
@@ -340,7 +364,7 @@ export class RelicShop {
     }
 
     /** 真正抽 4 个并写进槽位（规则见 `RelicDraw.roll`：混合池 + 品质权重 + 阶段门槛 + 技能配额） */
-    private roll(free: boolean): void {
+    private roll(free: boolean, via: 'gold' | 'ad' | 'ticket'): void {
         const bag = this.deps.getBag();
         if (!bag) return;
 
@@ -385,6 +409,15 @@ export class RelicShop {
         this.rollUsed.value = false;
         this.adMode.value = false;
         this.syncCost();
+
+        // 埋点/统计：这一轮的明细（花费、通道、候选）。**实付口径就是上面那个 `cost`** ——
+        // 与面板显示的 `refreshCost` / 真正扣掉的 `drawCostNow()` 是同一个数（免费通道为 0）。
+        this.deps.onRoll?.({
+            cost: free ? 0 : cost,
+            via,
+            options,
+            heroLevel: this.deps.getHeroLevel(),
+        });
 
         console.log(`[遗物] ${free ? '广告免费刷新' : `花费 ${cost} 金刷新`}（${options.length} 个候选）：`
             + options.map((o) => `${o.kind === 'skill' ? '技' : '遗'}${o.name}[${o.rarity}]`).join(' / '));
@@ -471,7 +504,7 @@ export class RelicShop {
     }
 
     /** 遗物发放：入背包 + 挂 Modifier */
-    private grantRelic(option: ShopOption): boolean {
+    private grantRelic(option: ShopOption, via: 'draw' | 'start_gift' = 'draw'): boolean {
         const bag = this.deps.getBag();
         if (!bag) return false;
         if (bag.has(option.id)) {
@@ -485,8 +518,9 @@ export class RelicShop {
         }
         console.log(`[遗物] 获得「${option.name}」[${option.rarity}]，背包共 ${bag.getAll().length} 件`);
         // 遗物**图鉴**收集（`relic_collected` 的数据源）—— 由宿主写：
-        // 「只记图鉴里那 37 件（有局外版）」的过滤与上报都在宿主那一侧（见 `Scene_Game_Stage.onRelicCollected`）
-        this.deps.onRelicGranted?.(option.id);
+        // 「只记图鉴里那些件（有局外版）」的过滤与上报都在宿主那一侧（见 `Scene_Game_Stage.onRelicCollected`）
+        // `via` 只给统计用（把「开局赠礼」与「商店抽到」分开列），不参与任何玩法判定
+        this.deps.onRelicGranted?.(option.id, via);
         return true;
     }
 
@@ -583,7 +617,7 @@ export class RelicShop {
             }
             const def = pool[Math.min(pool.length - 1, Math.floor(Math.random() * pool.length))];
             const option = RelicDraw.makeRelicOption(def, false);
-            if (!this.grantRelic(option)) return;
+            if (!this.grantRelic(option, 'start_gift')) return;
             owned.push(def.id); // 多件时逐件去重（同一件不送两次）
         }
     }

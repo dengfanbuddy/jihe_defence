@@ -48,7 +48,7 @@
 
 | 项 | 事实 |
 |---|---|
-| 工具面 | **8 个**（§1.1 分析当时是 4 个，第 1、2 批各加了几个）：`cocos_execute_code` / `cocos_capture_view` / `cocos_editor_state` / `cocos_describe_api` / `cocos_logs` / `cocos_click_node` / `cocos_send_keys` / `cocos_runtime`（`dsh-profile/plugin/dsh-cocos-bridge/index.js`，见 §8 / §9） |
+| 工具面 | **7 个**（§1.1 分析当时是 4 个，第 1、2 批各加了几个；**第 8 个 `cocos_runtime` 已于 2026-10-09 删除**，见 §9.10）：`cocos_execute_code` / `cocos_capture_view` / `cocos_editor_state` / `cocos_describe_api` / `cocos_logs` / `cocos_click_node` / `cocos_send_keys`（`dsh-profile/plugin/dsh-cocos-bridge/index.js`，见 §8 / §9） |
 | 传输 | 模型↔宿主走 SDK stdio，宿主↔编辑器走 fork IPC 自带的那条 fd（`README.md:21-26`） |
 | 面板 | 自绘（零依赖纯 DOM + 从 DSH 抽的 `--dsw-*` token）；**明确否掉了 iframe 方案**（`README.md:30-37`） |
 | 编辑器执行 | editor 上下文 = `vm.createContext` 沙箱（`source/core/engine.ts`）；scene 上下文 = 场景脚本（`source/scene.ts`，184KB，助手 `eachNode/tree/nodeByPath/dump/snapshot/worldRect/contentBounds/captureView/pick/labelFit/snapshotTree/diffTree/loadFrame`） |
@@ -63,7 +63,7 @@
 |---|---|---|---|
 | **接入方式** | HTTP MCP（厂商无关；但 MCP 工具在**会话初始化时**注册 ⇒ "先起 8765 再开 dsh"这条时序坑，`QUICKSTART.md:35`） | fork IPC（只有本插件能用；换端口/重连这类问题不存在） | 各有取舍；我们是"专用"，他们是"通用" |
 | **代码执行隔离** | `new AsyncFunction(...)` 直接跑，注入 `require/cc/Editor/scene/director/args`（`scene.js:31,590`；`browser.js:31,430`），**没有 vm**；安全靠正则拦 `fs.rm/unlink/truncate`、`createWriteStream`、`child_process`、家目录/工程外绝对路径、`..`（`lib/javascript-safety.js:6-11,52-90`），可 `safety_checks:false` 关掉 | `vm.createContext` 隔离 + 两层超时 + 跨 realm 错误归一化（`source/core/sandbox.ts` / `core/engine.ts`） | **我们**（他们自己的 README 也承认"这是防护栏，不是完整沙箱"，`README_CN.md:249`） |
-| **工具数量/披露** | 106 个，靠 profile 分档补救 | **8 个**（分析当时 4 个），`execute_code` 一个描述 1870 字（`README.md` 坑 20） | 现在**我们**省；**8 个已经是 §4-B6 说的那档了** —— 第 4 批要补"按需暴露 + 目录元工具" |
+| **工具数量/披露** | 106 个，靠 profile 分档补救 | **7 个**（分析当时 4 个；`cocos_runtime` 删于 2026-10-09），`execute_code` 一个描述 1870 字（`README.md` 坑 20） | 现在**我们**省；**7 个已经是 §4-B6 说的那档了** —— 第 4 批要补"按需暴露 + 目录元工具" |
 | **工具结果的形状** | 统一信封 `{ok, tool, callId, timestamp, summary, data, refs}`，`refs` 自动抽 uuid / `db://` 路径供**下一步直接用**（`lib/tool-registry.js:88-114,245-298`） | `{ok, context, durationMs, result}` + 序列化上限（`source/core/serialize.ts`） | **他们**（`refs` 这一条直接可借） |
 | **工具注解** | 由工具名正则推断 `readOnlyHint / destructiveHint / idempotentHint`（`lib/tool-registry.js:145-163`） | 无注解；但**审批通道已经挂好**（`README.md`「交互」一节） | 组合起来才强（见 §4-B7） |
 | **面板形态** | `panel/codely.js` = iframe 嵌 `http://127.0.0.1:3080`（`codely.js:9,17`），2s×45 次轮询探活、90s 上限、`fetch` 连失败 3 次退化成周期重载 iframe（`:56-116`） | 自绘面板（一层真 DOM，抄渲染模型不抄像素） | **我们**（我们评估过的那张对照表在 `README.md:32-37`，结论一致） |
@@ -92,7 +92,7 @@
 3. **面板那一半**：history/用量/进度/活动/交互卡/斜杠命令/`@` 引用/图片管线，他们全在 iframe 里。
 4. **预制件"改了什么"**：`snapshotTree`/`diffTree`（键按节点路径、只回真变了的、点名探针泄漏）他们没有。
 5. **文档与代码一致**：见 §6（他们仓里至少 6 处文档与代码不符，我们靠 verify 脚本挡这一类）。
-6. **分层干净（业务无关）**：扩展层的 8 个工具、`source/**`、随包发布的 skill，
+6. **分层干净（业务无关）**：扩展层的 7 个工具、`source/**`、随包发布的 skill，
    **业务词命中为 0**（实测见 §4.0）—— 业务知识全在 `AGENTS.md` / `docs/` / `tools/*-audit/`。
    这条纪律**必须保住**：借能力时最容易顺手把一批业务假设一起搬进来。
 
@@ -125,7 +125,7 @@ A4 只做前半句，后半句靠调用方把**期望值**传进来。
 
 | 范围 | 业务词命中 | 结论 |
 |---|---|---|
-| `source/**/*.ts`（**28 个** / 19,786 行，含 `input.ts` / `preview.ts` / `logs.ts`）+ `dsh-profile/plugin/dsh-cocos-bridge/index.js` | `背包/商城/遗物/英雄/塔防/怪物/技能/关卡/大厅/结算/Cmp_/Scene_Menu/tb/` = **0** | 工具面 100% 业务无关（**8 个**工具名也不带业务语义） |
+| `source/**/*.ts`（**27 个** / 19,369 行；`preview.ts` 已于 2026-10-09 删除，含 `input.ts` / `logs.ts`）+ `dsh-profile/plugin/dsh-cocos-bridge/index.js` | `背包/商城/遗物/英雄/塔防/怪物/技能/关卡/大厅/结算/Cmp_/Scene_Menu/tb/` = **0** | 工具面 100% 业务无关（**7 个**工具名也不带业务语义） |
 | `skills/cocos-editor-ops/SKILL.md`（436 行 / 66KB） | 同上 = **0** | skill 是**通用编辑器操作**，不是本游戏攻略 |
 | `benchmark/**` | `Bench.scene` 26 处、`units/relics/abilities` 1 处 | **设计使然**（基准必须在真工程里跑）；但 `cases.json:349` 的 `table-config` 问的是**业务表**（英雄/遗物/技能的 id 区间）→ 建议改成"任选一张 `tb/*.json`，只考能不能真读到 + 数字对不对" |
 | `scripts/preview-panel.js`（面板预览台） | `英雄/遗物` 2 处 | 纯假数据（只为看面板长相），**不对模型暴露**，可接受 |
@@ -207,7 +207,7 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 ### B 级——结构性（工具面涨到 8~10 个之后是必需）
 
 **B6. 工具面按需暴露 + 目录元工具**：他们的 `core/full/custom` + 命名 profile 存取/导出/导入
-（`lib/tool-profiles.js`）+ 面板一屏开关 + `get_tool_catalog`。我们现在 **8 个**工具、
+（`lib/tool-profiles.js`）+ 面板一屏开关 + `get_tool_catalog`。我们现在 **7 个**工具、
 `cocos_execute_code` 一条描述就 1870 字 —— A1~A5 做完就是 8~10 个，需要"默认少暴露、
 需要时查目录"。
 - **业务无关：✅** profile 键只认工具名/分类名（通用键）；**默认暴露哪几个是工程侧设置**，
@@ -305,10 +305,10 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 | 批次 | 内容 | 为什么这个顺序 |
 |---|---|---|
 | **第 1 批**（小、立刻有用）**✅ 已落地 2026-11** | A1 日志工具 · A5 `refs` · B10 面板 Cocos 主题 | 不动架构、不新增窗口定位，当天能验。落地清单见 §8 |
-| **第 2 批**（真补能力）**✅ 已落地 2026-11**（A2 / A3 / C12） | A2 预览截图（`view`）· A3 输入模拟（`cocos_click_node` + `cocos_send_keys`）· C12 pause/step（`cocos_runtime`） | 共用同一套窗口定位（`source/capture.ts` 已有）；A3 收益最大。落地清单与**两处对原计划的改写**见 §9 |
+| **第 2 批**（真补能力）**✅ 已落地 2026-11**（A2 / A3 / C12） | A2 预览截图（`view`）· A3 输入模拟（`cocos_click_node` + `cocos_send_keys`）· C12 pause/step（`cocos_runtime`，**该工具已于 2026-10-09 删除**，见 §9.10 —— A2/A3 仍在） | 共用同一套窗口定位（`source/capture.ts` 已有）；A3 收益最大。落地清单与**两处对原计划的改写**见 §9 |
 | **第 2c 批**（本次**没做**，已写清为什么） | 运行态下的**节点投影**（game view 里按 `camera` 参数投影到游戏相机） | 那一刻渲染的是**游戏自己的相机**而节点矩形用的是编辑器相机 —— 要支持得让 `viewMetrics` / `pick` / 点击都接受"用哪台相机"，是独立一批的活（见 §9.5） |
 | **第 3 批**（解除已知边界） | A4 预制件引用体检 + 结构化改预制件（含 `asset-db` 写盘） | 会碰"编辑态 vs 写盘"的一致性，要单独验 |
-| **第 4 批**（工具变多之后） | B6 profile/按需暴露 · B7 注解×审批 · B9 像素对比 · B8 出图闭环（只做"导入资产回 uuid"那半） | 前三批把工具数推到 **8 个**，B6 的触发条件已经成立 |
+| **第 4 批**（工具变多之后） | B6 profile/按需暴露 · B7 注解×审批 · B9 像素对比 · B8 出图闭环（只做"导入资产回 uuid"那半） | 前三批把工具数推到 **8 个**（其中 `cocos_runtime` 已于 2026-10-09 删除 ⇒ 现在 **7 个**），B6 的触发条件已经成立 |
 
 **每批都要配两条**：
 
@@ -339,7 +339,7 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 
 ### 8.2 A5 `refs`（出口统一补可复用标识）
 
-- `source/core/serialize.ts` 新增 `collectRefs` / `formatRefs`（纯函数）；`source/cocos-tools.ts` 的 `withRefs` 把**每个方法**都包上（当时 5 个，现在 8 个）。
+- `source/core/serialize.ts` 新增 `collectRefs` / `formatRefs`（纯函数）；`source/cocos-tools.ts` 的 `withRefs` 把**每个方法**都包上（当时 5 个，写这一节时 8 个，现在 **7 个**）。
 - 只抽**不会认错**的两类：**全形 uuid**（含子资源写法 `uuid@f9941`）与 **`db://` 路径**。
   **压缩型 uuid 刻意不抽**（任意 22 字符单词都会命中，抽出来是噪声）、节点路径不抽（与普通文本无法区分）。
 - 追加在 `text` 结尾（模型只读 `text` —— 桥接侧 `OUTPUT.render` 只渲染它），结构化版本进 `data.refs`。
@@ -375,6 +375,10 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 ---
 
 ## 9. 第 2 批已落地（2026-11）：A2 截图分画面 · A3 点按/按键 · C12 运行态
+
+> ⛔ **读这一章之前先看两条结局**：C12（`cocos_runtime`）**整条已删** —— 五个开关 2026-10-08 撤（§9.9）、
+> 只读那一格 2026-10-09 也删（§9.10）；A2 的 `view` 与 A3 的两件**仍在**。
+> 下面 §9.4 / §9.7 / §9.8 里关于运行预览的段落实测记录只作**历史读法**。
 
 ### 9.0 先说三处**对原计划的改写**（计划写在 §4，理由都来自实测）
 
@@ -425,6 +429,9 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 
 ### 9.4 C12：`cocos_runtime`（**冻住再截图/取数**）
 
+> ⛔ **这一节整节作废**：五个开关 2026-10-08 撤掉（§9.9），只读那一格 2026-10-09 也删了（§9.10）。
+> 下面是**当时的设计与实测**，只作历史读法 —— `cocos_runtime` 这个工具**已经不存在**。
+
 六个动作，每一个都对应工具栏上真实存在的那颗按钮，走的是**编辑器自己那条路**：
 
 | action | 走的消息（出处） |
@@ -464,7 +471,7 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 | `npm run verify`（全链） | **exit=0** |
 | **业务无关自检**（§4.0 那条命令） | 三个目录 **命中 0** |
 
-主要改动文件：`source/input.ts`（新）、`source/preview.ts`（新）、`source/scene.ts`（`readSceneMode`）、
+主要改动文件：`source/input.ts`（新）、`source/preview.ts`（新；**该文件已于 2026-10-09 整份删除**，见 §9.10）、`source/scene.ts`（`readSceneMode`）、
 `source/core/engine.ts`（`view` + `mode` + 运行态两条限制）、`source/cocos-tools.ts`（三个新方法）、
 `source/types/electron.d.ts`（`sendInputEvent` / 输入事件 / 窗口焦点）、
 `dsh-profile/plugin/dsh-cocos-bridge/index.js`（三个新工具 + `view` 参数）、
@@ -568,10 +575,35 @@ node -e "const fs=require('fs'),p=require('path');const W=/背包|英雄|遗物|
 （`0%`，既不成功也不失败；`bundles` 里只有 `internal`）⇒ 它**换不来任何能力**。
 
 **留下的判据**（都进 `npm run verify`）：`verify-skill-facts.js` 的 `capture-reports-viewstate` /
-`scene-frozen-recipe`（三处源码 **0 处 `.invalidate(` 调用**，断言先剥注释）+ 新增
-`preview-control-removed`（四个入口挨个点名）；`verify-cocos-engine.js` 的抓图段与 9g 段
-（旧参数 `forceRepaint:true` **零副作用**；五个动作被拒且**不发消息、不碰 `PreviewPlay`**）。
+`scene-frozen-recipe`（三处源码 **0 处 `.invalidate(` 调用**，断言先剥注释）+ `preview-control-removed`
+（四个入口挨个点名；**该锚点已在 §9.10 改名 `preview-tool-removed` 并扩到五处 + 两个文件**）；
+`verify-cocos-engine.js` 的抓图段与 9g 段（旧参数 `forceRepaint:true` **零副作用**）。
 细节：`docs/冻结诊断.md` §6。
+
+### 9.10 收尾：连只读那一格也删掉（**2026-10-09**）
+
+**结论**：`cocos_runtime`（运行预览的只读状态探针）**整条删除**，工具面 **8 → 7**。
+
+**判据（为什么"留着"比"删掉"更贵）**：① 它只回答"现在是不是运行态"，而这句话
+**截图/点击链路本来就在回答**——`cocos_capture_view` 回执的 `mode`（`actual` / `running` /
+`sources.previewState` / `paused` / 帧计数）+ `cocos_click_node` 在运行态下对 `node` 的拒绝；
+② 它的**落地文件** `source/preview.ts` 只服务它一个（`query-scene-mode` 全工程只有那一处调用），
+留着就是**一份没有消费者的能力**：谁看都以为"运行预览还能被工具碰到"。
+
+**顺手补回一处静默**：那条"判据不可信"的说明（读不到 `cce.PreviewPlay._state` 时场景脚本会写 `note`）
+**原先只有这个工具会回**。删掉工具之后把它接进 `capture_view` 回执的 `mode.note`
+（`viewNote ?? sceneNote`）—— 否则"我判不出来"就变成静默的，而那正是坑 5 那一类病
+（工具没报错、图也在、就是不对）。
+
+| 撤什么 | 落点 |
+|---|---|
+| 工具本体与它的 IPC 帧 | bridge 插件（工具注册 / `RUNTIME_DESCRIPTION` / `ipcCall('runtime')`）、`source/cocos-tools.ts`（`runRuntime` + `runtimeSummary` + 分发表项） |
+| 只服务它的代码 | `source/preview.ts` + `dist/preview.js`（**整文件删除**）、`core/engine.ts` 的 `readSceneRuntime`、`source/types/editor.d.ts` 的 `Editor.Message.send`（全工程已无调用方） |
+| **不撤**的 | `source/scene.ts` 的 `readSceneMode`（运行态判据一字未动）；**没有任何新入口能开预览** |
+
+细节与逐步落地清单：`README.md` 坑 71。判据：`verify-skill-facts.js` 的 `tool-count-is-7` /
+`interaction-tools-wired` / `preview-tool-removed`（五处入口 + 两个文件不存在 + 判据仍在）与
+`verify-cocos-engine.js` 的 9g 段（分发表七个键、`capture_view` 仍如实报运行态、`mode.note` 不静默）。
 
 **两条顺手记下的（都写进 skill 了）**：① `webContents.isPainting()` 这个字段**没有区分力** ——
 当时**主窗口**也是 `false`，可用户点得动它；② 那个"停在旧场景"的画布**唯一的判据是人看到的画面**

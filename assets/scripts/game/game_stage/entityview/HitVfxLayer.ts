@@ -5,19 +5,33 @@ import { UnitKind } from '../../common/EntityVisualConfig';
 import {
     HIT_FEEL_BUDGET,
     HIT_FEEL_MARK,
+    HIT_FEEL_SHAPE,
     HIT_FEEL_TIER_RANK,
     HitFeelTier,
     HitMarkSpec,
+    HitShapeKind,
+    HitShapeResult,
     clampBattleDt,
+    getShapeSpec,
     getTierSpec,
     resolveDeathTier,
+    resolveHitShape,
     resolveHitTier,
 } from '../../common/HitFeelConfig';
 import { HitFeelDirector } from './HitFeelDirector';
+import type { SkillShapeReport } from '../../battle/SkillShape';
 const { ccclass } = _decorator;
 
 /** 本层 UITransform 的覆盖尺寸（战场以原点为中心、刷怪半径 ≤ 800，取 4000 留足余量） */
 const COVER_SIZE = 4000;
+
+/**
+ * 一个形态图形最多存几个落点（像素对，所以是 2×）。
+ *
+ * 取 12：`audit` 与实机的链式弹射最多 4~5 跳，12 已经留足余量；
+ * 而天怒那种全场爆炸有 20+ 个落点 —— 存下来只为算包围盒，画的时候也不需要更多点。
+ */
+const SHAPE_POINT_MAX = 12;
 
 /**
  * ============================================================
@@ -64,6 +78,15 @@ const COVER_SIZE = 4000;
  * ---- 合并（G2）：档位相同 + 颜色相同 + 40ms 内 + 80px 内 → 合成一次 ----
  *   AoE 打一片 20 只时，20 个同心环只会糊成一团；合并后落在**质心**、读作"这一片被盖了一章"。
  *   注意**不同档位不合并**（暴击与普攻的印痕形状不同，合起来会同时说谎）。
+ *   ⚠ 合并只把位置挪到质心、**画法一字不变**（`count` 只用于加权），所以"炸 6 只"与"打 1 只"
+ *   在 B5 之前是**逐图元相同**的 —— 那正是 B5 形态层要解决的问题。
+ *
+ * ---- 第二根轴：技能形态（B5）----
+ *   档位回答"多重"，形态回答"**是什么**"（链式 / 爆炸 / 多段 / 全场）。判据是"同源 + 同帧 +
+ *   一次普攻或击杀锚点"的落点几何，实现是 `HitFeelConfig.resolveHitShape`（纯函数，两份缓冲各算一次）。
+ *   · 有形态的那一批 → 画**一个**形态图形，这一批的个体印痕**全部不发**（形态吸收，总量反而下降）；
+ *   · 没有形态 → 与 B2 行为完全一致。
+ *   形态图形的额度、上限、统计都**与印痕分开**（见 `shapes` 字段的注释）。
  *
  * ---- 密度自适应（k 出生时快照）----
  *   `k` 在**出生那一刻**取一次并存在数据对象上，之后不再变 —— 否则同一批印痕会在"死得越来越多"
@@ -95,8 +118,32 @@ export class HitVfxLayer extends Component {
     private freeItems: VfxItem[] = [];
     private freeShards: ShardItem[] = [];
 
+    /**
+     * 技能形态图形（B5：链折线 / 爆炸环 / 多段叠印 / 全屏扫线）。
+     *
+     * ⚠ **与 `items` 分成两份是有意的**（不是图省事）：
+     *   · 形态图形的淘汰只按年龄（它没有"档位"可分层，见 `evictShapeIfFull`），
+     *     与印痕的"先淘汰最弱档里最老的"是两套规则；
+     *   · 额度也分开（`shapeAliveMax` / `shapeSpawnPerSecMax` vs `markAliveMax` / `markSpawnPerSecMax`）——
+     *     形态**替代**个体印痕而不是叠加，共用一份额度会让"技能救不了糊屏"。
+     */
+    private shapes: ShapeItem[] = [];
+    private freeShapes: ShapeItem[] = [];
+
+    /**
+     * 本帧尚未提交的命中（**形态推断的输入**）。
+     *
+     * 为什么要缓冲：一次 chain / AoE 的 N 次结算落在同一帧，而"这是不是一次技能"
+     * 只有等这一帧的锚点（`OnAttackLanded` / `OnKill`）与全部落点都到齐才判得出来。
+     * 于是事件回调只**记录**，`update` 开头统一 `flushPending()` 提交 ——
+     * 代价是印痕晚一帧出现（16ms），与 `HitFeelDirector` 的"上一帧事件、这一帧提交"完全同一条口径。
+     */
+    private pending: PendingBatch[] = [];
+
     /** 印痕新建时间戳（1s 滑动窗口，用来卡每秒新建上限） */
     private spawnTimes: number[] = [];
+    /** 形态图形新建时间戳（1s 滑动窗口；**与印痕分开记**，见 `shapes` 的注释） */
+    private shapeSpawnTimes: number[] = [];
 
     /** 供 Graphics.strokeColor / fillColor 复用的 Color 实例（setter 内部做拷贝，可以放心复用） */
     private readonly paint = new Color(255, 255, 255, 255);
@@ -115,7 +162,17 @@ export class HitVfxLayer extends Component {
     readonly stats: HitVfxStats = {
         marks: 0, attacks: 0, evades: 0, shards: 0, merged: 0,
         spawnDropped: 0, evicted: 0, shardsDropped: 0, alivePeak: 0, redraws: 0,
+        shapes: 0, chains: 0, blasts: 0, multis: 0, fans: 0, reported: 0,
+        shapesDropped: 0, shapesEvicted: 0, shapeAlivePeak: 0, shapeSpawnDropped: 0,
     };
+
+    /**
+     * 本帧收到的**显式形态上报**（`OnSkillShape`，见 `battle/SkillShape.ts`）。
+     *
+     * 为什么也要缓冲到帧末：上报与它引起的伤害事件**在同一帧**发出，而"这一批命中要不要
+     * 被这个形态吸收"要等两边的清单都齐了才判得出来（同 `pending` 的理由）。
+     */
+    private pendingShapes: SkillShapeReport[] = [];
 
     // ============ 绑定 / 解绑 ============
 
@@ -148,6 +205,13 @@ export class HitVfxLayer extends Component {
             this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnAttackStart, this.onAttackStart, this));
             // F3 几何符号：闪避（"没打中"也要有形状，而不是什么都不发生）
             this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnEvade, this.onEvade, this));
+            // B5 形态层：**锚点**（没有它就没有"这一批是不是一次技能"的判据，见 HIT_FEEL_SHAPE 的文件头）
+            this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnAttackLanded, this.onAttackLanded, this));
+            this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnKill, this.onKill, this));
+            // 「路 B」：战斗侧**显式上报**的技能形态（爆炸环 / 链折线 / 扇形）。
+            // 它优先于几何推断 —— 判据与结算几何同源，且能覆盖"没有锚点、几何猜不出来"的效果
+            // （Boss 咆哮、神器天怒、击杀爆炸都是这一类）。
+            this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnSkillShape, this.onSkillShape, this));
         }
     }
 
@@ -181,7 +245,11 @@ export class HitVfxLayer extends Component {
         this.ctx = null;
         this.items.length = 0;
         this.shards.length = 0;
+        this.shapes.length = 0;
+        this.pending.length = 0;
+        this.pendingShapes.length = 0;
         this.spawnTimes.length = 0;
+        this.shapeSpawnTimes.length = 0;
         this.clock = 0;
         if (this.g) this.g.clear();
         this.drewLastFrame = false;
@@ -202,9 +270,14 @@ export class HitVfxLayer extends Component {
         this.spaceAnchor = null;
         this.items.length = 0;
         this.shards.length = 0;
+        this.shapes.length = 0;
+        this.pending.length = 0;
+        this.pendingShapes.length = 0;
         this.freeItems.length = 0;
         this.freeShards.length = 0;
+        this.freeShapes.length = 0;
         this.spawnTimes.length = 0;
+        this.shapeSpawnTimes.length = 0;
         this.g = null;
     }
 
@@ -218,22 +291,98 @@ export class HitVfxLayer extends Component {
         return this.shards.length;
     }
 
-    // ============ 事件入口（三条总线） ============
+    /** 当前在场的技能形态图形数（调试 / 自检用；**与 `aliveMarkCount` 是两份额度**） */
+    get aliveShapeCount(): number {
+        return this.shapes.length;
+    }
 
-    /** 命中：盖一个印痕（刻度 / 细环 / 对位十字 + 该档的碎片） */
+    // ============ 事件入口（总线） ============
+
+    /**
+     * 命中：**只记账，不立刻画**（形态推断的输入；真正的提交在下一帧 `update` 的 `flushPending`）。
+     *
+     * 为什么要攒着：同一帧里"这一下是普攻还是技能"判不出来 —— 技能那 N 次命中会紧跟在本条之后。
+     * 攒到帧末，`resolveHitShape` 一次性回答"这 N 下是不是同一次技能、是链还是爆"。
+     * ⚠ 位置仍在**回调里立刻快照**（`DamageTextLayer` / `HitVfxLayer` 共用的那条硬约束：
+     * `DamagePipeline` 在 `ChangeHp` 之后发事件，实体可能马上被回收，之后再读就是过时值）。
+     */
     private onTakeDamage(e: any): void {
         const target = e?.target;
         if (!target?.position) return;
-        const tier = resolveHitTier(e);
+        const srcUid = e?.source?.uid ?? -1;
+        const batch = this.batchOf(srcUid);
         const dir = directionOf(e?.source, target);
-        this.spawnMark(
-            target.position.x,
-            target.position.y,
-            tier,
-            dir.x,
-            dir.y,
-            target.unitKind === UnitKind.Hero,
-        );
+        batch.hits.push({
+            uid: target.uid ?? 0,
+            x: target.position.x,
+            y: target.position.y,
+            tier: resolveHitTier(e),
+            dirX: dir.x,
+            dirY: dir.y,
+            heroHurt: target.unitKind === UnitKind.Hero,
+        });
+    }
+
+    /**
+     * 普攻命中（**形态层的锚点之一**）：一次普攻的目标就是"这一批技能"的圆心 / 链首。
+     *
+     * 为什么锚点必须存在：它是"这一批命中是不是一次技能"的唯一判据。
+     * 少了它，两只怪身上的 DoT 恰好同帧跳字（同源、同帧、多目标）会被误判成链式弹射。
+     */
+    private onAttackLanded(e: any): void {
+        const srcUid = e?.attacker?.uid ?? -1;
+        const tgt = e?.target;
+        if (!tgt?.position) return;
+        const batch = this.batchOf(srcUid);
+        batch.anchorUid = tgt.uid ?? 0;
+        batch.anchorX = tgt.position.x;
+        batch.anchorY = tgt.position.y;
+    }
+
+    /**
+     * 击杀（**形态层的锚点之二**）：天怒的"全屏爆炸"、遗物的"击杀爆炸/击杀回响"
+     * 都不是普攻引发的，它们的锚点是**死者的位置快照**。
+     *
+     * ⚠ 只读 `deathPos`，不读 `victim.position` —— 后者在 `OnDeath` 的监听里已被回收清零
+     * （`DamagePipeline` 的注释与 `Scene_Game_Stage` 的掉落点都踩过这个坑）。
+     */
+    private onKill(e: any): void {
+        const srcUid = e?.killer?.uid ?? -1;
+        const pos = e?.deathPos ?? e?.victim?.position;
+        const batch = this.batchOf(srcUid);
+        batch.hasKill = true;
+        if (batch.anchorUid === 0 && pos) {
+            batch.anchorUid = e?.victim?.uid ?? -1;         // -1 = "有锚点但没有锚点自身的命中"
+            batch.anchorX = pos.x ?? 0;
+            batch.anchorY = pos.y ?? 0;
+        }
+    }
+
+    /**
+     * **显式形态上报**（路 B）：战斗侧说"我刚放了一个半径 X 的圆 / 一张半角 Y 的扇"。
+     *
+     * 只**记录**、不立刻画（与命中同一条口径：帧末统一 `flushPending`），
+     * 因为"这一批命中要不要被这个形态吸收"要等两边都齐了才判得出来。
+     *
+     * ⚠ 位置在回调里**立刻快照**：上报发生在效果结算的同一帧，而实体随时可能被回收
+     *   （`OnDeath` 的监听里就 `recycleMonster` 了），之后再去读 `source.position` 就是 (0,0)。
+     */
+    private onSkillShape(e: any): void {
+        if (!e || !Number.isFinite(e.cx) || !Number.isFinite(e.cy)) return;
+        if (!Number.isFinite(e.radius) || e.radius <= 0) return;
+        if (this.pendingShapes.length >= HIT_FEEL_BUDGET.shapeAliveMax * 2) return;   // 上界兜底，别被脏数据撑爆
+        this.pendingShapes.push({
+            shape: e.shape,
+            cx: e.cx,
+            cy: e.cy,
+            radius: e.radius,
+            dirX: Number(e.dirX) || 0,
+            dirY: Number(e.dirY) || 0,
+            halfAngleDeg: Number(e.halfAngleDeg) || 0,
+            points: e.points ?? [],
+            source: e.source,
+            target: e.target,
+        });
     }
 
     /** 死亡：收尾印痕（普通怪 T2 / 精英·Boss T5 / 最终 Boss T7）—— 碎片只在死亡时出现 */
@@ -511,7 +660,7 @@ export class HitVfxLayer extends Component {
         if (this.freeShards.length < HIT_FEEL_BUDGET.shardAliveMax * 2) this.freeShards.push(s);
     }
 
-    // ============ 每帧：推进 + 整层重绘 ============
+    // ============ 每帧：提交缓冲 → 推进 → 整层重绘 ============
 
     update(dt: number): void {
         const g = this.g;
@@ -521,6 +670,11 @@ export class HitVfxLayer extends Component {
         const d = clampBattleDt(dt);
         this.clock += d;
         this.pruneSpawnTimes();
+        this.pruneShapeSpawnTimes();
+
+        // 0) 提交上一帧攒下的命中（形态判定 + 画印痕；**必须在推进寿命之前** ——
+        //    否则刚建出来的印痕会被自己这一帧的 dt 先老掉一次）
+        this.flushPending();
 
         // 1) 推进寿命、回收到期（倒序遍历，边删边退）
         for (let i = this.items.length - 1; i >= 0; i--) {
@@ -539,9 +693,17 @@ export class HitVfxLayer extends Component {
                 this.shards.splice(i, 1);
             }
         }
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            const s = this.shapes[i];
+            s.age += d;
+            if (s.age >= s.life) {
+                this.recycleShape(s);
+                this.shapes.splice(i, 1);
+            }
+        }
 
         // 2) 空场且上帧也没画过 → 省掉 clear()
-        if (this.items.length === 0 && this.shards.length === 0 && !this.drewLastFrame) return;
+        if (this.items.length === 0 && this.shards.length === 0 && this.shapes.length === 0 && !this.drewLastFrame) return;
 
         // 3) 整层重绘（clear 一次 + 全部图元，全程 1 次 draw call）
         g.clear();
@@ -553,11 +715,459 @@ export class HitVfxLayer extends Component {
         for (let i = 0; i < this.items.length; i++) {
             if (this.items[i].kind === VfxKind.Evade) this.drawEvade(g, this.items[i]);
         }
+        // 形态图形画在个体印痕**之下**：它是"这一片发生了什么"的背景说明，
+        // 压在上面会把"打谁"（每个受击者身上那一下）盖掉 —— 口径 4 把颜色/个体信息留给印痕。
+        for (let i = 0; i < this.shapes.length; i++) this.drawShape(g, this.shapes[i]);
         for (let i = 0; i < this.items.length; i++) {
             if (this.items[i].kind === VfxKind.Mark) this.drawMark(g, this.items[i]);
         }
-        this.drewLastFrame = this.items.length > 0 || this.shards.length > 0;
+        this.drewLastFrame = this.items.length > 0 || this.shards.length > 0 || this.shapes.length > 0;
         this.stats.redraws++;
+    }
+
+    // ============ 缓冲提交（B5 形态层） ============
+
+    /** 取本帧某个来源的命中批次（没有就建一个）；同一来源的事件天然聚成一批 */
+    private batchOf(srcUid: number): PendingBatch {
+        for (let i = 0; i < this.pending.length; i++) {
+            if (this.pending[i].srcUid === srcUid) return this.pending[i];
+        }
+        const b: PendingBatch = {
+            srcUid, hits: [], anchorUid: 0, anchorX: 0, anchorY: 0, hasKill: false,
+        };
+        this.pending.push(b);
+        return b;
+    }
+
+    /**
+     * 提交本帧攒下的全部命中。
+     *
+     * 每一批走同一条路，**优先信"显式上报"、其次才是"几何推断"**：
+     *   ① 本帧有同源的上报形态（`OnSkillShape`）→ 画它，这一批的个体印痕被吸收；
+     *   ② 否则问形态层（`resolveHitShape`）—— 回答了形状就画，这一批的个体印痕被吸收；
+     *   ③ 回答 null（普攻 / DoT / 光环 / 互不相干的多目标）→ 逐个发个体印痕，与 B2 完全一致。
+     *
+     * ⚠ **形态被预算丢掉时必须退回个体印痕**：否则"技能打中一片怪"会变成屏幕上什么都不发生
+     * （比画错形状严重得多 —— 那正是本层要修的那个 bug）。所以 ①② 失败都会落到 ③。
+     * ⚠ **没有配对到批次的上报也要画**：Boss 的咆哮可能一个敌人都没打中（纯 debuff / 目标已死），
+     *   而"放了一个扇形技能"这件事本身就该有表现。
+     */
+    private flushPending(): void {
+        const batches = this.pending;
+        const reports = this.pendingShapes;
+        this.pending = [];
+        this.pendingShapes = [];
+        if (batches.length === 0 && reports.length === 0) return;
+
+        const claimed: boolean[] = reports.map(() => false);
+
+        for (let i = 0; i < batches.length; i++) {
+            const b = batches[i];
+            if (b.hits.length === 0) continue;
+
+            let handled = false;
+            // ① 显式上报（同源）：一个来源一帧内的多个上报里只认第一个与它配对的
+            const ri = this.matchReport(b, reports, claimed);
+            if (ri >= 0) {
+                claimed[ri] = true;
+                if (this.spawnShape(this.reportToShape(reports[ri]), b, true)) handled = true;
+                else this.stats.shapesDropped++;
+            }
+            // ② 几何推断
+            if (!handled) {
+                const shape = resolveHitShape({
+                    hits: b.hits, anchorUid: b.anchorUid, anchorX: b.anchorX, anchorY: b.anchorY, hasKill: b.hasKill,
+                });
+                if (shape) {
+                    if (this.spawnShape(shape, b, false)) handled = true;
+                    // 形态没画成（额度满）→ 退回个体印痕，并**记账**：
+                    // "技能打中一片怪却什么都不发生"是本层要修的那个 bug，不许悄悄复发
+                    else this.stats.shapesDropped++;
+                }
+            }
+            if (handled) continue;
+
+            for (let k = 0; k < b.hits.length; k++) {
+                const h = b.hits[k];
+                this.spawnMark(h.x, h.y, h.tier, h.dirX, h.dirY, h.heroHurt);
+            }
+        }
+
+        // ③ 没被任何批次领走的上报（纯 debuff 的扇形、目标已死的范围技能…）
+        for (let i = 0; i < reports.length; i++) {
+            if (claimed[i]) continue;
+            this.spawnShape(this.reportToShape(reports[i]), null, true);
+        }
+    }
+
+    /**
+     * 给一批命中找它的显式上报（判据 = **来源实体 uid 相同**，且还没被别人领走）。
+     *
+     * 为什么只认 uid 就够：上报与伤害是**同一次效果结算里前后脚**发出的，同一帧里
+     * 一个来源一般只有一个范围效果；而 boss/英雄的多个效果各自有自己的上报，
+     * 用"领取制"（claimed）保证一条上报只吸收一批。
+     */
+    private matchReport(batch: PendingBatch, reports: SkillShapeReport[], claimed: boolean[]): number {
+        for (let i = 0; i < reports.length; i++) {
+            if (claimed[i]) continue;
+            const srcUid = reports[i]?.source?.uid ?? -1;
+            if (srcUid === batch.srcUid) return i;
+        }
+        return -1;
+    }
+
+    /** 上报 → 形态结果（少一层转换：两者字段本来就对齐，只有 Fan 多两个朝向字段） */
+    private reportToShape(rep: SkillShapeReport): HitShapeResult {
+        return {
+            kind: rep.shape,
+            points: rep.points ?? [],
+            cx: rep.cx,
+            cy: rep.cy,
+            radius: rep.radius,
+            stacks: 0,
+            dirX: rep.dirX ?? 0,
+            dirY: rep.dirY ?? 0,
+            halfAngleDeg: rep.halfAngleDeg ?? 0,
+        };
+    }
+
+    // ============ 形态图形：生成 / 淘汰 / 额度 ============
+
+    /**
+     * 生成一个形态图形。
+     *
+     * @param batch 触发它的那一批命中（**可空**：没配对到批次的上报也要画，见 `flushPending` ③）
+     * @param reported 是否来自战斗侧的显式上报（只用于记账 `stats.reported`）
+     * @returns 是否成功（false = 被额度丢弃 → 调用方必须退回个体印痕）
+     */
+    private spawnShape(shape: HitShapeResult, batch: PendingBatch | null, reported: boolean): boolean {
+        const spec = getShapeSpec(shape.kind);
+        if (!(spec.lifeMs > 0)) return false;
+        if (!this.consumeShapeQuota()) {
+            this.stats.shapeSpawnDropped++;
+            return false;
+        }
+        this.evictShapeIfFull();
+
+        const it = this.freeShapes.pop() ?? ({} as ShapeItem);
+        it.kind = shape.kind;
+        it.cx = shape.cx;
+        it.cy = shape.cy;
+        it.radius = shape.radius;
+        it.stacks = Math.max(1, Math.min(shape.stacks, HIT_FEEL_SHAPE.multiMaxStacks));
+        // 落点：折线要全部（画线靠它们）；**包围盒必须用完整点集算**，不能等截断之后再算 ——
+        // 多落点的批次（如一片怪同时被 AoE 打中）截断后的包围盒会缩水
+        it.pts = [];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (let i = 0; i < shape.points.length; i++) {
+            const px = shape.points[i].x;
+            const py = shape.points[i].y;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+            if (it.pts.length < SHAPE_POINT_MAX * 2) it.pts.push(px, py);
+        }
+        it.bbMinX = minX;
+        it.bbMaxX = maxX;
+        it.bbMinY = minY;
+        it.bbMaxY = maxY;
+        // 朝向：**扇形用上报给的**（几何推不出朝向）；其余形状沿用伤害方向
+        // （Multi 靠它决定叠印的偏移轴；缺省时兜底 (1,0)，画出来是一条水平的叠印，不会消失）
+        const first = batch?.hits?.[0] ?? null;
+        if (shape.kind === HitShapeKind.Fan) {
+            const len = Math.hypot(shape.dirX ?? 0, shape.dirY ?? 0);
+            it.dirX = len > 1e-6 ? (shape.dirX as number) / len : 1;
+            it.dirY = len > 1e-6 ? (shape.dirY as number) / len : 0;
+        } else {
+            it.dirX = first?.dirX ?? shape.dirX ?? 0;
+            it.dirY = first?.dirY ?? shape.dirY ?? 0;
+        }
+        it.halfAngleDeg = shape.kind === HitShapeKind.Fan
+            ? clampFanHalfAngle(shape.halfAngleDeg ?? 0)
+            : 0;
+        it.k = this.density();
+        it.heroHurt = first?.heroHurt ?? false;
+        it.age = 0;
+        it.life = spec.lifeMs / 1000;
+        this.shapes.push(it);
+
+        this.stats.shapes++;
+        if (reported) this.stats.reported++;
+        if (shape.kind === HitShapeKind.Chain) this.stats.chains++;
+        else if (shape.kind === HitShapeKind.Blast) this.stats.blasts++;
+        else if (shape.kind === HitShapeKind.Multi) this.stats.multis++;
+        else if (shape.kind === HitShapeKind.Fan) this.stats.fans++;
+        if (this.shapes.length > this.stats.shapeAlivePeak) this.stats.shapeAlivePeak = this.shapes.length;
+        return true;
+    }
+
+    /** 形态图形并发上限：超了淘汰**最老的**（形态没有档位可分层，与碎片同一条规则） */
+    private evictShapeIfFull(): void {
+        while (this.shapes.length >= HIT_FEEL_BUDGET.shapeAliveMax) {
+            let worstIdx = -1;
+            let worstAge = -1;
+            for (let i = 0; i < this.shapes.length; i++) {
+                if (this.shapes[i].age > worstAge) {
+                    worstAge = this.shapes[i].age;
+                    worstIdx = i;
+                }
+            }
+            if (worstIdx < 0) return;
+            this.recycleShape(this.shapes[worstIdx]);
+            this.shapes.splice(worstIdx, 1);
+            this.stats.shapesEvicted++;
+        }
+    }
+
+    /**
+     * 形态图形的每秒新建上限（1s 滑动窗口）。
+     *
+     * **与印痕的额度分开**（理由见 `shapes` 的注释）：形态替代个体印痕，两者不该抢同一份额度。
+     */
+    private consumeShapeQuota(): boolean {
+        if (this.shapeSpawnTimes.length >= HIT_FEEL_BUDGET.shapeSpawnPerSecMax) return false;
+        this.shapeSpawnTimes.push(this.clock);
+        return true;
+    }
+
+    /** 裁剪形态新建速率窗口 */
+    private pruneShapeSpawnTimes(): void {
+        const from = this.clock - HIT_FEEL_BUDGET.shapeSpawnWindowSec;
+        let drop = 0;
+        while (drop < this.shapeSpawnTimes.length && this.shapeSpawnTimes[drop] < from) drop++;
+        if (drop > 0) this.shapeSpawnTimes.splice(0, drop);
+    }
+
+    /** 回收一个形态数据对象 */
+    private recycleShape(s: ShapeItem): void {
+        if (this.freeShapes.length < HIT_FEEL_BUDGET.shapeAliveMax * 2) this.freeShapes.push(s);
+    }
+
+    // ============ 形态图形：画法 ============
+
+    /**
+     * 按形态分派画法（四种形状各有各的语法，颜色一律不参与 —— 口径 4）
+     *
+     * ⚠ 淡出用 `HIT_FEEL_SHAPE.fadePow` 的**"先实后收"指数**而不是线性 `(1-t)`：
+     * 形态寿命 200~280ms，线性淡出会让它大半辈子只剩半透明（用户口径「太浅、看不清」的成因之一）。
+     * 曲线口径与"为什么不是一档 α"都写在 `HitFeelConfig` 那个常量上，这里只消费它。
+     */
+    private drawShape(g: Graphics, it: ShapeItem): void {
+        const spec = getShapeSpec(it.kind);
+        const t = it.age / it.life;
+        if (t >= 1) return;
+        const rgb = it.heroHurt ? HIT_FEEL_MARK.heroRed : HIT_FEEL_MARK.ink;
+        const fade = Math.max(0, 1 - Math.pow(Math.max(0, Math.min(1, t)), HIT_FEEL_SHAPE.fadePow));
+        this.setPaint(g, rgb, spec.alpha * fade);
+        g.lineWidth = Math.max(HIT_FEEL_MARK.minLineWidth, spec.lineWidth * it.k);
+        switch (it.kind) {
+            case HitShapeKind.Chain: this.drawChain(g, it); break;
+            case HitShapeKind.Blast: this.drawBlast(g, it); break;
+            case HitShapeKind.Multi: this.drawMulti(g, it); break;
+            case HitShapeKind.Fan: this.drawFan(g, it); break;
+            default: break;
+        }
+    }
+
+    /**
+     * 链式弹射：从锚点（链首）沿跳点画**折线**，每个落点一个端头刻度。
+     *
+     * 三条画法口径：
+     *   · **逐段显现**（`chainSegDelayMs`）—— 读作"电一段一段跳过去"，而不是"整条线突然出现"；
+     *   · **每段拆折 + 中点垂直偏移**（`chainJagPx`）—— 直线的语言是"弹道"，折线才是"电"；
+     *     偏移靠**折点坐标**实现，**不旋转节点**（口径 5：图纸不该歪）；
+     *   · 端头刻度是制图里"尺寸线两端"的语法，读作"这一跳接上了"。
+     */
+    private drawChain(g: Graphics, it: ShapeItem): void {
+        const n = it.pts.length / 2;
+        if (n <= 0) return;
+        const ageMs = it.age * 1000;
+        const jag = HIT_FEEL_SHAPE.chainJagPx * it.k;
+        let px = it.cx;
+        let py = it.cy;
+        for (let i = 0; i < n; i++) {
+            const qx = it.pts[i * 2];
+            const qy = it.pts[i * 2 + 1];
+            const delay = i * HIT_FEEL_SHAPE.chainSegDelayMs;
+            if (ageMs >= delay) {
+                const dx = qx - px;
+                const dy = qy - py;
+                const len = Math.hypot(dx, dy);
+                if (len > 0) {
+                    // 垂直于本段的方向（锯齿偏移用它）
+                    const nx = -dy / len;
+                    const ny = dx / len;
+                    const segs = Math.max(1, HIT_FEEL_SHAPE.chainJagSegments);
+                    g.moveTo(px, py);
+                    for (let k = 1; k <= segs; k++) {
+                        const u = k / segs;
+                        // 折点在中点偏移最大、两端归零（用 |sin(2πu)| 的形状，确定性、不随机）
+                        const off = k === segs ? 0 : Math.sin(Math.PI * u) * (k % 2 === 0 ? jag : -jag);
+                        g.lineTo(px + dx * u + nx * off, py + dy * u + ny * off);
+                    }
+                    g.stroke();
+                }
+                // 端头刻度（垂直于最后一小段的走向）
+                const half = HIT_FEEL_SHAPE.chainEndTickLen * it.k * 0.5;
+                if (len > 0) {
+                    const ex = -dy / len;
+                    const ey = dx / len;
+                    g.lineWidth = Math.max(HIT_FEEL_MARK.minLineWidth, HIT_FEEL_SHAPE.chainEndTickWidth * it.k);
+                    g.moveTo(qx - ex * half, qy - ey * half);
+                    g.lineTo(qx + ex * half, qy + ey * half);
+                    g.stroke();
+                    g.lineWidth = Math.max(HIT_FEEL_MARK.minLineWidth, getShapeSpec(it.kind).lineWidth * it.k);
+                }
+            }
+            px = qx;
+            py = qy;
+        }
+    }
+
+    /**
+     * 爆炸：以锚点为圆心，**扩散到真实作用半径**（这是本层最主要的理由）。
+     *
+     * 与档位印痕的细环的区别只有一条、但很关键：那边是"从 6px 扩到 26px"（猜的视觉尺度），
+     * 这边扩到的是**这一下真的盖住了多大一片**（`kv.radiusM × pxPerMeter`）。
+     * 环上等距刻度 = 制图"尺寸标注"的语法，读作"这一圈就是范围"。
+     */
+    private drawBlast(g: Graphics, it: ShapeItem): void {
+        const ageMs = it.age * 1000;
+        const to = Math.max(HIT_FEEL_SHAPE.blastMinRadiusPx, it.radius);
+        const rings = Math.max(1, HIT_FEEL_SHAPE.blastRings);
+        for (let i = 0; i < rings; i++) {
+            const ti = (ageMs - i * HIT_FEEL_SHAPE.blastRingStaggerMs) / (it.life * 1000 / rings + HIT_FEEL_SHAPE.blastRingStaggerMs);
+            const t = Math.max(0, Math.min(1, ti));
+            if (ti < 0 || ti >= 1) continue;
+            const ratio = rings <= 1 ? 1 : 0.7 + 0.3 * (i / (rings - 1));
+            // 起步快、末段收（与档位印痕同一条缓动口径）
+            const r = Math.max(2, to * ratio * Math.pow(t, HIT_FEEL_SHAPE.blastGrowPow));
+            g.circle(it.cx, it.cy, r);                      // 只描边不填充（风格预设的既有口径）
+            g.stroke();
+        }
+        // 径向刻度：只在最外圈接近到位时画（否则刻度会飘在半径之外，读成"打歪了"）
+        const ticks = HIT_FEEL_SHAPE.blastRadialTicks;
+        const done = ageMs / (it.life * 1000) ;
+        if (ticks > 0 && done > 0.35) {
+            const half = HIT_FEEL_SHAPE.blastTickLen * it.k * 0.5;
+            g.lineWidth = Math.max(HIT_FEEL_MARK.minLineWidth, HIT_FEEL_SHAPE.blastTickWidth * it.k);
+            for (let i = 0; i < ticks; i++) {
+                const a = (i / ticks) * Math.PI * 2;
+                const ca = Math.cos(a);
+                const sa = Math.sin(a);
+                g.moveTo(it.cx + ca * (to - half), it.cy + sa * (to - half));
+                g.lineTo(it.cx + ca * (to + half), it.cy + sa * (to + half));
+            }
+            g.stroke();
+        }
+    }
+
+    /** 多段：沿伤害方向逐段叠印（读作"一节一节打出去"），每段一道短横 */
+    private drawMulti(g: Graphics, it: ShapeItem): void {
+        const ageMs = it.age * 1000;
+        const n = Math.max(1, it.stacks);
+        const px = -it.dirY;
+        const py = it.dirX;
+        const len = HIT_FEEL_SHAPE.blastTickLen * it.k;
+        for (let i = 0; i < n; i++) {
+            if (ageMs < i * HIT_FEEL_SHAPE.multiStaggerMs) continue;
+            const off = i * HIT_FEEL_SHAPE.multiDriftPx * it.k;
+            const cx = it.cx + it.dirX * off;
+            const cy = it.cy + it.dirY * off;
+            g.moveTo(cx - px * len, cy - py * len);
+            g.lineTo(cx + px * len, cy + py * len);
+            g.stroke();
+        }
+    }
+
+    /**
+     * **扇形**：从顶点向外快速铺开的扇面（2026-11 新增）。
+     *
+     * 用户口径：「如果要大范围，可以是扇形，但也要有所表现，比如从中心向外快速扩散」。
+     * 所以画法是"**三条错开的外扩弧 + 扇面内的径向排线 + 弧两端的边界刻度**"：
+     *   · **弧**回答"推出去多远"（半径 = 真实作用半径，与 Blast 同一条硬口径）；
+     *   · **径向排线**回答"朝哪个方向、盖住了哪一片"（这是圆做不到的事 —— 圆没有朝向）；
+     *   · **两端刻度**是制图里"尺寸线两端"的语法，读作"扇面的边界正好在这里"。
+     *
+     * 半径走 `fanGrowPow`（0.45 < Blast 的 0.55）→ **起步更快**：这是"一瞬间的出手"，
+     * 不是"炸开之后慢慢散"。
+     *
+     * ⚠ 用折线逼近弧（`fanArcSegments` 段），不调 `Graphics.arc`：
+     *   ① 全工程只用 `moveTo/lineTo/circle`，横向一致；② 体检脚本的假画布也只记这三种，
+     *   用 `arc` 会让"画了几段"这条断言失真。
+     */
+    private drawFan(g: Graphics, it: ShapeItem): void {
+        const ageMs = it.age * 1000;
+        const totalMs = it.life * 1000;
+        const to = Math.max(
+            HIT_FEEL_SHAPE.fanMinRadiusPx,
+            Math.min(it.radius, HIT_FEEL_SHAPE.fanRadiusDrawMax),
+        );
+        const base = Math.atan2(it.dirY, it.dirX);
+        const half = (it.halfAngleDeg * Math.PI) / 180;
+        const a0 = base - half;
+        const a1 = base + half;
+        const segs = Math.max(2, HIT_FEEL_SHAPE.fanArcSegments);
+
+        // ① 逐层外扩的三条弧（起步快、末段收）
+        const rings = Math.max(1, HIT_FEEL_SHAPE.fanRings);
+        let outer = 0;
+        for (let i = 0; i < rings; i++) {
+            const ti = (ageMs - i * HIT_FEEL_SHAPE.fanRingStaggerMs)
+                / (totalMs / rings + HIT_FEEL_SHAPE.fanRingStaggerMs);
+            if (ti < 0 || ti >= 1) continue;
+            const ratio = rings <= 1 ? 1 : 0.7 + 0.3 * (i / (rings - 1));
+            const r = Math.max(2, to * ratio * Math.pow(ti, HIT_FEEL_SHAPE.fanGrowPow));
+            if (r > outer) outer = r;
+            polyArc(g, it.cx, it.cy, r, a0, a1, segs);
+            g.stroke();
+        }
+
+        // ② 扇面内的径向排线：每条都从**顶点**出发（自带方向），长度跟当前外圈走
+        const lines = Math.max(0, HIT_FEEL_SHAPE.fanRadialLines);
+        if (lines > 0 && outer > 0) {
+            for (let i = 0; i < lines; i++) {
+                const a = a0 + ((i + 1) / (lines + 1)) * (a1 - a0);
+                g.moveTo(it.cx, it.cy);
+                g.lineTo(it.cx + Math.cos(a) * outer, it.cy + Math.sin(a) * outer);
+            }
+            g.stroke();
+        }
+
+        // ③ 两条边界（顶点 → 外圈两端）+ 端头刻度：只在扇面基本铺开之后画，读作"边界落定"
+        if (outer > 0) {
+            for (let i = 0; i <= 1; i++) {
+                const a = i === 0 ? a0 : a1;
+                const ex = it.cx + Math.cos(a) * outer;
+                const ey = it.cy + Math.sin(a) * outer;
+                g.moveTo(it.cx, it.cy);
+                g.lineTo(ex, ey);
+            }
+            g.stroke();
+
+            const done = ageMs / totalMs;
+            if (done > 0.35) {
+                const before = g.lineWidth;
+                g.lineWidth = Math.max(HIT_FEEL_MARK.minLineWidth, HIT_FEEL_SHAPE.fanEdgeTickWidth * it.k);
+                const halfTick = (HIT_FEEL_SHAPE.fanEdgeTickLen * it.k) * 0.5;
+                for (let i = 0; i <= 1; i++) {
+                    const a = i === 0 ? a0 : a1;
+                    // 刻度垂直于半径方向
+                    const nx = -Math.sin(a);
+                    const ny = Math.cos(a);
+                    const ex = it.cx + Math.cos(a) * outer;
+                    const ey = it.cy + Math.sin(a) * outer;
+                    g.moveTo(ex - nx * halfTick, ey - ny * halfTick);
+                    g.lineTo(ex + nx * halfTick, ey + ny * halfTick);
+                }
+                g.stroke();
+                g.lineWidth = before;
+            }
+        }
     }
 
     /** 画一个印痕（细环 → 刻度 → 对位十字；三种图元各有自己的寿命与淡出曲线） */
@@ -739,6 +1349,61 @@ interface ShardItem {
     life: number;
 }
 
+/** 一条待提交的命中（事件回调里预算好表现字段，避免提交时再读一次可能已过时的实体） */
+interface PendingHit {
+    uid: number;
+    x: number;
+    y: number;
+    /** 已判好的档位（`resolveHitTier` 的唯一调用点在回调里） */
+    tier: HitFeelTier;
+    dirX: number;
+    dirY: number;
+    heroHurt: boolean;
+}
+
+/**
+ * 一次「同源 + 同帧」的命中批次（= 一次普攻及其引发的全部技能伤害）。
+ *
+ * 形态推断的全部输入就是它：`hits` 是落点，`anchorUid` / `hasKill` 回答"这到底是不是一次技能"。
+ */
+interface PendingBatch {
+    /** 来源实体 uid（-1 = 无来源，例如环境伤害） */
+    srcUid: number;
+    hits: PendingHit[];
+    /** 普攻锚点目标的 uid（0 = 本批没有普攻锚点；-1 = 只有击杀锚点） */
+    anchorUid: number;
+    anchorX: number;
+    anchorY: number;
+    hasKill: boolean;
+}
+
+/** 一个形态图形的运行时数据（与 `VfxItem` 分开：淘汰规则与额度都是另一套） */
+interface ShapeItem {
+    kind: HitShapeKind;
+    /** 中心 / 链首（逻辑坐标） */
+    cx: number;
+    cy: number;
+    /** 爆炸的真实作用半径（像素；Chain/Multi 不用） */
+    radius: number;
+    /** 多段的段数 */
+    stacks: number;
+    /** 落点（扁平的 x,y 对；截断到 `SHAPE_POINT_MAX`） */
+    pts: number[];
+    /** **完整点集**的包围盒（全场扫线用；与 `pts` 的截断无关） */
+    bbMinX: number;
+    bbMaxX: number;
+    bbMinY: number;
+    bbMaxY: number;
+    dirX: number;
+    dirY: number;
+    /** 扇形**半角**（度；只有 Fan 用 —— 其它形状恒为 0） */
+    halfAngleDeg: number;
+    age: number;
+    life: number;
+    k: number;
+    heroHurt: boolean;
+}
+
 /** 印痕层统计（调试面板 / 体检脚本读它） */
 export interface HitVfxStats {
     /** 建出的命中/死亡印痕数 */
@@ -761,6 +1426,33 @@ export interface HitVfxStats {
     alivePeak: number;
     /** 真正重绘过的帧数（空场不重绘 → 它远小于总帧数） */
     redraws: number;
+
+    // ---- B5 形态层（**与上面那批分开记**：额度不同、淘汰规则也不同）----
+    /** 建出的形态图形总数 */
+    shapes: number;
+    /** 其中链式折线 */
+    chains: number;
+    /** 其中爆炸扩散环 */
+    blasts: number;
+    /** 其中多段叠印 */
+    multis: number;
+    /** 其中**扇形**（Boss 咆哮 / 神器天怒；2026-11 新增） */
+    fans: number;
+    /**
+     * 其中由**战斗侧显式上报**建出来的个数（`OnSkillShape`，设计文档 §13.4 的"路 B"）。
+     *
+     * 与 `shapes` 的关系：`reported ≤ shapes`。两者的差就是"靠落点几何猜出来"的那部分 ——
+     * 这个数掉到 0 而 `shapes` 还在涨，说明几何推断在独自支撑（上报点被改坏了）。
+     */
+    reported: number;
+    /** 因每秒新建上限被丢弃的个数 */
+    shapeSpawnDropped: number;
+    /** 因并发上限被淘汰的个数 */
+    shapesEvicted: number;
+    /** 形态并发峰值（应恒 ≤ shapeAliveMax） */
+    shapeAlivePeak: number;
+    /** 因总量上限被丢弃、**退回了个体印痕**的个数（形式上是"降级"，不是"丢失"） */
+    shapesDropped: number;
 }
 
 // ============ 纯函数小工具 ============
@@ -814,4 +1506,27 @@ function hash01(seed: number): number {
 function easeOutCubic(t: number): number {
     const inv = 1 - t;
     return 1 - inv * inv * inv;
+}
+
+/**
+ * 用折线逼近一段圆弧（只 `moveTo`/`lineTo`，不调 `Graphics.arc`）。
+ *
+ * 为什么不用 `arc`：本层与体检脚本的契约是"记账画布只记 moveTo/lineTo/circle/rect"，
+ * `arc` 会让"这一次扇面画了几段"变得不可断言（而"段数 = 常量表"正是形态层的核心断言之一）。
+ */
+function polyArc(g: Graphics, cx: number, cy: number, r: number, a0: number, a1: number, segs: number): void {
+    for (let i = 0; i <= segs; i++) {
+        const a = a0 + (a1 - a0) * (i / segs);
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (i === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+    }
+}
+
+/** 扇形半角的夹取（缺省/脏值 → `fanDefaultHalfAngleDeg`；再夹到安全区间） */
+function clampFanHalfAngle(deg: number): number {
+    const fallback = HIT_FEEL_SHAPE.fanDefaultHalfAngleDeg;
+    const v = Number.isFinite(deg) && deg > 0 ? deg : fallback;
+    return Math.max(HIT_FEEL_SHAPE.fanMinHalfAngleDeg, Math.min(HIT_FEEL_SHAPE.fanMaxHalfAngleDeg, v));
 }

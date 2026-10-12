@@ -14,6 +14,15 @@ import type { AchEffectCode } from '../excel_table/Tb_AchievementConfig';
  *   · **开局快照**：`Scene_Game_Stage.show()` 读一次 `AchievementData.getEffects()`，本局全程用它，
  *     局中领奖**不改变本局**数值（下一局生效）；
  *   · 百分比类效果配表填**百分数**（`10` = 10%），消费方换算时 `/ 100`。
+ *
+ * ⚠ **本表同时是「局内开局初始值」的 code 表与封顶表** —— 它有**三个来源**，共用同一套 code 与 `cap`：
+ *   · ① **成就末档**（`achievements.effect_code`，`AchievementData.getEffects()` 已按 `cap` 收口）；
+ *   · ② **局外增益券**（`bag_items` 的 `boost_<code>` 行，每张值多少见 `battle_constants.shopBoostTicketValues`）；
+ *   · ③ **局外红件词缀**（`relics.effects_outer`，只有 27 件红档遗物有；汇总口 `EquipmentConfig.getOuterRunEffectTotals()`）。
+ *   三者由 `Scene_Game_Stage.snapshotAchieveEffects()` 合并，**合并后统一再按 `cap` 封顶一次**——
+ *   单看某一个来源永远碰不到 `cap`（成就那 10 条各只有一个来源），但"份数无上限"的红件叠起来会，
+ *   所以这条 clamp 必须写在合并那一处（口径见 `docs/meta-growth/README.md` §1.5 / §1.7）。
+ *   **加来源不加 clamp 的后果**：开局金币无限涨，一开局就能把肉鸽商店抽干。
  */
 export interface AchEffectMeta {
     /** 效果展示名（UI 的效果明细行用） */
@@ -30,12 +39,21 @@ export interface AchEffectMeta {
     hook: string;
 }
 
-/** 10 条效果（**顺序 = 展示顺序**） */
+/** 11 条效果（**顺序 = 展示顺序**） */
 export const ACH_EFFECT_META: Record<AchEffectCode, AchEffectMeta> = {
     run_start_gold: {
         name: '局内初始金币', unit: '', percent: false, cap: 200,
         note: '每局开局额外获得的金币（本局立即生效）',
         hook: 'Scene_Game_Stage.selectHero —— hero.gold = BattleConstUtil.getInitialGold() + N',
+    },
+    run_start_kill_points: {
+        // ⚠ `name` 是**给玩家看的**（成就奖励行 / 背包里增益券的那一行，`achEffectLabel`）。
+        //   它不带"费用/价格"字样 ⇒ 走加成分支显示正号（`局内初始击杀 +10`），不要改成"折扣"读法。
+        name: '局内初始击杀', unit: '', percent: false, cap: 100,
+        note: '每局开局额外获得的击杀数（神器商店的货币，本局立即生效）',
+        hook: 'Scene_Game_Stage.selectHero —— battleStore.addKillPoints(N)'
+            + '（**只能播种在 selectHero**：`resetRun()` 里播种会被紧随其后的 `battleStore.reset()` 归 0，'
+            + '而且那时开局快照还没读 —— 顺序是 resetRun → snapshotAchieveEffects → 选英雄）',
     },
     shop_option_plus: {
         name: '肉鸽商店选项', unit: '个', percent: false, cap: 1,
@@ -53,8 +71,11 @@ export const ACH_EFFECT_META: Record<AchEffectCode, AchEffectMeta> = {
         hook: 'shop_constants.adFreeDrawPerRun 叠加',
     },
     kill_buff_discount: {
-        name: '击杀商店价格', unit: '%', percent: true, cap: 20,
-        note: '击杀商店 Buff 的价格降低',
+        // ⚠ `name` 是**给玩家看的**（成就奖励行 / 背包里增益券的那一行，`achEffectLabel`），
+        //   而且 `achEffectLabel` 靠 `/费用|价格/` 判"折扣显示负号"—— 改名时**必须留着"价格"两个字**，
+        //   否则「神器价格 -20%」会变成「神器价格 +20%」（读起来是涨价）。
+        name: '神器价格', unit: '%', percent: true, cap: 20,
+        note: '神器的价格降低（击杀数商店，原名"击杀商店 Buff"）',
         hook: 'BuffShop 价格计算',
     },
     gold_gain_bonus: {
@@ -86,8 +107,9 @@ export const ACH_EFFECT_META: Record<AchEffectCode, AchEffectMeta> = {
 
 /** 全部效果 code（顺序 = ACH_EFFECT_META 的书写顺序） */
 export const ACH_EFFECT_CODES: AchEffectCode[] = [
-    'run_start_gold', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw', 'kill_buff_discount',
-    'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free', 'relic_start_gift',
+    'run_start_gold', 'run_start_kill_points', 'shop_option_plus', 'shop_draw_discount', 'ad_free_draw',
+    'kill_buff_discount', 'gold_gain_bonus', 'battle_exp_bonus', 'hero_start_level', 'hero_select_free',
+    'relic_start_gift',
 ];
 
 /** 取效果元数据（未知 code 返回 null，不抛异常） */

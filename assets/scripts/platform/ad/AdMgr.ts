@@ -50,6 +50,14 @@ export type AdPlacement =
      * （每局次数 = `battle_constants.reviveAdPerRun`；背包里有 `revive_ticket` 时**不拉起广告**）
      */
     | 'revive'
+    /**
+     * **一局结束的结算面板**：看广告把本局的**结算奖励**（局外金币 + 通用英雄经验）乘一个倍率
+     * （1~3 倍、1 位小数；口径真源 `game/common/RewardAdBonus`）。
+     *
+     * ⚠ 它发的是**局外资源**，所以**不认局内广告券**（`ad_ticket` 的口径是"只覆盖局内那两个
+     * 商店广告位"，见 `docs/meta-growth/README.md` §3）；每局一次，看完即置灰。
+     */
+    | 'settle_reward_bonus'
     // ── 局外商城（全屏页 `View_Shop`）的 6 个位置：一格的 `placement` 直接写在 mall_items.json 里 ──
     /** 商城·金币袋（A1） */
     | 'shop_gold'

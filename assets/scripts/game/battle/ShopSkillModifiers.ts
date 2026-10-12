@@ -1,7 +1,10 @@
 import { Modifier } from './Modifier';
+import type { BarState } from './Modifier';
 import { BattleEvents, DamageType, DispelLevel, MODIFY_ATTR_TEMPLATE_ID } from './types';
 import { AttributeType } from './core/Types';
 import { BattleConstUtil } from './core/BattleConstUtil';
+import { HitShapeKind } from '../common/HitFeelConfig';
+import { publishSkillShape } from './SkillShape';
 import type { BattleContext } from './BattleContext';
 
 /**
@@ -111,6 +114,9 @@ function enemies(ctx: BattleContext, from: any, exclude?: Set<number>): any[] {
  * 为什么不能声明式：`projectile` 动作只能一次性按策略选 N 个目标，做不出
  * 「上一跳的落点决定下一跳」（`Modifier_ZeusThunder` 的弹射也是同样的实现）。
  * `visited` 必须有 —— 否则两个敌人之间会来回弹。
+ *
+ * ⚠ **顺带上报形态（路 B）**：跳序就是这里算出来的，表现层照着画折线不会与实现对不上
+ * （几何推断那条路会把短跳距的链误画成爆炸环，见 `docs/打击反馈设计.md` §13.2）。
  */
 function chain(
     ctx: BattleContext, start: any, jumps: number, rangePx: number,
@@ -118,6 +124,7 @@ function chain(
 ): void {
     const visited = new Set<number>([start.uid]);
     const r2 = rangePx * rangePx;
+    const hops: { x: number; y: number }[] = [];
     let cur = start;
     for (let i = 1; i <= jumps; i++) {
         let next: any = null;
@@ -127,15 +134,39 @@ function chain(
             const d = dist2(e, cur);
             if (d <= r2 && d < best) { best = d; next = e; }
         }
-        if (!next) return;
+        if (!next) break;
         visited.add(next.uid);
+        hops.push({ x: next.position?.x ?? 0, y: next.position?.y ?? 0 });
         deal(next, i);
         cur = next;
     }
+    if (hops.length > 0) {
+        publishSkillShape(ctx, {
+            shape: HitShapeKind.Chain,
+            source: start,
+            cx: start.position?.x ?? 0,
+            cy: start.position?.y ?? 0,
+            // 链的"半径"用**跳距**给表现层一个量级（画法用不到它，但脏值校验需要 > 0）
+            radius: Math.max(1, rangePx),
+            points: hops,
+        });
+    }
 }
 
-/** 以 `center` 为圆心对敌人打一圈（含圆心上的那个实体本身） */
+/**
+ * 以 `center` 为圆心对敌人打一圈（含圆心上的那个实体本身）。
+ *
+ * ⚠ **顺带上报爆炸形态**（路 B）：这一圈就是"一次爆炸"的全部语义，
+ * 上报之后表现层画的扩散环半径 = 真实作用半径（`radiusPx`），而不是靠落点几何猜。
+ */
 function aoe(ctx: BattleContext, center: any, radiusPx: number, hit: (target: any) => void): void {
+    publishSkillShape(ctx, {
+        shape: HitShapeKind.Blast,
+        source: center,
+        cx: center?.position?.x ?? 0,
+        cy: center?.position?.y ?? 0,
+        radius: radiusPx,
+    });
     for (const e of ctx.findEntitiesInRadius(center, radiusPx, 2)) {
         if (alive(e)) hit(e);
     }
@@ -480,6 +511,13 @@ export class Modifier_DivineShield extends Modifier {
 
     /** 调试/断言用：当前护盾池 */
     getShieldPool(): number { return this.pool; }
+
+    /** 状态栏：护盾池还有量就常显（`pct` = 池子剩余比例） */
+    GetBarState(): BarState | null {
+        const max = this.maxPool();
+        if (!(this.pool > 0) || !(max > 0)) return null;
+        return { pct: Math.max(0, Math.min(1, this.pool / max)) };
+    }
 }
 
 // ============================================================
@@ -962,7 +1000,19 @@ export class Modifier_KillEcho extends Modifier {
         if (!host || event?.killer !== host) return;
         const victim = event?.victim as any;
         const ctx: BattleContext | undefined = host.ctxRef;
-        if (!ctx || !victim?.position) return;
+        /**
+         * ⚠ 圆心取 `event.deathPos` 快照，**不是** `victim.position`。
+         *
+         * `OnKill` 派发时死者已经回对象池了（场景在 `OnDeath` 监听里就 `recycleMonster`，
+         * `Entity.ResetForPool()` 把 `position` 清零）—— 拿 `victim` 当圆心，圆心恒为地图原点，
+         * 回响只在原点附近生效。2026-11 修，见 `DamagePipeline` 第 8 阶段的 `deathPos`。
+         *
+         * 快照是裸坐标点，必须包成 `{ position }` 载体：`findEntitiesInRadius` 读的是
+         * `center.position`，直接传 `{ x, y }` 会被当成 (0,0) —— 正是这个 bug 的成因。
+         */
+        const deathPos = event?.deathPos as { x: number; y: number } | undefined;
+        if (!ctx || !deathPos) return;
+        const center = { position: deathPos };   // 包成载体，见上面那条注释
 
         const atk = host.getAttackDamage?.() ?? 0;
         const kv = this.getKV() ?? {};
@@ -970,7 +1020,7 @@ export class Modifier_KillEcho extends Modifier {
         const radiusM = Number(kv.radiusM ?? 1.5);
         if (atk > 0 && pct > 0 && radiusM > 0) {
             const dmg = Math.max(1, Math.round(atk * pct));
-            aoe(ctx, victim, meters(radiusM), (t) => {
+            aoe(ctx, center, meters(radiusM), (t) => {
                 if (t === victim) return;                 // 死者已经被回收，别重复结算
                 ctx.damagePipeline.ApplyDamage(t, host, dmg, DamageType.Magical);
             });
@@ -1322,6 +1372,9 @@ export class Modifier_TimeRewind extends Modifier {
     OnTick(dt: number): void {
         if (this.cdLeft > 0) this.cdLeft = Math.max(0, this.cdLeft - dt);
     }
+
+    /** 状态栏：**逆转就绪**才占格子（"这一击能被拦下"值得一眼看到；冷却中不占） */
+    GetBarState(): BarState | null { return this.cdLeft <= 0 ? { pct: 1 } : null; }
 
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_take_damage') return false;

@@ -1,5 +1,6 @@
 import { Button, Color, Label, Node, resources, Sprite, SpriteFrame } from 'cc';
 import type { RefreshGate } from '../../../../battle/RefreshGate';
+import { formatNumber } from '../../../../common/GoldText';
 
 /**
  * RefreshButtonView —— 三个商店面板共用的**刷新按钮表现**（纯函数，不持有任何状态）
@@ -12,16 +13,22 @@ import type { RefreshGate } from '../../../../battle/RefreshGate';
  *   功能类（`HeroSelect` / `RelicShop` / `BuffShop`）→ `refreshGate()` 算出 enabled / canPay / viaAd
  *   本函数 → 按判据写 interactable、灰化、按钮文案、费用数字与**费用图标**
  *
- * ── 费用图标（四态，只换图不改布局）──
- *   ① 货币够 → 货币图标（金币 / 击杀数；由面板通过 `costIconPath` 指定，不传 = 保持预制件原样）
- *   ② 货币不够但背包里有**局内广告券**（`viaTicket`）→ **券图标**（`textures/common/ad_ticket`）＋ 文案「用 券」
- *   ③ 货币不够、没券但能看广告（`viaAd`）→ **广告图标**（`textures/common/ad`）
+ * ── 费用图标（五态，只换图不改布局）──
+ *   ① 还有**免费刷新**次数（`viaFree`，开局白送的那种）→ 保持**货币图标**，费用数字换成「免费」
+ *      （⚠ **按钮文案不动**，原因见 `applyRefreshButton` 里那段：按钮框只有 60px 宽）
+ *   ② 货币够 → 货币图标（金币 / 击杀数；由面板通过 `costIconPath` 指定，不传 = 保持预制件原样）
+ *   ③ 货币不够但背包里有**局内广告券**（`viaTicket`）→ **券图标**（`textures/common/ad_ticket`）＋ 文案「用 券」
+ *   ④ 货币不够、没券但能看广告（`viaAd`）→ **广告图标**（`textures/common/ad`）
  *      —— 玩家口径：「金币不足时要显示看广告的图标，不然以为是花金币」。
  *      图标与货币图标同尺寸（都是 200×200），所以直接换 `spriteFrame` 不会让布局跳。
- *   ④ 都不行（置灰）→ 货币图标（价格仍然是有意义的信息）
+ *   ⑤ 都不行（置灰）→ 货币图标（价格仍然是有意义的信息）
  *
- * ⚠ 面板的 watcher 一定要 watch `refreshButtonKey(gate, cost)`（含 cost 与 `viaTicket`），
- *   否则费用变了 / 有券了都不会重画 —— 见 `RefreshGate.ts`。
+ * ⚠ **`viaFree` 时绝不画广告 / 券图标**：那两种图标是在回答"这一下要花什么"，
+ *   而免费那一下什么都不花 —— 画成广告图标玩家会以为"白送的还得看视频"。
+ *   这条由 `evaluateRefreshGate` 的分支互斥保证（`viaFree` 为真时 `viaTicket`/`viaAd` 恒 false）。
+ *
+ * ⚠ 面板的 watcher 一定要 watch `refreshButtonKey(gate, cost)`（含 cost、`viaTicket` 与 `viaFree`），
+ *   否则费用变了 / 有券了 / 白送次数到账了都不会重画 —— 见 `RefreshGate.ts`。
  */
 
 /** 刷新按钮可点 / 置灰时的配色（按钮底图是深色 Sprite，置灰就调亮它） */
@@ -153,7 +160,8 @@ function applyCostIcon(sprite: Sprite | null | undefined, path: string | null): 
 export function applyRefreshButton(nodes: RefreshButtonNodes, gate: RefreshGate | null, cost: number): void {
     const enabled = !!gate && gate.enabled;
     const canPay = !!gate && gate.canPay;
-    // 券优先于广告（与 `evaluateRefreshGate` 的优先级同一份口径：花货币 ＞ 用券 ＞ 看广告）
+    // 免费刷新优先于一切（与 `evaluateRefreshGate` 的优先级同一份口径：免费 ＞ 花货币 ＞ 用券 ＞ 看广告）
+    const viaFree = !!gate && gate.viaFree;
     const viaTicket = !!gate && gate.viaTicket;
     const viaAd = !!gate && gate.viaAd;
 
@@ -164,15 +172,24 @@ export function applyRefreshButton(nodes: RefreshButtonNodes, gate: RefreshGate 
         if (sprite) sprite.color = (enabled ? BTN_ENABLED_COLOR : BTN_DISABLED_COLOR).clone();
     }
     if (nodes.btnLabel) {
-        // 货币够 → 「刷新」；不够但有券 → 「用 券」；不够也没券但有广告次数 → 「看广告」；都不行 → 保持「刷新」
+        // 货币够 → 「刷新」；不够但有券 → 「用 券」；不够也没券但有广告次数 → 「看广告」；都不行 → 保持「刷新」。
+        //   ⚠ **免费那一支不改按钮文案**：这一下点击的动作仍然只是"刷新"，变的是**价格**；
+        //     而按钮框只有 60px 宽（预制件里按「看广告」这 3 个字定的尺寸），4 个汉字（80px）会
+        //     比按钮两边各探出 10px，并压到左边的费用数字（实测叠约 9px）。
+        //     所以免费态一律靠**费用数字写成「免费」**来表达 —— 见下面 costLabel 那一段。
         nodes.btnLabel.string = canPay ? '刷新' : (viaTicket ? '用 券' : (viaAd ? '看广告' : '刷新'));
         nodes.btnLabel.color = (enabled ? BTN_ENABLED_COLOR : BTN_DISABLED_COLOR).clone();
     }
     if (nodes.costLabel) {
-        nodes.costLabel.string = `${cost}`;
-        nodes.costLabel.color = (canPay ? COST_ENOUGH_COLOR : COST_LACK_COLOR).clone();
+        // 免费那一下**不显示单价**：写「免费」而不是「0」——「0 击杀数」看着像"价格被算错了"
+        // 单价走缩写口径（`formatNumber`）：遗物抽取费**不封顶**（50 → +25/次 一路涨），
+        // 长局里这一格会出现四位数，不缩写就把旁边的按钮文案挤掉
+        nodes.costLabel.string = viaFree ? '免费' : formatNumber(cost);
+        // 免费时费用不该是红的（它压根不花货币）
+        nodes.costLabel.color = (canPay || viaFree ? COST_ENOUGH_COLOR : COST_LACK_COLOR).clone();
     }
-    // 费用图标：不够但有券 → 券图标；不够且没券、能看广告 → 广告图标（否则玩家会以为这一下要花金币）
+    // 费用图标：不够但有券 → 券图标；不够且没券、能看广告 → 广告图标（否则玩家会以为这一下要花金币）。
+    //   ⚠ `viaFree` 时 viaTicket / viaAd 恒 false（分支互斥）→ 落回货币图标，正是我们要的。
     const icon = nodes.costIcon ?? resolveCostIcon(nodes.costLabel);
     const iconPath = viaTicket ? TICKET_ICON_PATH : (viaAd ? AD_ICON_PATH : (nodes.costIconPath ?? null));
     applyCostIcon(icon, iconPath);

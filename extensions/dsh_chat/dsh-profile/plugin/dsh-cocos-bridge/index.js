@@ -16,7 +16,7 @@
  * **不走 loopback HTTP、不占端口、不需要 MCP**（对比：`dsh-mcp-client` + streamable-http）。
  * 也因此，工具名是干净的 `cocos_execute_code`，而不是 `mcp__cocos__execute_code`。
  *
- * ## 八个工具 = 编辑器能力面（工具部分）
+ * ## 七个工具 = 编辑器能力面（工具部分）
  *
  * | 工具 | 干什么 |
  * |---|---|
@@ -27,10 +27,13 @@
  * | `cocos_logs` | 读工程里的**日志文件**（路径 + 行号 + 原文）。控制台里的字代码拿不到，只能另开一条通道 |
  * | `cocos_click_node` | **真点一下**（真鼠标事件，走 Chromium 输入管线）—— 按钮回调/列表选中这类"光看数据验不出来"的事靠它 |
  * | `cocos_send_keys` | **真发键盘**（快捷键 / 往输入框打字） |
- * | `cocos_runtime` | 运行预览（编辑器内 game view）的状态与开关：play / stop / **pause 冻住** / resume / step |
  *
- * 后三件是同一批（"让 agent 自己验收界面"）：截图看得见、点得动、还能把画面冻住再截图 ——
- * 三者合起来才把"整屏交互只能人肉验收"变成可复现的判据。实现在 `source/input.ts` 与 `source/preview.ts`。
+ * 后两件是同一批（"让 agent 自己验收界面"）：截图看得见、点得动。实现在 `source/input.ts`。
+ *
+ * ⛔ **第八个工具 `cocos_runtime` 已于 2026-10-09 删除**（它的前身是运行预览的五个开关，
+ * 2026-10-08 撤掉；撤到只剩只读之后仍然没有消费者）。运行态本身**没有消失** ——
+ * 判据仍在场景进程读取（`viewMetrics.runtime` → `cocos_capture_view` 的 `mode` /
+ * `cocos_click_node` 在运行态下拒绝按节点点）。谁想把它加回来，先读 `docs/冻结诊断.md`。
  *
  * 每个工具的回执里还会带一段 `refs`（结果里出现过的全形 uuid / `db://` 路径，去重后列在文案结尾）
  * —— 由编辑器侧的 `withRefs` 统一补，见 `source/cocos-tools.ts`。它只做搬运，不做判断。
@@ -1560,29 +1563,18 @@ const SEND_KEYS_DESCRIPTION = [
     '⚠ **真机实测的一条边界**（同 `cocos_click_node`）：引擎在编辑器构建里**不注册 DOM 监听**，所以"按键进游戏引擎"（游戏自己的快捷键、`input.on(KEY_DOWN)`）**目前拿不到**；而"往网页里的输入框打字"（`text` 那条）本来就是 DOM 的事，仍然有效。',
 ].join('\n');
 
-const RUNTIME_DESCRIPTION = [
-    '看**运行预览**（编辑器工具栏那颗播放键，编辑器自己叫 game view / 编辑器预览）的状态。**只读**。',
-    '',
-    '## 只有一个 action：`state`',
-    '- `state`（默认，也是唯一认的）：现在是不是运行态、游戏是不是被暂停、编辑器自己怎么说的（两条独立来源都摆出来）。',
-    '',
-    '## ⛔ 原来的 `play` / `stop` / `pause` / `resume` / `step` 已于 2026-10-08 **撤掉**',
-    '那五个动作会**从编辑器内部**起动那块画布上的游戏画面。撤掉的理由有两条，都写在工具回执里：',
-    '1. **它与两次「编辑器场景画布黑屏 / 画面停住」同一条时间线**（`docs/冻结诊断.md`）：04:48 跑完预览起停之后场景面板画面停住、切场景也不更新，只能重启编辑器；14:59 面板 agent 加 `Cmp_Game` 那次，同一块画布抓回来的是**全空的一张图**（`blankRatio 0.988`），用户看到的就是黑屏。因果没被单变量实验钉死，但**代价不对称**：留着它用户随时可能再黑一次屏。',
-    '2. **在本工程里它本来就跑不起来**：编辑器内跑起来后卡在首场景 `Loading` 的 `loadBundle(\'scripts\')`（进度 `0%`，既不成功也不失败；`cc.assetManager.bundles` 里只有 `internal`）—— 收益是零，风险是真的。',
-    '',
-    '⇒ 要看游戏画面，请**人在编辑器工具栏上按那颗播放键**（那条路与本扩展无关，画面出问题也不会有人以为是工具干的）。',
-    '⚠ 用户自己按了播放键之后，`state` 会如实报 `running: true` —— 那一刻**按节点投影/裁图/点击都不成立**（它们建立在编辑器相机上），要交互就用坐标（`cocos_click_node({x, y, space:"uv"})`）。',
-    '',
-    '## 运行态的判据（**别再信 facade 那两条**）',
-    '判据是 `scene.previewState`（`cce.PreviewPlay._state`：`stop` / `play` / `pause`，私有字段**原样报出**）。',
-    '真机实测：预览**跑着**的时候 `facadeMode` / `queryMode` **仍然是 `general`**、`isPreviewProcess` 恒 `false` —— 所以那几条只用来认「预制件 / 动画」这类**非运行**模式；读不到 `_state` 时回执 `note` 会直说，那时模式判定不可信。',
-    '',
-    '## 返回',
-    '`{ ok, action, editorMessage, scene, before, after, readOnly:true, hint }`。',
-    '`scene.previewState` = `stop` / `play` / `pause`（**运行态判它**）；`scene.mode` = `general` / `preview` / `prefab` / `animation` / `unknown`。',
-    '`before` / `after` 各是一次**真实状态探针**（只读，两者同值）：`frames`（帧计数）、`paused`（预览自己暂停了没有）、`directorPaused` / `gamePaused`（引擎那两面）、`running` / `mode`。',
-].join('\n');
+/**
+ * ⛔ **这里原来有一条 `RUNTIME_DESCRIPTION`（`cocos_runtime` 的工具说明）—— 随工具一起删掉了（2026-10-09）。**
+ *
+ * 那条说明写的是"运行预览只剩只读的 `state`"：五个开关（`play` / `stop` / `pause` / `resume` / `step`）
+ * 已于 2026-10-08 撤掉（它们与两次「编辑器场景画布黑屏 / 画面停住」同一条时间线，见
+ * `docs/冻结诊断.md`），只读那一格留了几天，最后发现**连它也没有消费者**：
+ * 运行态判据一直在**截图/点击链路**里（场景进程读 `cce.PreviewPlay._state` →
+ * `cocos_capture_view` 回执的 `mode`、`cocos_click_node` 在运行态下拒绝按节点点），
+ * 而工具本身只回答"现在是不是运行态"这一句 —— 要看画面直接截图就够。
+ *
+ * ⇒ **别再把它加回来，更别加"能开预览"的入口**：要跑游戏请人在编辑器工具栏上按那颗播放键。
+ */
 
 const EDITOR_STATE_DESCRIPTION = [    '看一眼编辑器现在是什么状态：工程路径、编辑器版本、当前场景、当前选中的节点/资源、已启用的相关扩展。',
     '',
@@ -1872,38 +1864,6 @@ export function apply(ctx) {
 
     ctx.tools.register(
         defineTool({
-            name: 'cocos_runtime',
-            description: RUNTIME_DESCRIPTION,
-            parameters: {
-                action: {
-                    type: 'string',
-                    enum: ['state'],
-                    description: '只认 state（默认，只读）。原来的 play / stop / pause / resume / step 已于 2026-10-08 撤掉（理由见工具说明）。',
-                },
-            },
-            output: OUTPUT,
-            async execute(args, exec) {
-                const result = await ipcCall(
-                    'runtime',
-                    { action: args.action },
-                    exec?.signal,
-                );
-                return {
-                    ok: result.ok !== false,
-                    text: typeof result.text === 'string' ? result.text : String(result.text ?? ''),
-                    ...(result.data === undefined ? {} : { data: result.data }),
-                };
-            },
-            presentCall: () => ({
-                card: 'generic',
-                title: 'Cocos: 看运行态（只读）',
-                kind: 'other',
-            }),
-        }),
-    );
-
-    ctx.tools.register(
-        defineTool({
             name: 'cocos_logs',
             description: LOGS_DESCRIPTION,
             parameters: {
@@ -2052,7 +2012,7 @@ export function apply(ctx) {
      * 调用发生在面板按下 `/` 或发第一张图时 —— 那一次必然拿到空的占位值。
      * 预热一次，回执在启动阶段就跑完了，之后每次调用都是从一个已经填好的表里取。
      *
-     * 三个都不写进 `inject: [...]`：那是「全都要」，少一个就整个插件（含四个工具）不加载。
+     * 三个都不写进 `inject: [...]`：那是「全都要」，少一个就整个插件（含七个工具）不加载。
      * 这里每个各起一个注入，少哪个只影响哪个功能。
      */
     for (const name of ['attachments', 'commands', 'fileReferences']) hostService(name);
@@ -2060,6 +2020,6 @@ export function apply(ctx) {
     // ⚠ 一律走 stderr（console.warn）：SDK profile 的 **stdout 专属于 JSON-RPC 帧**，
     // 任何 console.log 都会插进协议流里（实测踩过一次）。
     console.warn(
-        '[cocos-bridge] 已注册原生工具：cocos_execute_code / cocos_describe_api / cocos_editor_state / cocos_capture_view / cocos_logs / cocos_click_node / cocos_send_keys / cocos_runtime',
+        '[cocos-bridge] 已注册原生工具：cocos_execute_code / cocos_describe_api / cocos_editor_state / cocos_capture_view / cocos_logs / cocos_click_node / cocos_send_keys',
     );
 }

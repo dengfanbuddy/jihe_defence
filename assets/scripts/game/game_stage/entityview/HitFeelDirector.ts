@@ -7,10 +7,13 @@ import {
     HIT_FEEL_SFX_EXTRA,
     HIT_FEEL_TIER_RANK,
     HitFeelTier,
+    HitShapeKind,
+    getShapeSpec,
     getTierSpec,
     hitFeelDensityScale,
     hitFeelSfxKey,
     resolveDeathTier,
+    resolveHitShape,
     resolveHitTier,
     shouldPlayAttackSfx,
 } from '../../common/HitFeelConfig';
@@ -71,10 +74,37 @@ export interface HitFeelStats {
     peakHitsPerFrame: number;
     /** 当前密度衰减系数 k */
     densityK: number;
+    /** 判出技能形态的帧数（B5；**同一帧多次也只在合并后算一次**） */
+    shapeFrames: number;
+    /** 其中链式折线 / 爆炸 / 多段 / **扇形**各自的帧数 */
+    chainFrames: number;
+    blastFrames: number;
+    multiFrames: number;
+    fanFrames: number;
+    /**
+     * 其中**由战斗侧显式上报**（`OnSkillShape`，路 B）定出形状的帧数。
+     *
+     * 与 `shapeFrames` 相对：差值就是"靠落点几何猜出来"的那部分。
+     */
+    reportedFrames: number;
 }
 
 /** 档位强弱顺序（= `HIT_FEEL_TIER_RANK`；同帧多次命中只保留最强的那个） */
 const TIER_RANK = HIT_FEEL_TIER_RANK;
+
+/**
+ * 形态强弱顺序（同帧有多个上报时只留最强的那个）。
+ *
+ * 排序依据 = `HIT_FEEL_SHAPES` 的 `stopMs`（Fan 28 > Blast 25 > Chain 20 > Multi 15），
+ * 也就是"这一下值多少顿帧"。改任何一个形态的顿帧额度都要顺手复核这张表。
+ */
+const SHAPE_RANK: Record<string, number> = {
+    [HitShapeKind.None]: 0,
+    [HitShapeKind.Multi]: 1,
+    [HitShapeKind.Chain]: 2,
+    [HitShapeKind.Blast]: 3,
+    [HitShapeKind.Fan]: 4,
+};
 
 export class HitFeelDirector {
     /**
@@ -99,6 +129,28 @@ export class HitFeelDirector {
     private frameDirX = 0;
     private frameDirY = 0;
     private frameHits = 0;
+
+    // ---- 本帧累积器：形态推断的输入（B5）----
+    /**
+     * 本帧的**落点**（同源 + 同帧 = 一次普攻及其引发的全部技能伤害）。
+     *
+     * 为什么导演也要自己攒一份（`HitVfxLayer` 有一份同样的）：两者提交的时机不同
+     * （导演在 `tick` 开头、印痕层在 `update` 开头，谁先谁后由引擎的组件顺序决定），
+     * 让其中一方去读另一方的结果会引入"读到上一帧还是这一帧"的时序耦合。
+     * 两份缓冲 + **同一个纯函数**（`resolveHitShape`）就没有这个问题，也不会分叉。
+     */
+    private framePoints: { uid: number; x: number; y: number }[] = [];
+    private frameAnchorUid = 0;
+    private frameAnchorX = 0;
+    private frameAnchorY = 0;
+    private frameHasKill = false;
+    /**
+     * 本帧**显式上报**的形态（`OnSkillShape`；`None` = 本帧没有上报）。
+     *
+     * 一帧里可能有多个上报（一次 AoE + 一次咆哮），导演只关心"这一帧重不重"，
+     * 所以按**强弱**取一个：Fan > Blast > Chain > Multi（与 `HIT_FEEL_SHAPES` 的顿帧强度同序）。
+     */
+    private frameReportedShape: HitShapeKind = HitShapeKind.None;
 
     // ---- 顿帧 ----
     private stopRemainMs = 0;
@@ -149,6 +201,7 @@ export class HitFeelDirector {
         shakes: 0, shakesDropped: 0, flashes: 0, flashesDropped: 0,
         sfx: 0, sfxDropped: 0,
         peakHitsPerFrame: 0, densityK: 1,
+        shapeFrames: 0, chainFrames: 0, blastFrames: 0, multiFrames: 0, fanFrames: 0, reportedFrames: 0,
     };
 
     // ============ 生命周期 ============
@@ -165,6 +218,13 @@ export class HitFeelDirector {
         // 为什么放在导演而不是印痕层：声音有**全局**节流账本，而账本属于这一层。
         this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnAttackStart, this.onAttackStart, this));
         this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnEvade, this.onEvade, this));
+        // B5 形态层：两个**锚点**。它们不改任何表现强度，只回答"这一批命中是不是一次技能"
+        // （没有锚点，两只怪身上的 DoT 恰好同帧跳字会被误判成链式弹射）。
+        this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnAttackLanded, this.onAttackLanded, this));
+        this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnKill, this.onKill, this));
+        // 「路 B」：战斗侧显式上报的技能形态。导演要用它拿"这次技能该顿多久/抖多少/响哪一声"，
+        // 而这些额度在 `HIT_FEEL_SHAPES` 里是按形态分的 —— 所以**必须**知道形状。
+        this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnSkillShape, this.onSkillShape, this));
         HitFeelDirector.active = this;
     }
 
@@ -187,6 +247,12 @@ export class HitFeelDirector {
         this.frameDirX = 0;
         this.frameDirY = 0;
         this.frameHits = 0;
+        this.framePoints.length = 0;
+        this.frameAnchorUid = 0;
+        this.frameAnchorX = 0;
+        this.frameAnchorY = 0;
+        this.frameHasKill = false;
+        this.frameReportedShape = HitShapeKind.None;
         this.stopRemainMs = 0;
         this.stopUsedMs = 0;
         this.stopWindowStart = -Infinity;
@@ -333,10 +399,46 @@ export class HitFeelDirector {
         this.stats.hits++;
         this.frameHits++;
         this.hitTimes.push(this.clock);
+        // 形态推断的落点（位置必须在回调里快照：实体可能马上被回收）
+        if (target.position) {
+            this.framePoints.push({ uid: target.uid ?? 0, x: target.position.x, y: target.position.y });
+        }
 
         const tier = resolveHitTier(e);
         const dir = this.directionOf(e?.source, target);
         this.mergeFrame(tier, dir);
+    }
+
+    /** 普攻锚点（B5）：一次普攻的目标 = 这一批技能伤害的圆心 / 链首 */
+    private onAttackLanded(e: any): void {
+        const tgt = e?.target;
+        if (!tgt?.position) return;
+        this.frameAnchorUid = tgt.uid ?? 0;
+        this.frameAnchorX = tgt.position.x;
+        this.frameAnchorY = tgt.position.y;
+    }
+
+    /** 击杀锚点（B5）：神器天怒的扇形、遗物的击杀爆炸都不是普攻引发的，锚点是死者位置快照 */
+    private onKill(e: any): void {
+        this.frameHasKill = true;
+        const pos = e?.deathPos;
+        if (this.frameAnchorUid === 0 && pos) {
+            this.frameAnchorUid = -1;              // -1 = 有锚点、但没有锚点自身的命中
+            this.frameAnchorX = pos.x ?? 0;
+            this.frameAnchorY = pos.y ?? 0;
+        }
+    }
+
+    /**
+     * **显式形态上报**（路 B）：只记"本帧最重的那一个形状"，强度排序与 `HIT_FEEL_SHAPES` 一致。
+     *
+     * 为什么按强度取一个而不是全收：导演这一层回答的是"**这一帧重不重**"
+     * （顿帧/位移/音效都有全局账本，同帧再多事件也只出一份表现），与 `mergeFrame` 同一条口径。
+     */
+    private onSkillShape(e: any): void {
+        const kind = e?.shape as HitShapeKind;
+        if (!kind || kind === HitShapeKind.None) return;
+        if (SHAPE_RANK[kind] > SHAPE_RANK[this.frameReportedShape]) this.frameReportedShape = kind;
     }
 
     /** 死亡：普通怪 T2 / 精英·Boss T5 / 最终 Boss T7（英雄死亡返回 None，交给结算面板） */
@@ -362,19 +464,65 @@ export class HitFeelDirector {
         }
     }
 
-    /** 把本帧累积的最高档转成实际表现（顿帧 / 慢动作 / 位移），然后清空累积器 */
+    /**
+     * 把本帧累积的最高档 + 技能形态转成实际表现（顿帧 / 慢动作 / 位移 / 墨闪 / 音效），然后清空累积器。
+     *
+     * ---- 两根轴怎么合到一起（B5）----
+     * 档位回答"多重"、形态回答"是什么"，两者**正交**，所以这里**取强者而不是相加**：
+     *   · 顿帧：`max(档位, 形态)` —— 相加会让"一次技能暴击"吃掉两份额度（账本上限 30ms/1s 不变）；
+     *   · 位移：`max(档位, 形态)`（`requestShake` 本身就是"取最大不相加"的口径）；
+     *   · 音效：**峰值档位（T5/T7）优先** —— 大击杀/通关那一声比"这是个技能"重要；
+     *     其余情况形态优先（技能该有自己的音，现在复用 `hit_heavy`，见 `HIT_FEEL_SHAPES`）。
+     *
+     * ⚠ 形态**不改变档位本身**（`resolveHitTier` 一行没动）：档位表是"打谁"的唯一语言，
+     * 让它随技能变形会让"打 Boss 比打小怪还轻"这类矛盾变得可写。
+     */
     private flushFrame(): void {
         const tier = this.frameTier;
+
+        // 形态：**先信"显式上报"（路 B），再退回几何推断（路 A）**。
+        // 上报来自战斗侧的同一次结算（`battle/SkillShape.publishSkillShape`），
+        // 判据与真实作用几何同源；几何推断则只在没有上报时才用（老效果仍然一个字不改）。
+        const wasReported = this.frameReportedShape !== HitShapeKind.None;
+        let shapeKind = this.frameReportedShape;
+        if (shapeKind === HitShapeKind.None && this.framePoints.length >= 2) {
+            const r = resolveHitShape({
+                hits: this.framePoints,
+                anchorUid: this.frameAnchorUid,
+                anchorX: this.frameAnchorX,
+                anchorY: this.frameAnchorY,
+                hasKill: this.frameHasKill,
+            });
+            if (r) shapeKind = r.kind;
+        }
+
         if (this.frameHits > this.stats.peakHitsPerFrame) this.stats.peakHitsPerFrame = this.frameHits;
         this.frameTier = HitFeelTier.None;
         this.frameHits = 0;
-        if (tier === HitFeelTier.None) return;
+        this.framePoints.length = 0;
+        this.frameAnchorUid = 0;
+        this.frameAnchorX = 0;
+        this.frameAnchorY = 0;
+        this.frameHasKill = false;
+        this.frameReportedShape = HitShapeKind.None;
+
+        if (shapeKind !== HitShapeKind.None) {
+            this.stats.shapeFrames++;
+            if (wasReported) this.stats.reportedFrames++;
+            if (shapeKind === HitShapeKind.Chain) this.stats.chainFrames++;
+            else if (shapeKind === HitShapeKind.Blast) this.stats.blastFrames++;
+            else if (shapeKind === HitShapeKind.Multi) this.stats.multiFrames++;
+            else if (shapeKind === HitShapeKind.Fan) this.stats.fanFrames++;
+        }
+
+        if (tier === HitFeelTier.None && shapeKind === HitShapeKind.None) return;
 
         const spec = getTierSpec(tier);
+        const shapeSpec = shapeKind === HitShapeKind.None ? null : getShapeSpec(shapeKind);
+        const isPeak = tier === HitFeelTier.BigKill || tier === HitFeelTier.Clear;
 
         // 顿帧：能不能真停由账本决定（T5/T7 是"峰值档位"，可以一次吃满那一秒的额度）
-        const isPeak = tier === HitFeelTier.BigKill || tier === HitFeelTier.Clear;
-        this.requestStop(spec.stopMs, isPeak);
+        this.requestStop(Math.max(spec.stopMs, shapeSpec?.stopMs ?? 0), isPeak);
 
         // 慢动作：同一时刻只留一个，取更强的一个（更慢 / 更长）
         if (spec.slowMo) {
@@ -383,14 +531,26 @@ export class HitFeelDirector {
         }
 
         // 位移：**取最大、不相加**（幅度恒 ≤ BUDGET.shakeMaxPx）
-        this.requestShake(spec.shakePx, spec.shakeMs, spec.shakeFreq, spec.shakeDirectional);
+        // 形态的位移是"方向性"的（从锚点指向落点质心），读作"从那一片来的"
+        const sPx = shapeSpec?.shakePx ?? 0;
+        if (sPx > spec.shakePx) {
+            this.requestShake(sPx, shapeSpec!.shakeMs, shapeSpec!.shakeFreq, true);
+        } else {
+            this.requestShake(spec.shakePx, spec.shakeMs, spec.shakeFreq, spec.shakeDirectional);
+        }
 
         // 墨色闪帧（C10）：只给 T5/T6/T7（档位表里 flashFrameAlpha > 0 的那三档），且必须过冷却账本
+        // ⚠ **形态不申请墨闪**：浅底上墨色是"重"的、1.5s 冷却，技能是高频事件，
+        //   让它参与会把"闪一下"稀释成"屏幕在抽"（§9 与 HIT_FEEL_BUDGET.flashCooldownSec 的口径）。
         this.requestFlash(spec.flashFrameAlpha);
 
         // 音效（B4）：与顿帧/慢放/位移/墨闪**同一条合并链路** —— 同帧 20 次命中只出最强档那一声，
         // 再叠上"50ms 窗口内最多 2 声"的节流（塔防刚需，见 HIT_FEEL_BUDGET.sfxWindowMs）
-        this.requestSfx(spec.sfx, spec.sfxVolume, spec.sfxVariants);
+        if (!isPeak && shapeSpec && shapeSpec.sfx) {
+            this.requestSfx(shapeSpec.sfx, shapeSpec.sfxVolume, shapeSpec.sfxVariants);
+        } else {
+            this.requestSfx(spec.sfx, spec.sfxVolume, spec.sfxVariants);
+        }
     }
 
     /**

@@ -8,7 +8,8 @@ import { BattleEvents } from './types';
 import { AIRegistry } from './ai/AIRegistry';
 import { AttributeType } from './core/Types';
 import { BattleConstUtil } from './core/BattleConstUtil';
-import type { UnitKind } from '../common/EntityVisualConfig';
+import { BattleMines, reportMineBlast } from './BattleMines';
+import { UnitKind } from '../common/EntityVisualConfig';
 import type { AttributeCfg } from '../excel_table/Tb_AttributeConfig';
 import type { ModifierCfg } from '../excel_table/Tb_ModifierConfig';
 import type { AbilityCfg } from '../excel_table/Tb_AbilityConfig';
@@ -34,17 +35,31 @@ interface ScheduledTask {
  */
 export class ScriptRegistry {
     private classes = new Map<string, any>();
-    private actions = new Map<string, (target: any, self: any, params: any) => void>();
+    private actions = new Map<string, ScriptActionFn>();
 
     /** 注册代码类（用于 Modifier/Ability 的 script_id） */
     registerClass(id: string, cls: any): void { this.classes.set(id, cls); }
-    /** 注册动作函数（用于 execute_script 动作） */
-    registerAction(id: string, fn: (target: any, self: any, params: any) => void): void { this.actions.set(id, fn); }
+    /**
+     * 注册动作函数（用于 `execute_script` 动作）。
+     *
+     * 参数：`(actor, self, action, context)` —— 第四个是 `EffectExecutor.ActionContext`
+     * （2026-11 补，脚本才拿得到这次动作的 `target` / `point`；老脚本忽略它即可）。
+     */
+    registerAction(id: string, fn: ScriptActionFn): void { this.actions.set(id, fn); }
 
     get(id: string): any | undefined { return this.classes.get(id); }
-    getAction(id: string): ((target: any, self: any, params: any) => void) | undefined { return this.actions.get(id); }
+    getAction(id: string): ScriptActionFn | undefined { return this.actions.get(id); }
+
     has(id: string): boolean { return this.classes.has(id) || this.actions.has(id); }
 }
+
+/** `execute_script` 动作函数的签名（`context` 可空：老调用方只传前三个） */
+export type ScriptActionFn = (
+    target: any,
+    self: any,
+    params: any,
+    context?: { actor?: any; target?: any; point?: { x: number; y: number }; event?: any; self?: any; origin?: string },
+) => void;
 
 /**
  * BattleContext —— 战斗上下文（单场战斗的容器）
@@ -56,6 +71,11 @@ export class BattleContext {
     readonly damagePipeline: DamagePipeline;
     /** 效果执行器：所有配置化动作（伤害/治疗/Buff/偷钱...）的唯一入口 */
     readonly effects: EffectExecutor;
+    /**
+     * 「骷髅地雷」系统（`battle/BattleMines.ts`）—— 骷髅王流派的阵地机制。
+     * 宿主每帧 `mines.tick(dt)`、换局/换英雄 `mines.reset()`；遗物钩子经 `hostCtx(host).mines` 改它。
+     */
+    readonly mines: BattleMines;
     readonly scriptRegistry = new ScriptRegistry();
 
     /** 飞行中的弹道列表（两阶段结算） */
@@ -85,6 +105,29 @@ export class BattleContext {
     constructor() {
         this.damagePipeline = new DamagePipeline(this);
         this.effects = new EffectExecutor(this);
+        /**
+         * 「骷髅地雷」系统（`battle/BattleMines.ts`，纯 TS）。
+         *
+         * 为什么挂在 ctx 上而不是宿主（`Scene_Game_Stage`）上：**遗物钩子要能改它**。
+         * 钩子手里只有宿主实体，标准取法就是 `hostCtx(host)`（`RelicHooks` 的既有写法），
+         * 拿到 ctx 就有 `ctx.mines`；参数本身走"重算式"（从 `hero.modifiers` 现读 kv），
+         * 所以这里不需要任何 add/remove 记账。
+         *
+         * 四个依赖全部由 ctx 自己提供：英雄实体（team=1 且 `UnitKind.Hero`）、
+         * 敌人表、伤害管线、爆炸形态上报 —— 宿主一行都不用传。
+         */
+        this.mines = new BattleMines({
+            getHero: () => {
+                for (const e of this.GetTeamEntities(1)) {
+                    if (e.unitKind === UnitKind.Hero && !e.IsDead()) return e;
+                }
+                return null;
+            },
+            getEnemies: () => this.GetTeamEntities(2),
+            applyDamage: (target, source, amount, type) => this.damagePipeline.ApplyDamage(target, source, amount, type),
+            reportBlast: (x, y, radius) => reportMineBlast(this, x, y, radius),
+            random: () => Math.random(),
+        });
     }
 
     // ============ 配置查询（走 TbRoot 管线，不持有数据） ============
@@ -247,7 +290,15 @@ export class BattleContext {
         return [...this.spatialMap];
     }
 
-    /** 简化范围查询（真实项目用空间分区；这里线性遍历；不含已回收） */
+    /**
+     * 简化范围查询（真实项目用空间分区；这里线性遍历；不含已回收）。
+     *
+     * ⚠ `center` **只认「带 `.position` 的东西」**（实体，或 `{ position: { x, y } }` 这样的载体），
+     * 不认裸坐标点 `{ x, y }`。要给"已经消失的位置"（如 `OnKill` 时的 `deathPos` 快照）当圆心，
+     * 就照 `{ position: deathPos }` 包一层 —— 见 `ShopSkillModifiers.Modifier_KillEcho`。
+     * 为什么不顺手兼容裸点：各体检脚本（`tools/<各体检>/audit.mjs`）里有若干份**手写副本**
+     * 读的是同一个字段，真实现多认一种写法时副本不会跟着变，于是体检会开始"验副本"（2026-11 实测踩到）。
+     */
     findEntitiesInRadius(center: any, radius: number, teamFilter?: number): Entity[] {
         const cx = center?.position?.x ?? 0;
         const cy = center?.position?.y ?? 0;

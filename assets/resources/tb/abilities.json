@@ -1,18 +1,24 @@
 [
   {
     "id": 1,
-    "name": "火球术",
+    "name": "深渊火球",
     "scope": "unit",
     "behavior": "unit_target",
-    "cooldown": 3,
-    "mana_cost": 20,
+    "cooldown": 6,
+    "mana_cost": 0,
     "cast_range": 600,
     "damage_type": "magical",
     "targeting": "nearest",
     "effects": [
       {
-        "type": "damage",
-        "value": 60
+        "type": "execute_script",
+        "script_id": "boss_fireball",
+        "kv": {
+          "pct": 120,
+          "modifier": 320,
+          "duration": 6,
+          "speed": 900
+        }
       },
       {
         "type": "apply_modifier",
@@ -20,7 +26,8 @@
         "duration": 3
       }
     ],
-    "max_level": 1
+    "max_level": 1,
+    "lv1": "朝英雄掷出一枚火球，造成攻击力 120% 的魔法伤害，并附加 6 秒「深渊灼烧」（受到伤害 +30%）与 3 秒「燃烧」"
   },
   {
     "id": 2,
@@ -123,7 +130,7 @@
   },
   {
     "id": 7,
-    "name": "偷钱(被动)",
+    "name": "悬赏(被动)",
     "scope": "unit",
     "icon": "textures/skills/shangjin_skill",
     "behavior": "passive",
@@ -136,10 +143,39 @@
       {
         "type": "apply_modifier",
         "modifier": 13,
-        "duration": -1
+        "duration": -1,
+        "kv": {
+          "per": 8,
+          "gold": 1
+        }
       }
     ],
-    "max_level": 1
+    "max_level": 3,
+    "lv1": "每击杀 8 名敌人获得 1 金币",
+    "lv2": "每击杀 5 名敌人获得 1 金币",
+    "lv3": "每击杀 3 名敌人获得 1 金币",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 13,
+        "duration": -1,
+        "kv": {
+          "per": 5,
+          "gold": 1
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 13,
+        "duration": -1,
+        "kv": {
+          "per": 3,
+          "gold": 1
+        }
+      }
+    ]
   },
   {
     "id": 8,
@@ -376,11 +412,39 @@
         "duration": -1,
         "kv": {
           "need": 5,
-          "radiusFactor": 0.5
+          "radiusFactor": 1,
+          "pct": 0.05
         }
       }
     ],
-    "max_level": 1
+    "max_level": 3,
+    "lv1": "每被敌人普攻命中 5 次，对攻击范围内所有敌人造成「自身当前生命 5%」的纯粹伤害",
+    "lv2": "触发所需的普攻命中降到 4 次，伤害提升到「自身当前生命 6%」",
+    "lv3": "触发所需的普攻命中降到 3 次，伤害提升到「自身当前生命 7%」",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 24,
+        "duration": -1,
+        "kv": {
+          "need": 4,
+          "radiusFactor": 1,
+          "pct": 0.06
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 24,
+        "duration": -1,
+        "kv": {
+          "need": 3,
+          "radiusFactor": 1,
+          "pct": 0.07
+        }
+      }
+    ]
   },
   {
     "id": 18,
@@ -403,7 +467,7 @@
   },
   {
     "id": 19,
-    "name": "雷霆之核·一阶(被动)",
+    "name": "雷霆之核(被动)",
     "scope": "unit",
     "icon": "textures/skills/zhousi_skill",
     "behavior": "passive",
@@ -426,49 +490,11 @@
         }
       }
     ],
-    "upgrades_to": 20,
-    "max_level": 1
-  },
-  {
-    "id": 20,
-    "name": "雷霆之核·二阶(被动)",
-    "scope": "unit",
-    "icon": "textures/skills/zhousi_skill",
-    "behavior": "passive",
-    "cooldown": 0,
-    "mana_cost": 0,
-    "cast_range": 0,
-    "damage_type": null,
-    "targeting": "nearest",
-    "effects": [
-      {
-        "type": "apply_modifier",
-        "modifier": 26,
-        "duration": -1,
-        "kv": {
-          "chain": 2,
-          "decay": 0.6,
-          "pct": 0.05,
-          "autoT": 0,
-          "autoPct": 0
-        }
-      }
-    ],
-    "upgrades_to": 21,
-    "max_level": 1
-  },
-  {
-    "id": 21,
-    "name": "雷霆之核·三阶(被动)",
-    "scope": "unit",
-    "icon": "textures/skills/zhousi_skill",
-    "behavior": "passive",
-    "cooldown": 0,
-    "mana_cost": 0,
-    "cast_range": 0,
-    "damage_type": null,
-    "targeting": "nearest",
-    "effects": [
+    "max_level": 3,
+    "lv1": "普攻附加「目标当前生命 3.5%」的雷伤，并向附近 1 名敌人弹射（攻击力 ×60%）",
+    "lv2": "雷伤提高到「目标当前生命 6.5%」，弹射 3 名敌人",
+    "lv3": "雷伤提高到「目标当前生命 8%」，弹射 4 名敌人；每 6 秒自动对射程内随机敌人落雷（攻击力 ×150%）",
+    "effects_lv2": [
       {
         "type": "apply_modifier",
         "modifier": 26,
@@ -482,21 +508,7 @@
         }
       }
     ],
-    "upgrades_to": 22,
-    "max_level": 1
-  },
-  {
-    "id": 22,
-    "name": "雷霆之核·四阶(被动)",
-    "scope": "unit",
-    "icon": "textures/skills/zhousi_skill",
-    "behavior": "passive",
-    "cooldown": 0,
-    "mana_cost": 0,
-    "cast_range": 0,
-    "damage_type": null,
-    "targeting": "nearest",
-    "effects": [
+    "effects_lv3": [
       {
         "type": "apply_modifier",
         "modifier": 26,
@@ -509,8 +521,7 @@
           "autoPct": 1.5
         }
       }
-    ],
-    "max_level": 1
+    ]
   },
   {
     "id": 23,
@@ -535,7 +546,7 @@
   },
   {
     "id": 24,
-    "name": "霜冻之箭(被动)",
+    "name": "弹幕散射(被动)",
     "scope": "unit",
     "icon": "textures/skills/zhuoer_skill",
     "behavior": "passive",
@@ -547,12 +558,44 @@
     "effects": [
       {
         "type": "apply_modifier",
-        "modifier": 28,
-        "duration": -1
+        "modifier": 70,
+        "duration": -1,
+        "kv": {
+          "extra": 1,
+          "pct": 60
+        }
       }
     ],
-    "max_level": 1,
-    "lv1": "攻击力 +6；普攻命中使敌人移速 -40%、持续 2 秒"
+    "max_level": 3,
+    "tags": [
+      "弹幕散射"
+    ],
+    "lv1": "普攻命中后，向攻击范围内另外 1 个敌人射一箭：60% 攻击力的物理伤害",
+    "lv2": "额外箭数提升到 2 个敌人（每箭 60% 攻击力）",
+    "lv3": "额外箭数提升到 3 个敌人，每箭 80% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 70,
+        "duration": -1,
+        "kv": {
+          "extra": 2,
+          "pct": 60
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 70,
+        "duration": -1,
+        "kv": {
+          "extra": 3,
+          "pct": 80
+        }
+      }
+    ],
+    "synergy": "遗物「散射 / 箭雨 / 跳弹」在同一条轴上继续加码；神器「攻击力 / 攻击速度」是通用泵"
   },
   {
     "id": 25,
@@ -598,9 +641,9 @@
   },
   {
     "id": 27,
-    "name": "幽冥剧毒(被动)",
+    "name": "血怒(被动)",
     "scope": "unit",
-    "icon": "textures/skills/viper_skill",
+    "icon": "textures/skills/hasika_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -610,18 +653,53 @@
     "effects": [
       {
         "type": "apply_modifier",
-        "modifier": 31,
-        "duration": -1
+        "modifier": 69,
+        "duration": -1,
+        "kv": {
+          "perAtkSpeed": 0.5,
+          "drainPct": 1,
+          "drainFloorPct": 60
+        }
       }
     ],
-    "max_level": 1,
-    "lv1": "普攻命中施加剧毒：每秒 8 点法术伤害，每层使敌人移速 -10%（可叠 5 层）、持续 4 秒"
+    "max_level": 3,
+    "tags": [
+      "背水血怒"
+    ],
+    "lv1": "每损失 1% 生命，攻击速度 +0.5%（掉到 60% 血 = +20% 攻速）；生命高于 60% 时每秒流失 1% 最大生命",
+    "lv2": "每损失 1% 生命，攻击速度 +0.75%（掉到 60% 血 = +30% 攻速）；生命高于 60% 时每秒流失 1% 最大生命",
+    "lv3": "每损失 1% 生命，攻击速度 +1%（掉到 60% 血 = +40% 攻速）；生命高于 60% 时每秒流失 1% 最大生命",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 69,
+        "duration": -1,
+        "kv": {
+          "perAtkSpeed": 0.75,
+          "drainPct": 1,
+          "drainFloorPct": 60
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 69,
+        "duration": -1,
+        "kv": {
+          "perAtkSpeed": 1,
+          "drainPct": 1,
+          "drainFloorPct": 60
+        }
+      }
+    ],
+    "synergy": "遗物「血怒 / 拼命 / 焚血 / 浴血」在同一条轴上继续加码；「焚血」的自伤把血线按在收益区；神器「攻击力 / 攻击速度」是通用泵"
   },
   {
     "id": 28,
-    "name": "黑洞(被动)",
+    "name": "骷髅地雷(被动)",
     "scope": "unit",
-    "icon": "textures/skills/mituan_skill",
+    "icon": "textures/skills/kulouwang_skill",
     "behavior": "passive",
     "cooldown": 0,
     "mana_cost": 0,
@@ -632,11 +710,105 @@
       {
         "type": "apply_modifier",
         "modifier": 33,
-        "duration": -1
+        "duration": -1,
+        "kv": {
+          "mineInterval": 6,
+          "mineCap": 5,
+          "mineTriggerRadius": 45,
+          "mineBlastRadius": 50,
+          "mineDamagePct": 180
+        }
+      }
+    ],
+    "max_level": 3,
+    "tags": [
+      "召唤增殖"
+    ],
+    "lv1": "每 6 秒在攻击范围内随机埋下 1 颗骷髅地雷（上限 5 颗）；敌人踩中即爆，对 50 半径内敌人造成 180% 攻击力的物理伤害",
+    "lv2": "布雷间隔缩短到 5 秒；爆炸伤害 220% 攻击力、半径 55",
+    "lv3": "布雷间隔缩短到 4 秒；爆炸伤害 260% 攻击力、半径 60",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 33,
+        "duration": -1,
+        "kv": {
+          "mineInterval": 5,
+          "mineCap": 5,
+          "mineTriggerRadius": 45,
+          "mineBlastRadius": 55,
+          "mineDamagePct": 220
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 33,
+        "duration": -1,
+        "kv": {
+          "mineInterval": 4,
+          "mineCap": 5,
+          "mineTriggerRadius": 45,
+          "mineBlastRadius": 60,
+          "mineDamagePct": 260
+        }
+      }
+    ],
+    "synergy": "遗物「雷区 / 急造」抬高上限与产量，「重装 / 扩爆」抬高单发，神器「攻击力」直接喂养爆炸伤害"
+  },
+  {
+    "id": 30,
+    "name": "恐惧咆哮",
+    "scope": "unit",
+    "behavior": "unit_target",
+    "cooldown": 14,
+    "mana_cost": 0,
+    "cast_range": 240,
+    "damage_type": "magical",
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "execute_script",
+        "script_id": "boss_cast",
+        "kv": {
+          "shape": "fan",
+          "radiusM": 4.2,
+          "halfAngleDeg": 45,
+          "pct": 60,
+          "modifier": 321,
+          "duration": 2.5
+        }
       }
     ],
     "max_level": 1,
-    "lv1": "攻击力 +8；普攻命中在目标处撕裂暗影，对 130 半径内敌人造成 28 点法术伤害"
+    "lv1": "正前方 90° 扇形咆哮：造成攻击力 60% 的魔法伤害，并让英雄 2.5 秒内无法普攻与施法"
+  },
+  {
+    "id": 31,
+    "name": "深渊诅咒",
+    "scope": "unit",
+    "behavior": "unit_target",
+    "cooldown": 20,
+    "mana_cost": 0,
+    "cast_range": 300,
+    "damage_type": "magical",
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "execute_script",
+        "script_id": "boss_cast",
+        "kv": {
+          "shape": "blast",
+          "radiusM": 3.6,
+          "pct": 80,
+          "modifier": 322,
+          "duration": 8
+        }
+      }
+    ],
+    "max_level": 1,
+    "lv1": "以自身为中心 180 半径炸开诅咒：造成攻击力 80% 的魔法伤害，并让英雄 8 秒内护甲 -12、攻速 -25%"
   },
   {
     "id": 101,
@@ -2407,5 +2579,58 @@
       }
     ],
     "synergy": "配合「嗜血」，高攻吸血稳住下滑血量"
+  },
+  {
+    "id": 131,
+    "name": "陷阱",
+    "scope": "shop",
+    "icon": "textures/skills/sentry_turret",
+    "behavior": "passive",
+    "cooldown": 0,
+    "mana_cost": 0,
+    "cast_range": 0,
+    "damage_type": null,
+    "targeting": "nearest",
+    "effects": [
+      {
+        "type": "apply_modifier",
+        "modifier": 68,
+        "duration": -1,
+        "kv": {
+          "mineOnKill": 2
+        }
+      }
+    ],
+    "rarity": "rare",
+    "stage": 2,
+    "weight": 30,
+    "max_level": 3,
+    "tags": [
+      "召唤增殖"
+    ],
+    "lv1": "击杀敌人时在其位置留下 1 颗骷髅地雷（场上最多同时存在 2 颗）；踩中即爆，造成 180% 攻击力的物理伤害",
+    "lv2": "陷阱上限 3 颗，爆炸伤害 220% 攻击力",
+    "lv3": "陷阱上限 4 颗，爆炸伤害 260% 攻击力",
+    "effects_lv2": [
+      {
+        "type": "apply_modifier",
+        "modifier": 68,
+        "duration": -1,
+        "kv": {
+          "mineOnKill": 3
+        }
+      }
+    ],
+    "effects_lv3": [
+      {
+        "type": "apply_modifier",
+        "modifier": 68,
+        "duration": -1,
+        "kv": {
+          "mineOnKill": 4
+        }
+      }
+    ],
+    "synergy": "配合骷髅王「骷髅地雷」把击杀点也变成雷区；任何英雄抽到都能用（不要求会布雷）"
   }
 ]

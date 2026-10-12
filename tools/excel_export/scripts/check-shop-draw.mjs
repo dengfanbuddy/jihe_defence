@@ -254,18 +254,28 @@ console.log(`\n池子耗尽（全部已获得）：抽到 ${drained.picked.lengt
 if (drained.picked.length !== 0) problems.push('池子耗尽时仍抽出了选项，遗物唯一性 / 技能满级判定可能有漏');
 
 // 费用曲线
-const cost = n => Math.min(consts.drawCostBase + consts.drawCostStep * n, consts.drawCostCap);
-console.log('费用曲线: ' + [0, 1, 2, 3, 4, 5, 8].map(n => `第${n + 1}次=${cost(n)}`).join('  '));
+/**
+ * ⚠ **`drawCostCap = 0` 表示"不封顶"**（`shop_constants.json` 的口径，消费方
+ * `ShopConfig` / `RelicShop` 也是这么读的）。本脚本原来一律 `Math.min(base + step*n, cap)`，
+ * 于是"不封顶"被算成"封顶 0 元" ⇒ `cost(0) = 0 ≠ drawCostBase` ⇒ 报「首次抽取费用不等于 drawCostBase」。
+ * 这条**不是配表的问题**（2026-11 去掉封顶是有意的），是判据漏了那个约定。
+ */
+const capped = consts.drawCostCap > 0;
+const cost = n => {
+    const raw = consts.drawCostBase + consts.drawCostStep * n;
+    return capped ? Math.min(raw, consts.drawCostCap) : raw;
+};
+console.log('费用曲线: ' + [0, 1, 2, 3, 4, 5, 8].map(n => `第${n + 1}次=${cost(n)}`).join('  ') + (capped ? '' : '（不封顶）'));
 if (cost(0) !== consts.drawCostBase) problems.push('首次抽取费用不等于 drawCostBase');
 // 收敛判据不能假定「99 次就能顶到 cap」：base/step 是策划调过的（现 base+step 远小于 cap），
 // 按「还差多少 / 每步增量」算出真正需要的次数再验一次
-const stepsToCap = consts.drawCostStep > 0
+const stepsToCap = (capped && consts.drawCostStep > 0)
     ? Math.ceil((consts.drawCostCap - consts.drawCostBase) / consts.drawCostStep)
     : Infinity;
 if (Number.isFinite(stepsToCap) && cost(stepsToCap + 1) !== consts.drawCostCap) {
     problems.push('抽取费用未收敛到 drawCostCap');
 }
-if (cost(1e6) > consts.drawCostCap) problems.push('抽取费用超过 drawCostCap');
+if (capped && cost(1e6) > consts.drawCostCap) problems.push('抽取费用超过 drawCostCap');
 
 console.log(problems.length ? `\n✖ ${problems.length} 个问题：\n  · ` + problems.slice(0, 20).join('\n  · ') : '\n✔ 未发现空池 / 重复 / 费用异常');
 process.exitCode = problems.length ? 1 : 0;

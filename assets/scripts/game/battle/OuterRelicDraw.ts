@@ -10,7 +10,7 @@ import type { RelicCfg, RelicRarity } from '../excel_table/Tb_RelicConfig';
  * 的分工逐字对称）—— 这样规则能被体检脚本直接跑，不必起界面、也不必造存档。
  *
  * ── 规则口径（口径真源 `docs/meta-growth/README.md` §1，本文件不含任何数值）──
- *   · **池子**：`scope` 含 `outer` 的那 37 件局外遗物（由调用方传入，本文件不查表）
+ *   · **池子**：`scope` 含 `outer` 的那 268 件局外遗物（2026-11 起 = 与局内池逐件相同；由调用方传入，本文件不查表）
  *   · **两步抽取**：① 掷品质（白 6 / 蓝 2.5 / 紫 1 / 红 0.5）
  *                  ② 在**该品质档内**优先给「还没收集过的」；这一档集齐了才等概率随机重复
  *     —— 第 ② 步的作用只有一个：**让图鉴能集齐**（否则 10% 的紫档要在 11 件里靠运气凑齐）
@@ -31,7 +31,7 @@ export class OuterRelicDraw {
      * =================================================================== */
 
     /**
-     * **局外池** = `relics.json` 里 `scope` 含 `outer` 的那 37 件（过滤口径只有一份，
+     * **局外池** = `relics.json` 里 `scope` 含 `outer` 的那 268 件（过滤口径只有一份，
      * 在 `Tb_RelicConfig.getOuterRelicCfgs`；这里只是转发，与 `RelicDraw.skillPool` ↔ `ShopConfig` 同形）。
      *
      * ⚠ 另外 240 件只有局内版的遗物**不进池** —— 抽出来没有局外属性，等于白抽。
@@ -81,6 +81,23 @@ export class OuterRelicDraw {
     }
 
     /**
+     * **连着抽 `count` 次的金币全价**（从当日第 `paidIndex` 次付费抽起，逐个累加阶梯价）。
+     *
+     * 与 `plan()` 的累加规则**同一份**（都只读 `costOfDraw`，没有第二个算法），差别只有一处：
+     * `plan()` 在"买不起"的时候就停下，这里**不管买不买得起都算全**。
+     *
+     * 用途只有一个：**抽不动时按钮上那个红字**（用户口径 2026-11）。那时 `plan().goldCost` 恒为 0，
+     * 而玩家要知道的是"这一次抽到底要多少金币" —— 报 0 等于没报，报 `—` 等于什么都没说。
+     */
+    static costOfDraws(count: number, paidIndex: number): number {
+        const n = Math.max(0, Math.floor(count) || 0);
+        const from = Math.max(0, Math.floor(paidIndex) || 0);
+        let sum = 0;
+        for (let i = 0; i < n; i++) sum += OuterRelicDraw.costOfDraw(from + i);
+        return sum;
+    }
+
+    /**
      * 掷品质（按 `RARITY_WEIGHT` 加权）。
      * 权重全配成 0 时退化成最低档（白），**不抛异常** —— 图鉴页抽不出东西比报错更难查。
      */
@@ -99,7 +116,7 @@ export class OuterRelicDraw {
     /**
      * 抽一件局外遗物。
      *
-     * @param pool   局外池（`scope` 含 `outer` 的那 37 件；空池返回 null）
+     * @param pool   局外池（`scope` 含 `outer` 的那 268 件；空池返回 null）
      * @param ownedOf `id → 已收集份数`（0 = 还没收集过）。传函数而不是传 `EquipmentCollection`：
      *                本文件要保持可被体检脚本直接跑，不依赖任何数据模块。
      * @returns 抽中的那件配置（池子为空时 null）
@@ -179,14 +196,35 @@ export class OuterRelicDraw {
     }
 
     /**
-     * 付费方案的**一行文案**（界面按钮上那行消耗）。
+     * 付费方案的**一行文案**（方案自己那份消耗）。
      *
      * 文案只有这一处实现：界面不许自己拼（`券` 与 `金币` 的比例一变，
      * 两处各拼一遍必然出现"显示花金币、其实扣了券"）。
+     *
+     * ⚠ 它描述的是**方案**：一步都没排出来时返回 `—`（那个空方案本来就没有"消耗"可言）。
+     *   按钮上那行字要走 `formatButtonText` —— 抽不动时它会改成金币全价。
      */
     static formatCost(plan: OuterDrawPlan): string {
         if (!plan || !plan.steps.length) return '—';
         return OuterRelicDraw.formatSpent(plan.ticketUse, plan.goldCost);
+    }
+
+    /**
+     * 「抽 取」按钮上那行消耗 —— **界面那行字的唯一出处**（`DataCenter.previewOuterDraw` 调它）。
+     *
+     * 两态（用户口径 2026-11）：
+     *   ① **抽得动**（券 / 金币至少付得起一次）→ 报**真正会扣**的那份，即 `plan()` 的答案：
+     *      `抽取券 N` / `金币 M` / `券N 金币M`（券优先，所以有券就一定出现在这行里）
+     *   ② **抽不动**（券不够、金币也不够这一次抽）→ **仍然报这一次抽的金币全价**，
+     *      由界面把它画成**红字**（`金币 700` 红字 = "还差这么多"，替代原来的 `—`：
+     *      空着玩家不知道要攒多少，而这正是他最需要知道的一件事）
+     *
+     * ⚠ 判据只有 `plan().steps.length` 一处（与"按钮亮不亮"同源）：抽得动就报方案，抽不动才退回全价。
+     *   界面**不许**自己按阶梯累加 —— `audit:draw` 的 G11 盯着源码里出现 `costOfDraw` 就报错。
+     */
+    static formatButtonText(plan: OuterDrawPlan, count: number, paidIndex: number): string {
+        if (plan && plan.steps.length) return OuterRelicDraw.formatCost(plan);
+        return OuterRelicDraw.formatSpent(0, OuterRelicDraw.costOfDraws(count, paidIndex));
     }
 
     /** 消耗文案（**抽完之后**报实际花掉的那份也走它 —— 与按钮上显示的逐字同形） */

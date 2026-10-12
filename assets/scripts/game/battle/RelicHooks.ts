@@ -1,6 +1,10 @@
 import { Modifier } from './Modifier';
+import type { BarState } from './Modifier';
 import { BattleEvents, DamageType, MODIFY_ATTR_TEMPLATE_ID } from './types';
 import { AttributeType } from './core/Types';
+import { HitShapeKind } from '../common/HitFeelConfig';
+import { MINE_KV_LIST } from '../common/MineConfig';
+import { publishSkillShape } from './SkillShape';
 import type { BattleContext } from './BattleContext';
 
 /**
@@ -91,7 +95,17 @@ const PIERCE_SPREAD = 0.6;
 /** 「穿透」的固定伤害比例（文案写死 60%） */
 const PIERCE_PCT = 60;
 
-/** 命中叠层的有效期（秒）：文案「持续 3 秒」= 3 秒内没再命中就归零 */
+/**
+ * 命中叠层的**默认窗口长度**（秒）：文案「持续 3 秒」= **从第一击起算** 3 秒。
+ *
+ * 可被 `kv.sec` 覆盖（2026-11：高档次给更长窗口 —— 红档要 15 层，3 秒内根本叠不满）。
+ *
+ * ⚠ 2026-11 口径修正：旧实现是「3 秒内没再命中就归零」，且每次命中都把属性实例的
+ * 时长重放成满 3 秒 ⇒ 只要普攻间隔 < 3 秒，层数与时长**双双被刷新**，满层永驻
+ * （实测 = 常驻最高层，等于一件永久遗物）。
+ * 现在：窗口锚在**第一次叠层成功的那一击**，窗口内的命中只叠层、**不续时**，到点整段清零；
+ * 下一击另开一个新窗口（见 `RelicHook_AtkSpeedStack`）。
+ */
 const HIT_STACK_SEC = 3;
 /** 冰霜减速的持续（秒）—— 文案「持续 2 秒」 */
 const FROST_SEC = 2;
@@ -105,6 +119,15 @@ const AURA_INTERVAL = 1;
 const AURA_SLOW_SEC = 1.2;
 /** 濒死守护的触发血线（文案写死：生命低于 25%） */
 const NEAR_DEATH_HP_PCT = 25;
+
+/**
+ * 「缺血流」缩放钩子（`bloodRush` / `desperateAtk`）写属性时的**量化步长**。
+ *
+ * 与 `ScriptedModifiers.Modifier_BloodRage` 的 `BLOOD_RAGE_STEP` 是同一个理由、同一个值：
+ * 写属性要触发 `ModifierSystem.recollect()`（全量重算），逐帧写等于每帧重算一遍，
+ * 而 0.01 的差别在屏幕上根本看不出来。详见 `RelicHook_LowHpScale` 的类注释。
+ */
+const LOW_HP_SCALE_STEP = 0.5;
 
 /* =====================================================================================
  * 二、公共小工具（无状态；与 `ShopSkillModifiers.ts` 同款，故那里不加改动）
@@ -206,8 +229,33 @@ function enemiesInRadius(ctx: BattleContext, center: any, radiusPx: number): any
     return (ctx.findEntitiesInRadius(center, radiusPx, 2) ?? []).filter((e: any) => alive(e));
 }
 
-/** 以 `center` 为圆心打一圈（半径是**像素**）；`exclude` 用于排除圆心上的那个实体本身 */
+/**
+ * 把「一个已经不存在实体的坐标」（如 `OnKill` 载荷里的 `deathPos` 快照）包成
+ * `findEntitiesInRadius` 认的**圆心**。
+ *
+ * 为什么要包：那个函数读的是 `center.position`（实体字段），裸坐标点 `{ x, y }` 进去会被当成
+ * `(0, 0)` —— 于是"以死者位置为圆心"静默变成"以地图原点为圆心"（2026-11 的真 bug，
+ * 死亡回响与技能 122 都中招；且各体检脚本里还有同读法的副本，包一层两边都对）。
+ */
+function centerAt(pos: { x: number; y: number }): { position: { x: number; y: number } } {
+    return { position: pos };
+}
+
+/**
+ * 以 `center` 为圆心打一圈（半径是**像素**）；`exclude` 用于排除圆心上的那个实体本身。
+ *
+ * ⚠ **顺带上报爆炸形态**（"路 B"，见 `battle/SkillShape.ts`）：遗物的溅射/击杀爆炸
+ * 原先在屏幕上**几乎什么都不画** —— 表现层的几何推断要一个"普攻或击杀锚点"才敢认形态，
+ * 而"抽到遗物后每次命中附带的一圈伤害"恰好两条都够不上（锚点在同帧里被别的批次占掉了）。
+ */
 function aoe(ctx: BattleContext, center: any, radiusPx: number, hit: (target: any) => void, exclude?: Set<number>): void {
+    publishSkillShape(ctx, {
+        shape: HitShapeKind.Blast,
+        source: center,
+        cx: center?.position?.x ?? 0,
+        cy: center?.position?.y ?? 0,
+        radius: radiusPx,
+    });
     for (const e of enemiesInRadius(ctx, center, radiusPx)) {
         if (exclude && exclude.has(e.uid)) continue;
         hit(e);
@@ -226,6 +274,7 @@ function chain(
 ): void {
     const visited = new Set<number>([start.uid]);
     const r2 = rangePx * rangePx;
+    const hops: { x: number; y: number }[] = [];
     let cur = start;
     for (let i = 1; i <= jumps; i++) {
         let next: any = null;
@@ -235,10 +284,22 @@ function chain(
             const d = dist2(e, cur);
             if (d <= r2 && d < best) { best = d; next = e; }
         }
-        if (!next) return;
+        if (!next) break;
         visited.add(next.uid);
+        hops.push({ x: next.position?.x ?? 0, y: next.position?.y ?? 0 });
         dealHit(next, i);
         cur = next;
+    }
+    // 形态上报（路 B）：跳序就是这里算出来的，表现层不用再猜（见 `ShopSkillModifiers.chain` 的同款注释）
+    if (hops.length > 0) {
+        publishSkillShape(ctx, {
+            shape: HitShapeKind.Chain,
+            source: start,
+            cx: start.position?.x ?? 0,
+            cy: start.position?.y ?? 0,
+            radius: Math.max(1, rangePx),
+            points: hops,
+        });
     }
 }
 
@@ -509,7 +570,8 @@ export class RelicHook_ArmorBreak extends Modifier {
 // ---------------------------------------------------------------- splash 溅射
 
 /**
- * 溅射（`splash`）。`kv = { pct, radius }`（蓝 20%/120、黄 30%/140、红 45%/160）
+ * 溅射（`splash`）。`kv = { pct, radius }`（蓝 20%/50、黄 30%/50、红 45%/50 ——
+ * 爆炸类半径 2026-11 一律 50 像素 = 1 米，见 `relic-inner-design.mjs` 的 `splash` 注释）
  *
  * 文案：`普攻命中后，对目标 radius 像素内敌人造成 攻击力 pct% 的伤害`。
  *
@@ -715,7 +777,7 @@ export class RelicHook_FirstStrike extends Modifier {
 // ---------------------------------------------------------------- critEcho 暴击回响
 
 /**
- * 暴击回响（`critEcho`）。`kv = { pct, radius }`（蓝 30%/120、黄 50%/130、红 80%/140）
+ * 暴击回响（`critEcho`）。`kv = { pct, radius }`（蓝 30%/50、黄 50%/50、红 80%/50 —— 半径口径同溅射）
  *
  * 文案：`暴击时对目标 radius 像素内敌人造成 pct% 伤害`。
  *
@@ -760,28 +822,73 @@ export class RelicHook_CritEcho extends Modifier {
 // ---------------------------------------------------------------- atkSpeedStack 连击
 
 /**
- * 连击（`atkSpeedStack`）。`kv = { per, max }`（蓝 2%/6 层、黄 3%/10、红 4%/15）
+ * 连击（`atkSpeedStack`）。`kv = { per, max, sec?, chance? }`
+ * （蓝 2%/6 层、黄 3%/10 层、红 4%/15 层；`sec` = 窗口秒数、`chance` = 每次命中的叠层概率 %）
  *
- * 文案：`普攻命中叠 1 层：攻击速度 +per%（上限 max 层，持续 3 秒）`。
+ * 文案骨架：`普攻命中 chance% 叠 1 层：攻击速度 +per%（上限 max 层，首次命中起 sec 秒后清零）`。
  *
  * 实现：自己维护层数 + 一个自计时时钟（`OnTick` 累加，**不用** `modifiers.cd`，那是死代码）。
- * 每次命中：距上次命中超过 3 秒 → 层数先归零（"3 秒内没再命中就归零"），再 +1（上限 `max`）；
- * 然后用共享模板 1000 重放 `[4 攻速, 层数 × per, 'add']`、`duration = 3`——
- * 同 origin 重放会替换旧实例，所以永远只有一份贡献，到期自动摘掉（不需要自己清理）。
+ *
+ * **时长口径（2026-11 修正，改之前先读这段）**：窗口是**从第一次叠层成功那一击起算**的，不是"每次命中刷新"。
+ *   · 叠层成功时若窗口已过（`clock >= windowEnd`）→ **另开一个窗口**（`windowEnd = clock + sec`）、层数从 0 起；
+ *   · 窗口内的命中 → 只把层数 +1（上限 `max`），**窗口的截止时刻一动不动**；
+ *   · 重放共享模板 1000 时传的时长 = **窗口剩余**（`windowEnd - clock`），不是恒定 `sec` ——
+ *     于是到点那一刻属性贡献自己到期消失，不需要钩子去摘（`OnTick` 里顺手把层数清零）。
+ *   · 结果：`sec` 秒一个循环 —— 窗口内往上叠，窗口到点归零，下一击重新开始。
+ *   旧实现（每次命中重放满 3 秒）会让普攻间隔 < 3 秒时**满层永驻**，是 bug 不是设计。
+ *
+ * **概率口径**：`kv.chance` 缺省 **100**（必叠，与旧行为一致）；配了就是"每次命中掷一次"，
+ * **没掷中这一击什么都不做 —— 也不开窗口**（窗口的第一击 = 第一次成功叠层那一击）。
+ * 走公共的 `rollPct()`，与「重击/点燃」等概率钩子同一口径（`Math.random()*100 < pct`）。
+ *
+ * 为什么没有额外 CD：本效果本身就是"一个窗口一循环"的机制，窗口是强制的（层数一定会在
+ * 窗口末掉到 0，谁都拦不住）。要"再等 N 秒才能重新叠"是**另一条设计**，得先定数值。
+ *
  * 攻速是**缩放型属性**（配置口径 100 = 1.0 次/秒），`per = 3` 就是 +0.03，用 `add`。
  */
 export class RelicHook_AtkSpeedStack extends Modifier {
     private stacks = 0;
-    /** 自计时时钟（秒）——用于判"3 秒内有没有再命中" */
+    /** 自计时时钟（秒）——窗口的锚点全靠它 */
     private clock = 0;
-    private lastStackAt = -Infinity;
-
-    OnTick(dt: number): void {
-        this.clock += dt;
-    }
+    /** 本段连击窗口的**截止时刻**（秒）；`clock >= windowEnd` = 窗口已结束（可另开新窗口） */
+    private windowEnd = 0;
 
     /** 当前层数（调试/断言用） */
     getStacks(): number { return this.stacks; }
+
+    /** 本段窗口还剩几秒（调试/断言用）；`<= 0` = 窗口已过 */
+    getWindowLeft(): number { return this.windowEnd - this.clock; }
+
+    /** 窗口长度（秒）：`kv.sec`（配 0/负数/缺省一律回落 `HIT_STACK_SEC`） */
+    getWindowSec(): number {
+        const sec = kvNum(this.getKV(), 'sec', HIT_STACK_SEC);
+        return sec > 0 ? sec : HIT_STACK_SEC;
+    }
+
+    /** 每次命中的叠层概率（%）：`kv.chance`，缺省 100 = 必叠；钳在 0~100 */
+    getStackChance(): number {
+        const chance = kvNum(this.getKV(), 'chance', 100);
+        return chance <= 0 ? 0 : chance >= 100 ? 100 : chance;
+    }
+
+    /**
+     * 状态栏：**窗口内有层数才占格子**（层数在钩子里，剩余时长在共享模板实例上 ——
+     * 两者 `origin` 相同，`StatusBar` 会合成一格：短标「连击」+ `×N` + 剩余秒数）。
+     * 窗口到点（`left <= 0`）即使 `stacks` 还没被 `OnTick` 清掉也不出栏 —— 进度的真源是窗口。
+     */
+    GetBarState(): BarState | null {
+        const left = this.windowEnd - this.clock;
+        if (this.stacks <= 0 || left <= 0) return null;
+        const win = this.getWindowSec();
+        const pct = left >= win ? 1 : left / win;
+        return { stacks: this.stacks, pct };
+    }
+
+    OnTick(dt: number): void {
+        this.clock += dt;
+        // 窗口到点：层数清零（属性贡献由共享模板实例自己的时长到期摘掉，这里只收自己的状态）
+        if (this.stacks > 0 && this.clock >= this.windowEnd) this.stacks = 0;
+    }
 
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_attack_landed') return false;
@@ -794,11 +901,18 @@ export class RelicHook_AtkSpeedStack extends Modifier {
         const max = Math.floor(kvNum(kv, 'max', 0));
         if (!(per > 0) || max <= 0) return false;
 
-        if (this.clock - this.lastStackAt > HIT_STACK_SEC) this.stacks = 0;
-        this.stacks = Math.min(max, this.stacks + 1);
-        this.lastStackAt = this.clock;
+        // 概率叠层：没掷中这一击就什么都不做（**也不开窗口** —— 窗口的第一击 = 第一次成功叠层）
+        if (!rollPct(this.getStackChance())) return false;
 
-        reapplyAttrs(host, this, [[AttributeType.AtkSpeed, this.stacks * per, 'add']], HIT_STACK_SEC);
+        // 窗口已过（或还没开过）→ 这一击就是新窗口的第一击；窗口内的命中只叠层、不续时
+        if (this.clock >= this.windowEnd) {
+            this.windowEnd = this.clock + this.getWindowSec();
+            this.stacks = 0;
+        }
+        this.stacks = Math.min(max, this.stacks + 1);
+
+        // 时长 = 窗口剩余（到点自动摘掉）；窗口刚开始时它正好是 sec 秒
+        reapplyAttrs(host, this, [[AttributeType.AtkSpeed, this.stacks * per, 'add']], this.windowEnd - this.clock);
         return false;
     }
 }
@@ -835,6 +949,12 @@ export class RelicHook_Charge extends Modifier {
 
     /** 是否处于充能态（调试/断言用） */
     isCharged(): boolean { return this.charged; }
+
+    /**
+     * 状态栏：**充能完成才占格子**（"下一击 N 倍"是可操作信息；还在攒的那几秒不占格，
+     * 否则一件遗物就常驻一格 —— 见 docs/status-bar/README.md §3）。
+     */
+    GetBarState(): BarState | null { return this.charged ? { pct: 1 } : null; }
 
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_attack_landed') return false;
@@ -964,6 +1084,9 @@ export class RelicHook_ShieldCharge extends Modifier {
     /** 当前护盾值（调试/断言用） */
     getShield(): number { return this.shield; }
 
+    /** 状态栏：**手上真有一层护盾**才占格子（还在充能的那几秒不占） */
+    GetBarState(): BarState | null { return this.shield > 0 ? { pct: 1 } : null; }
+
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_block_damage') return false;
         const host = this.target as any;
@@ -1070,6 +1193,9 @@ export class RelicHook_NearDeath extends Modifier {
     /** 剩余冷却（秒，调试/断言用） */
     getCdLeft(): number { return this.cdLeft; }
 
+    /** 状态栏：**冷却就绪**才占格子（"这一击能救命"值得一眼看到；冷却中不占） */
+    GetBarState(): BarState | null { return this.cdLeft <= 0 ? { pct: 1 } : null; }
+
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_block_damage') return false;
         const host = this.target as any;
@@ -1121,6 +1247,12 @@ export class RelicHook_LastStand extends Modifier {
     /** 本局剩余次数（调试/断言用） */
     getRemaining(): number { return Math.max(0, this.remaining); }
 
+    /** 状态栏：还有次数就常显（「不屈 ×2」= 本局还能救两次命）；用完了不占格子 */
+    GetBarState(): BarState | null {
+        const n = this.getRemaining();
+        return n > 0 ? { stacks: n, pct: 1 } : null;
+    }
+
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_block_damage') return false;
         const host = this.target as any;
@@ -1169,7 +1301,9 @@ export class RelicHook_TakeHeal extends Modifier {
 // ---------------------------------------------------------------- immolate 灼烧光环
 
 /**
- * 灼烧光环（`immolate`）。`kv = { value, radius }`（蓝 8/140、黄 16/150、红 30/160）
+ * 灼烧光环（`immolate`）。`kv = { value, radius }`（蓝 8/120、黄 16/135、红 30/150 ——
+ * ⚠ 光环半径**不能**学爆炸砍到 50：怪会停在自己的攻击距离（44~180）不再靠近，
+ * 半径 ≤50 时只有 44 射程的哥布林会被烫到，见 `relic-inner-design.mjs` 的 `immolate` 注释）
  *
  * 文案：`每秒对周围 radius 像素内的敌人造成 value 点魔法伤害`。
  *
@@ -1265,6 +1399,9 @@ export class RelicHook_MagicBarrier extends Modifier {
 
     /** 屏障是否就绪（调试/断言用） */
     isReadyBarrier(): boolean { return this.barrier; }
+
+    /** 状态栏：**屏障就绪**才占格子（"下次法术伤害被减 pct%"是可操作信息） */
+    GetBarState(): BarState | null { return this.barrier ? { pct: 1 } : null; }
 
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_block_damage') return false;
@@ -1439,13 +1576,18 @@ export class RelicHook_KillStackAtk extends RelicBusHook {
 // ---------------------------------------------------------------- killBoom 死亡回响
 
 /**
- * 死亡回响（`killBoom`）。`kv = { value, radius }`（蓝 40/120、黄 80/140、红 140/160）
+ * 死亡回响（`killBoom`）。`kv = { value, radius }`（蓝 40/50、黄 80/50、红 140/50 —— 半径口径同溅射）
  *
  * 文案：`击杀敌人时，对周围 radius 像素内敌人造成 value 点魔法伤害`。
  *
  * 实现：`bus.on(OnKill)` → 以**阵亡者的位置**为圆心，对 `radius` 像素内的敌人各追加 `value` 点魔法伤害。
- * 坑：`OnKill` 时死者已经 `Die()`（`modifiers.Clear()` 也跑完了），
- * `findEntitiesInRadius` 会自己滤掉死者；仍显式跳过 `t === victim`（防对象池复用后误伤）。
+ *
+ * 坑（**2026-11 修**）：`OnKill` 派发时死者**已经回对象池**（场景在 `OnDeath` 监听里就
+ * `recycleMonster` 了，`Entity.ResetForPool()` 把 `position` 清零），所以**不能**拿 `victim` 当圆心 ——
+ * 圆心会恒为地图原点，范围伤害只在原点附近生效（画面上极难看出）。
+ * 圆心一律读载荷里的 `event.deathPos`（`DamagePipeline` 第 8 阶段在回收**之前**取的快照）。
+ * 仍在 `aoe` 回调里显式跳过 `t === victim`（`findEntitiesInRadius` 会滤掉已死实体，
+ * 但对象池复用后同一个对象可能已经变成另一个活着的怪）。
  */
 export class RelicHook_KillBoom extends RelicBusHook {
     protected getBusEventName(): string { return BattleEvents.OnKill; }
@@ -1455,14 +1597,17 @@ export class RelicHook_KillBoom extends RelicBusHook {
         if (!host || event?.killer !== host) return;
         const victim = event?.victim as any;
         const ctx = hostCtx(host);
-        if (!ctx || !victim?.position) return;
+        // ⚠ 圆心取 `deathPos` 快照，**不是** `victim.position`（那时已经是 (0,0)，见类注释）；
+        //   快照是裸坐标点，要用 `centerAt` 包成 `findEntitiesInRadius` 认的载体
+        const deathPos = event?.deathPos as { x: number; y: number } | undefined;
+        if (!ctx || !deathPos) return;
 
         const kv = this.getKV() ?? {};
         const value = kvNum(kv, 'value', 0);
         const radius = kvNum(kv, 'radius', 0);
         if (!(value > 0) || !(radius > 0)) return;
 
-        aoe(ctx, victim, radius, (t) => {
+        aoe(ctx, centerAt(deathPos), radius, (t) => {
             if (t === victim) return;
             deal(ctx, host, t, value, DamageType.Magical);
         });
@@ -1582,7 +1727,8 @@ export class RelicHook_PhaseBuff extends RelicBusHook {
 // ---------------------------------------------------------------- slowAura 迟滞光环
 
 /**
- * 迟滞光环（`slowAura`）。`kv = { pct, radius }`（蓝 20%/160、黄 30%/180、红 40%/200）
+ * 迟滞光环（`slowAura`）。`kv = { pct, radius }`（蓝 20%/140、黄 30%/160、红 40%/180 ——
+ * 光环半径的下限理由同 `immolate`，红档仍够得到 180 射程的 Boss）
  *
  * 文案：`周围 radius 像素内敌人移动速度 -pct%`。
  *
@@ -1723,15 +1869,555 @@ export class RelicHook_SilenceProc extends Modifier {
 }
 
 /* =====================================================================================
- * 脚本类清单 —— 供 Scene_Game_Stage.initBattle 一次性注册
+ * F 组：召唤增殖类（2026-11 补 —— 填掉 8 个流派词里唯一 0 件的空档）
+ *
+ * 三条一律**零基建**：本作没有召唤物基建（`MonsterPool` 把 prefab 硬编码成
+ * `prefabs/unit/monsters/one`，team=1 的召唤物没有 EntityView 分支），真造单位出来是
+ * **看不见也打不动**的。所以"增殖"落地成"让你的输出多出几份" ——
+ * 与技能侧 123 哨戒炮台 / 124 镜像分身 / 125 元素军阵 用的是同一套口径。
+ *
+ * 三条的**时间形态各不相同**（周期 / 概率 / 累积），所以它们不是彼此的重复：
+ *   · 炮台：你不打的时候它也在打（周期）
+ *   · 镜像：你这一发有概率变两发（随机）
+ *   · 增殖体：越打身上的分身越多（累积、本局永久）
+ *
+ * 伤害类型一律 **物理**（"你或你的分身又打了一发"，走普攻那条链，与 `splash` 同口径）。
  * ===================================================================================== */
 
+// ---------------------------------------------------------------- turret 哨戒炮台
+
 /**
- * 全部局内遗物钩子脚本类：`script_id` → 类（键名 = `HOOKS[].impl` 里 `S:` 后面的类名，共 40 个）。
+ * 哨戒炮台（`turret`）。`kv = { interval, pct }`（蓝 4s/60%、黄 3s/80%、红 2s/100%）
+ *
+ * 文案：`每 interval 秒自动对最近的敌人打出一击（攻击力 pct%）`。
+ *
+ * 实现：自己 `OnTick(dt)` 计时（`modifiers.cd` 是死代码，工程纪律②），到点取**最近的存活敌人**
+ * （`enemies()` 已按距离升序）追加一段 `攻击力 × pct%` 的物理伤害。
+ * 坑：① **场上没敌人时这一拍直接作废**（先把 `timer` 扣掉再找目标，不攒节拍）——
+ * 否则"空场攒了 5 拍、怪一进场连打 5 下"，与文案"每 N 秒一击"不符；
+ * ② 一帧可能跨多个间隔（掉帧/顿帧），`while` 补齐并设上限防卡死（与 `Modifier_Ignite` 同款）。
+ */
+export class RelicHook_Turret extends Modifier {
+    private timer = 0;
+
+    OnTick(dt: number): void {
+        const host = this.target as any;
+        if (!alive(host)) return;
+        const ctx = hostCtx(host);
+        if (!ctx) return;
+
+        const kv = this.getKV() ?? {};
+        const interval = kvNum(kv, 'interval', 0);
+        const pct = kvNum(kv, 'pct', 0);
+        if (!(interval > 0) || !(pct > 0)) return;
+
+        this.timer += dt;
+        let guard = 0;
+        while (this.timer >= interval && guard++ < 4) {
+            this.timer -= interval;          // 先扣节拍：空场也照样作废（见类注释①）
+            const target = enemies(ctx, host)[0];
+            if (!target) continue;
+            const dmg = atkPct(host, pct);
+            if (dmg > 0) deal(ctx, host, target, dmg, DamageType.Physical);
+        }
+    }
+}
+
+// ---------------------------------------------------------------- mirror 镜像残影
+
+/**
+ * 镜像残影（`mirror`）。`kv = { chance, pct }`（蓝 25%/50%、黄 35%/65%、红 50%/85%）
+ *
+ * 文案：`普攻命中后有 chance% 概率对同一目标立刻再打一次（攻击力 pct%）`。
+ *
+ * 实现：`on_attack_landed` 且 `event.attacker === host` → 掷 `chance` → 对**同一目标**
+ * 追加一段 `攻击力 × pct%` 的物理伤害。
+ * 坑：① **不需要 `busy`** —— 追加伤害走的是 `ApplyDamage`，**不会**再派发 `on_attack_landed`
+ * （那个事件只由 `Entity.resolveAttackHit` 发，见本文件头注释纪律③），不会自我递归；
+ * ② 目标可能在那一发普攻里已经死了 → `deal()` 内部会跳过（已死目标不再结算）。
+ */
+export class RelicHook_Mirror extends Modifier {
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        if (!host || event?.attacker !== host) return false;
+        const victim = event?.target as any;
+        const ctx = hostCtx(host);
+        if (!ctx || !alive(victim)) return false;
+
+        const kv = this.getKV() ?? {};
+        const pct = kvNum(kv, 'pct', 0);
+        if (!(pct > 0) || !rollPct(kvNum(kv, 'chance', 0))) return false;
+
+        const dmg = atkPct(host, pct);
+        if (dmg > 0) deal(ctx, host, victim, dmg, DamageType.Physical);
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------- clones 增殖体
+
+/**
+ * 增殖体（`clones`）。`kv = { perKill, max, pct }`
+ * （蓝 5杀/上限2/20%、黄 4杀/上限3/25%、红 3杀/上限4/30%）
+ *
+ * 文案：`每击杀 perKill 个敌人 +1 个增殖体（上限 max 个，本局永久）；普攻时每个增殖体追加 攻击力 pct% 的伤害`。
+ *
+ * 实现：两半 —— `BUS:on_kill`（自己订阅总线、`OnDestroy` 里 off，见 `RelicBusHook`）数击杀攒本体；
+ * `on_attack_landed` 时**每个**增殖体各追加一段 `攻击力 × pct%` 的物理伤害。
+ * 坑：① 攒的是**玩家亲手打死**的（`event.killer === host`），与天怒 / 元素军阵同口径；
+ * ② 层数**只增不减**（文案写"本局永久"），不像技能 125 那样倾泻后清零 —— 这是它与 125 的区别；
+ * ③ 需求上 `GetTeamEntities` 与 `ApplyDamage` 都可能改动实体表，所以**先取 target 与伤害数、
+ *    再逐发打**，不要在遍历里改集合。
+ */
+export class RelicHook_Clones extends RelicBusHook {
+    /** 累计亲手击杀数 */
+    private killCount = 0;
+    /** 已有几个增殖体（上限 `kv.max`，本局永久） */
+    private cloneCount = 0;
+
+    protected getBusEventName(): string { return BattleEvents.OnKill; }
+
+    protected handleBusEvent(event: any): void {
+        const host = this.target as any;
+        if (!host || event?.killer !== host) return;
+        const kv = this.getKV() ?? {};
+        const perKill = Math.max(1, Math.floor(kvNum(kv, 'perKill', 0) || 1));
+        const max = Math.max(0, Math.floor(kvNum(kv, 'max', 0)));
+        if (!(max > 0)) return;
+        this.killCount++;
+        if (this.killCount % perKill !== 0) return;
+        this.cloneCount = Math.min(max, this.cloneCount + 1);
+    }
+
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        if (!host || event?.attacker !== host) return false;
+        const victim = event?.target as any;
+        const ctx = hostCtx(host);
+        if (!ctx || !alive(victim) || this.cloneCount <= 0) return false;
+
+        const pct = kvNum(this.getKV() ?? {}, 'pct', 0);
+        const dmg = atkPct(host, pct);
+        if (!(dmg > 0)) return false;
+        for (let i = 0; i < this.cloneCount; i++) deal(ctx, host, victim, dmg, DamageType.Physical);
+        return false;
+    }
+
+    /** 当前增殖体数量（体检/调试用） */
+    getClones(): number { return this.cloneCount; }
+    /** 累计击杀数（体检/调试用） */
+    getKills(): number { return this.killCount; }
+}
+
+// ---------------------------------------------------------------- mineTune 地雷改造族（G 组）
+
+/**
+ * 「骷髅地雷」改造族 —— **六条钩子共用一个类**（急造 / 雷区 / 重装 / 扩爆 / 燃烧雷 / 连锁雷）。
+ *
+ * 设计真源：`relic-inner-design.mjs` 的 `HOOKS` G 段；机制本体在 `battle/BattleMines.ts`。
+ *
+ * ── 为什么这 6 条共用一个类，而且这个类**故意什么都不结算** ──
+ *   地雷不是"一个 Modifier 自己跑"的机制：它是一个**共享池**（`ctx.mines`，上限 5 颗，
+ *   满上限停手），由 `BattleMines.tick` 每帧统一布雷 / 判定触发 / 引爆。遗物要做的只是
+ *   **改这个池子的参数**（间隔 / 上限 / 伤害 / 半径 / 燃烧 / 连锁）。所以：
+ *     · 每件地雷遗物挂一条**真 Modifier**（本类），它的 `kv` 就是它要改的那几个参数；
+ *     · `BattleMines` 每帧用**重算式**扫 `hero.modifiers.getAll()` 把 kv 加起来 ——
+ *       不做任何 add/remove 记账 ⇒ 换英雄 / 重买 / 遗物被移除都天然正确（同 `ArchetypeTally` 口径）；
+ *     · 本类因此**没有 `OnTick`、不订阅任何事件**：一旦它也"自己打点东西"，就会与池子里那一份
+ *       重复结算（同一发爆炸算两次）。
+ *
+ * ⚠ **不给这 6 条各写一个空类**：那只是把同一份"什么都不做"抄 6 遍。`HOOKS[].impl` 允许多条
+ *   钩子指向同一个类名（配表照样一行一条、三档数值照样不同），注册表里也只需要一个键。
+ *
+ * ── 那它到底做什么：**配表键名写错时喊一声** ──
+ *   这是这条链上唯一会静默失效的地方：kv 写成 `mineYeildPct`（拼错）时，地雷系统照常工作、
+ *   遗物照常进池、代码侧断言全绿 —— 只有**这一件遗物什么都没改**，而玩家只会觉得"这件没用"。
+ */
+export class RelicHook_MineTune extends Modifier {
+    OnCreated(kv?: Record<string, any>): void {
+        super.OnCreated(kv);
+        // ⚠ 用 `MINE_KV_LIST` 而不是 `Object.values(MINE_KV)`：工程 lib 只到 ES2015
+        const known: string[] = MINE_KV_LIST;
+        const keys = Object.keys(kv ?? {});
+        const usable = keys.filter((k) => known.indexOf(k) >= 0);
+        if (!usable.length) {
+            console.warn(
+                `[遗物·地雷] modifier ${this.getId()} 的 kv 里没有任何合法地雷键名`
+                + `（收到 ${JSON.stringify(keys)}）—— 这件遗物不会改变地雷的任何参数；`
+                + '合法键名见 common/MineConfig.ts 的 MINE_KV。',
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------- H 背水血怒族（2026-11 补）
+
+/**
+ * 「缺血流」两条缩放钩子的**公共底座**（`bloodRush` 血怒 / `desperateAtk` 拼命）。
+ *
+ * 设计真源：`relic-inner-design.mjs` 的 `HOOKS` H 段；
+ * 英雄侧的同一条轴在 `ScriptedModifiers.Modifier_BloodRage`（哈斯卡「血怒」被动）。
+ *
+ * ── 为什么必须是"按帧重算 + 变了才写"，而不是叠层记账 ──
+ *   层数记不住血线：治疗、升级抬上限、遗物改上限、敌人偷血、时间回廊补血……
+ *   任何一处漏接线就是"攻速卡在上一档"。所以每帧从 `hp / maxHp` **现算**目标值，
+ *   与上次写进去的值比，不同才写 —— 这是本工程既有的「重算式」口径（同 `ArchetypeTally`）。
+ *
+ * ── 为什么要量化（`LOW_HP_SCALE_STEP`）──
+ *   `AddModifier` 会触发 `ModifierSystem.recollect()`（遍历身上全部 Modifier × 全部受影响属性）。
+ *   逐帧写 = 每帧全量重算一遍，而屏幕上根本看不出 0.01 的差别。量化到 0.5 之后，
+ *   常态下（自伤 1%/秒）大约一秒写一次，吃到一发大伤害则立刻写一次。
+ *
+ * ── 为什么量化到 0 时**也要写** ──
+ *   那是"血被治满 ⇒ 加成归零"这一格。`if (!(v > 0)) return;` 会让攻速**永远停在上一档**
+ *   （治疗类效果越多越明显），这也是 `Modifier_BloodRage` 里同一条注释。
+ *
+ * 子类只回答三个问题：写哪个属性、kv 里哪个键、用哪种叠加方式。
+ */
+abstract class RelicHook_LowHpScale extends Modifier {
+    /** 上次真正写进属性系统的值（`NaN` = 还没写过；量化后比较） */
+    private applied = NaN;
+
+    /** 要改的属性 id */
+    protected abstract getAttrId(): AttributeType;
+    /** kv 里"每 1% 已损失生命给多少"的那个键名 */
+    protected abstract getPerKey(): string;
+    /** 叠加方式：攻速是缩放型属性用 `add`；攻击力走 `percent` */
+    protected abstract getAttrMode(): string;
+    /** 本件遗物在属性系统里占的**来源组**（同 origin 重放 = 替换，不叠份） */
+    protected abstract getAttrOrigin(): string;
+
+    /** 每 1% 已损失生命换算出的增量（缺省 0 = 这件遗物什么都不做） */
+    getPer(): number {
+        const v = kvNum(this.getKV(), this.getPerKey(), 0);
+        return v > 0 ? v : 0;
+    }
+
+    /** 已损失生命的百分比（0~100；上限异常时回 0） */
+    getMissingHpPct(): number {
+        const host = this.target as any;
+        const max = host?.getMaxHp?.() ?? 0;
+        if (!(max > 0)) return 0;
+        const hp = Math.max(0, Math.min(max, host.hp ?? 0));
+        return (max - hp) / max * 100;
+    }
+
+    /** 当前**应该**生效的增量（量化前的原始值，调试/断言用） */
+    getBonus(): number { return this.getMissingHpPct() * this.getPer(); }
+
+    /** 上次写进属性系统的量化值（`NaN` = 还没写过；调试/断言用） */
+    getApplied(): number { return this.applied; }
+
+    OnTick(_dt: number): void {
+        const host = this.target as any;
+        if (!host || !host.alive || host.IsDead?.() || !host.modifiers) return;
+        const quantized = Math.round(this.getBonus() / LOW_HP_SCALE_STEP) * LOW_HP_SCALE_STEP;
+        if (quantized === this.applied) return;
+        this.applied = quantized;
+        // 量化到 0 也要写（见类注释）—— 这是"血被治满 ⇒ 加成归零"
+        host.modifiers.AddModifier(
+            MODIFY_ATTR_TEMPLATE_ID, host, -1,
+            { attrs: [[this.getAttrId(), quantized, this.getAttrMode()]] },
+            this.getAttrOrigin(),
+        );
+    }
+}
+
+/**
+ * 血怒（`bloodRush`）。`kv = { per }`（蓝 0.2 / 黄 0.35 / 红 0.5）
+ *
+ * 文案：`每损失 1% 生命，攻击速度 +per%（满血时无加成）`。
+ *
+ * 攻速是**缩放型属性**（配置口径 100 = 1.0 次/秒），所以走 `add`：`per = 0.5`、缺 40% 血
+ * ⇒ 写 20 ⇒ +20% 攻速。这正是哈斯卡英雄技能（`Modifier_BloodRage`）的同一条轴。
+ */
+export class RelicHook_BloodRush extends RelicHook_LowHpScale {
+    protected getAttrId(): AttributeType { return AttributeType.AtkSpeed; }
+    protected getPerKey(): string { return 'per'; }
+    protected getAttrMode(): string { return 'add'; }
+    protected getAttrOrigin(): string { return `relic:${this.getId()}:bloodRush`; }
+}
+
+/**
+ * 拼命（`desperateAtk`）。`kv = { per }`（蓝 0.4 / 黄 0.7 / 红 1）
+ *
+ * 文案：`每损失 1% 生命，攻击力 +per%（满血时无加成）`。
+ *
+ * ⚠ 与 `bloodRush` 的唯一差别是**叠加方式**：攻击力的 `base` 非 0（英雄 24~44），
+ *   所以走 `percent`（`final = base × (1 + Σv/100)`）—— 缺 40% 血、`per = 1` ⇒ 写 40 ⇒ +40% 攻击力。
+ *   用 `add` 会让"攻击力"这条轴在后期（攻击力被遗物堆到 100+）完全失去意义。
+ */
+export class RelicHook_DesperateAtk extends RelicHook_LowHpScale {
+    protected getAttrId(): AttributeType { return AttributeType.Atk; }
+    protected getPerKey(): string { return 'per'; }
+    protected getAttrMode(): string { return 'percent'; }
+    protected getAttrOrigin(): string { return `relic:${this.getId()}:desperateAtk`; }
+}
+
+/** 焚血的自伤血线（%）：生命降到它就停 —— 文案写死「生命降到 30% 即停」 */
+const SELF_BLEED_FLOOR_PCT = 30;
+
+/**
+ * 焚血（`selfBleed`）。`kv = { drain, spd }`（蓝 1%/8、黄 1%/14、红 1%/22）
+ *
+ * 文案：`攻击速度 +spd%；代价：每秒流失 drain% 最大生命（生命降到 30% 即停）`。
+ *
+ * 这是「背水血怒」里唯一的**代价件**钩子：它给的是**常驻**攻速（与血线无关），
+ * 换来的是"你永远回不到满血"—— 正好把玩家推进 `bloodRush` / `desperateAtk` 的收益区。
+ * 一句话：它自己不给缩放收益，它是**把别的件的收益打开**的那一件。
+ *
+ * ── 两条实现口径 ──
+ *   ① **攻速在 `OnCreated` 写一次就够**（常驻、不随血线变）：走共享模板 1000 + 自己的
+ *      来源组，`duration = -1`（**只有 -1 是永久**）。
+ *   ② **自伤只 `ChangeHp`，不走伤害管线**（同 `Modifier_BloodRage` 第 ③ 条）：
+ *      走管线会被自己的护甲/魔抗减免（荒唐），且会派发 `on_take_damage`
+ *      —— 于是"每秒自伤"会被荆棘/激怒当成挨打，**白送反击**。
+ *      `ChangeHp` 只改字段，顺带它也是"不会被自己打死"的结构性保证（钳在血线上，不是 1 点）。
+ */
+export class RelicHook_SelfBleed extends Modifier {
+    /** 自伤计时器（秒）—— 自己累加，**不用** `modifiers.cd`（全工程零调用方的死代码） */
+    private drainAcc = 0;
+
+    /** 每秒流失的最大生命百分比 */
+    getDrainPct(): number {
+        const v = kvNum(this.getKV(), 'drain', 0);
+        return v > 0 ? v : 0;
+    }
+
+    /** 常驻攻速（配置口径的 int） */
+    getSpeed(): number {
+        const v = kvNum(this.getKV(), 'spd', 0);
+        return v > 0 ? v : 0;
+    }
+
+    /** 自伤累积的秒数（调试/体检断言用） */
+    getDrainAcc(): number { return this.drainAcc; }
+
+    OnCreated(kv?: Record<string, any>): void {
+        super.OnCreated(kv);
+        const host = this.target as any;
+        const spd = this.getSpeed();
+        if (!host?.modifiers || !(spd > 0)) return;
+        host.modifiers.AddModifier(
+            MODIFY_ATTR_TEMPLATE_ID, host, -1,
+            { attrs: [[AttributeType.AtkSpeed, spd, 'add']] },
+            `relic:${this.getId()}:selfBleed`,
+        );
+    }
+
+    OnTick(dt: number): void {
+        const host = this.target as any;
+        if (!host || !host.alive || host.IsDead?.()) return;
+        const pct = this.getDrainPct();
+        if (!(pct > 0) || !(dt > 0)) return;
+        const max = host.getMaxHp?.() ?? 0;
+        if (!(max > 0)) return;
+
+        const floor = max * SELF_BLEED_FLOOR_PCT / 100;
+        const hp = host.hp ?? 0;
+        if (hp <= floor) { this.drainAcc = 0; return; }
+
+        this.drainAcc += dt;
+        // 逐帧按 dt 扣（整秒跳变会让血条一格格跳）；这一帧最多掉到血线上
+        const next = Math.max(floor, hp - max * pct / 100 * dt);
+        if (next < hp) host.ChangeHp(next - hp, this);
+    }
+}
+
+/**
+ * 浴血（`lastBreath`）。`kv = { threshold, pct }`（蓝 35%/25、黄 40%/45、红 45%/70）
+ *
+ * 文案：`生命低于 threshold% 时，普攻命中追加 攻击力 pct% 的纯粹伤害`。
+ *
+ * ── 为什么是**纯粹**（`DamageType.Pure`）而不是物理 ──
+ *   这一族已经有两条"血少 → 攻速/攻击力"的**乘区**钩子了；再来一条物理百分比只是第三个乘区
+ *   （乘区叠乘会让"三件凑齐"比单件强得不合理）。改打**纯粹**（无视护甲与魔抗，
+ *   但**仍然吃受伤减免**，见 `DamagePipeline.applyResistance`）之后，它的位置很清楚：
+ *   **越到后期（怪护甲越高）越值钱**，而它恰恰是"残血才生效"的保险型输出。
+ *
+ * 血线用**当下**生命判（`on_attack_landed` 里目标已掉血、自己还没掉血 —— 这里是拿**自己**的血判，
+ * 与「背水(`lowHpGuard`)」同一条口径）。
+ */
+export class RelicHook_LastBreath extends Modifier {
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        if (!host || event?.attacker !== host) return false;
+
+        const kv = this.getKV() ?? {};
+        const threshold = kvNum(kv, 'threshold', 0);
+        const pct = kvNum(kv, 'pct', 0);
+        if (!(threshold > 0) || !(pct > 0)) return false;
+
+        const max = host.getMaxHp?.() ?? 0;
+        if (!(max > 0) || (host.hp ?? 0) / max * 100 >= threshold) return false;
+
+        const victim = event?.target as any;
+        const ctx = hostCtx(host);
+        if (!ctx) return false;
+        deal(ctx, host, victim, atkPct(host, pct), DamageType.Pure);
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------- I 弹幕散射族（2026-11 补）
+
+/**
+ * 弹幕散射**不做技能形态上报**（三条钩子共用的一条口径，写在这里免得后来人补错）。
+ *
+ * `RelicHooks` 里别的 AOE 钩子（`splash` / `killBoom`）会 `publishSkillShape(Blast)`，
+ * 因为"一次爆炸打中一片"在屏幕上**什么都画不出来**（没有锚点，见 `SkillShape.ts` 头注释第 ③ 条）。
+ * 这一族不一样：它打的是**N 个各不相同的敌人、N 段独立结算的伤害**，表现层本来就会为每一段
+ * 各画一个印痕 —— 那才是"好多支箭飞出去"该有的样子。再上报一个扇形反而会**顶掉**这些个体印痕
+ * （`HitVfxLayer` 收到显式形态就直接画那一个形态），把"散射"画成"一记扇面技能"。
+ */
+export class RelicHook_Multishot extends Modifier {
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        if (!host || event?.attacker !== host) return false;
+
+        const victim = event?.target as any;
+        const ctx = hostCtx(host);
+        if (!ctx) return false;
+
+        const kv = this.getKV() ?? {};
+        const extra = Math.floor(kvNum(kv, 'extra', 0));
+        const pct = kvNum(kv, 'pct', 0);
+        if (extra <= 0 || !(pct > 0)) return false;
+
+        const dmg = atkPct(host, pct);
+        if (!(dmg > 0)) return false;
+
+        /**
+         * 候选取**攻击范围内、除主目标之外**最近的 `extra` 个敌人。
+         * 排除主目标：主目标已经吃过这一发普攻了，再补一箭会让"额外 N 支箭"变成"N 支全打同一个"。
+         * 用 `enemies()`（已按距离升序）而不是 `findEntitiesInRadius`：后者算的是"以点为圆心"，
+         * 而这里要的是"以英雄为中心、半径 = 攻击距离"，并且要**自带排序**。
+         */
+        const range = host.getAttackRange?.() ?? 0;
+        if (!(range > 0)) return false;
+        const me = host.position ?? { x: 0, y: 0 };
+        const r2 = range * range;
+        const exclude = new Set<number>();
+        if (victim?.uid !== undefined) exclude.add(victim.uid);
+        let fired = 0;
+        for (const e of enemies(ctx, host, exclude)) {
+            if (fired >= extra) break;
+            const dx = (e.position?.x ?? 0) - me.x;
+            const dy = (e.position?.y ?? 0) - me.y;
+            if (dx * dx + dy * dy > r2) continue;      // 出射程的不打（越到后面越可能全出界，所以是 continue 不是 break）
+            deal(ctx, host, e, dmg, DamageType.Physical);
+            fired++;
+        }
+        return false;
+    }
+}
+
+/**
+ * 箭雨（`volley`）。`kv = { interval, count, pct }`
+ * （蓝 2.5s/2/40、黄 2s/3/45、红 1.5s/4/50）
+ *
+ * 文案：`每 interval 秒向攻击范围内至多 count 个敌人各射一箭：攻击力 pct% 的物理伤害`。
+ *
+ * 与「散射(`multishot`)」的分工：散射**挂在普攻上**（攻速越快越强），箭雨**挂在时间上**
+ * （攻速再慢也照样下雨）—— 所以低攻速的高伤英雄抽到箭雨不亏、高攻速英雄抽到散射更赚。
+ *
+ * 自己计时（`OnTick` 累加），**不用** `modifiers.cd`（死代码）。取的是**
+ * 攻击范围内**最近的 `count` 个（`enemies()` 已排序），不挑也不随机 —— 可预测性比"随机好看"重要。
+ */
+export class RelicHook_Volley extends Modifier {
+    private timer = 0;
+
+    /** 距下一轮箭雨还有几秒（调试/体检断言用） */
+    getTimer(): number { return this.timer; }
+
+    OnTick(dt: number): void {
+        const host = this.target as any;
+        if (!host || !host.alive || host.IsDead?.() || !(dt > 0)) return;
+
+        const kv = this.getKV() ?? {};
+        const interval = kvNum(kv, 'interval', 0);
+        const count = Math.floor(kvNum(kv, 'count', 0));
+        const pct = kvNum(kv, 'pct', 0);
+        if (!(interval > 0) || count <= 0 || !(pct > 0)) return;
+
+        this.timer += dt;
+        if (this.timer < interval) return;
+        // 只扣一个 interval（余数留着），不然"一帧补好几轮"
+        this.timer -= interval;
+
+        const ctx = hostCtx(host);
+        if (!ctx) return;
+        const dmg = atkPct(host, pct);
+        if (!(dmg > 0)) return;
+
+        const range = host.getAttackRange?.() ?? 0;
+        if (!(range > 0)) return;
+        const me = host.position ?? { x: 0, y: 0 };
+        const r2 = range * range;
+        let fired = 0;
+        for (const e of enemies(ctx, host)) {
+            if (fired >= count) break;
+            const dx = (e.position?.x ?? 0) - me.x;
+            const dy = (e.position?.y ?? 0) - me.y;
+            if (dx * dx + dy * dy > r2) continue;
+            deal(ctx, host, e, dmg, DamageType.Physical);
+            fired++;
+        }
+    }
+}
+
+/**
+ * 跳弹（`ricochet`）。`kv = { jumps, pct }`（蓝 1/35、黄 2/35、红 2/50）
+ *
+ * 文案：`普攻命中后向 pct% 攻击力的物理伤害弹射 jumps 次（每次换一个目标）`。
+ *
+ * ── 与「连锁(`chain`)」的关系（**这是刻意保留的一对**，别当重复件删掉）──
+ *   行为同构、**伤害类型不同**：`chain` 打 `DamageType.Magical` ⇒ 归「法术爆发」，
+ *   吃魔抗、不吃护甲、不吃暴击；`ricochet` 打 `DamageType.Physical` ⇒ 归「弹幕散射」，
+ *   吃护甲、**吃暴击与破甲**。工程里早就用同一条判据分过家
+ *   （`hitPct` 归法术爆发、`splash` 归远程点杀，见 `HOOK_TAGS` 的注释），这里沿用。
+ *   跳距口径也与 `chain` 一致（`CHAIN_RANGE_PX` 260px），所以复用同一个 `chain()` 工具。
+ */
+export class RelicHook_Ricochet extends Modifier {
+    OnBattleEvent(eventName: string, event: any): boolean {
+        if (eventName !== 'on_attack_landed') return false;
+        const host = this.target as any;
+        if (!host || event?.attacker !== host) return false;
+
+        const kv = this.getKV() ?? {};
+        const jumps = Math.floor(kvNum(kv, 'jumps', 0));
+        const pct = kvNum(kv, 'pct', 0);
+        if (jumps <= 0 || !(pct > 0)) return false;
+
+        const victim = event?.target as any;
+        const ctx = hostCtx(host);
+        if (!ctx || !alive(victim)) return false;
+
+        const dmg = atkPct(host, pct);
+        if (!(dmg > 0)) return false;
+        chain(ctx, victim, jumps, CHAIN_RANGE_PX, (target) => {
+            deal(ctx, host, target, dmg, DamageType.Physical);
+        });
+        return false;
+    }
+}
+
+/* =====================================================================================
+ * 脚本类清单 —— 供 Scene_Game_Stage.initBattle 一次性注册
+ * ===================================================================================== */
+/**
+ * 全部局内遗物钩子脚本类：`script_id` → 类（键名 = `HOOKS[].impl` 里 `S:` 后面的类名，共 **51** 个）。
  *
  * 注册入口在 `Scene_Game_Stage.initBattle`（与英雄脚本、`SHOP_SKILL_SCRIPT_CLASSES` 同一处）。
  * 漏注册会在运行时打印 `[ModifierSystem] script_id 未注册: xxx` 并**静默降级成普通 Modifier**
  * （遗物看起来"抽到了但没效果"）。
+ *
+ * ⚠ 键数（51）与钩子条数（56）**不相等**：地雷那 6 条钩子共用一个类 `RelicHook_MineTune`
+ *   （见该类注释），别再按"钩子数 == 类数"去核对。
  */
 export const RELIC_HOOK_SCRIPT_CLASSES: Record<string, any> = {
     RelicHook_HitFlat,
@@ -1774,4 +2460,19 @@ export const RELIC_HOOK_SCRIPT_CLASSES: Record<string, any> = {
     RelicHook_FreezeProc,
     RelicHook_HexProc,
     RelicHook_SilenceProc,
+    // F 组：召唤增殖（2026-11，零基建等价机制）
+    RelicHook_Turret,
+    RelicHook_Mirror,
+    RelicHook_Clones,
+    // G 组：骷髅地雷改造族（2026-11，6 条钩子共用这一个类 —— 见类注释）
+    RelicHook_MineTune,
+    // H 组：背水血怒（2026-11 —— 哈斯卡的「缺血流」；两条缩放钩子共用底座 `RelicHook_LowHpScale`）
+    RelicHook_BloodRush,
+    RelicHook_DesperateAtk,
+    RelicHook_SelfBleed,
+    RelicHook_LastBreath,
+    // I 组：弹幕散射（2026-11 —— 卓尔游侠的「多目标物理」）
+    RelicHook_Multishot,
+    RelicHook_Volley,
+    RelicHook_Ricochet,
 };

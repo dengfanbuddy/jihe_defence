@@ -5,6 +5,8 @@ import { StageScopeEvents } from '../StageScope';
 import { loadIconFrame, TICKET_ICON_PATH } from '../RefreshButtonView';
 import { AtlasIcon } from '../../../../../common/AtlasIcon';
 import { rarityColor } from '../../../../../common/RelicRarityColor';
+import { primaryTag } from '../../../../../common/RelicTags';
+import { toEffectLines } from '../../../../../common/EffectText';
 import type { ShopSlotVM } from '../../../../../battle/RelicShop';
 
 const { ccclass, property } = _decorator;
@@ -21,6 +23,9 @@ const FRAME_COLOR_SKILL = '#FFFFFF';
 
 /** 图标底框在预制件里的节点名（`content/head`；图标本体是它的子节点 `head/inner`） */
 const FRAME_NODE_NAME = 'head';
+
+/** 流派标签在预制件里的节点名（`content/tags`：名字与描述之间那一行 12px 灰字） */
+const TAGS_NODE_NAME = 'tags';
 
 /**
  * 没有配 `icon` 时的兜底图（30 个肉鸽技能在 2026-10 都已配图标，
@@ -61,9 +66,27 @@ export class ShopRiItem extends UIWidget {
     /** 遗物名（按品质上色） */
     @property(Label)
     nameLabel: Label = null;
-    /** 效果描述（遗物的**局内版**描述 / 技能的当前等级描述） */
+    /**
+     * 效果描述（遗物的**局内版**描述 / 技能的当前等级描述）。
+     *
+     * ⚠ 写进去的一律先过 `toEffectLines`（`common/EffectText`）：配表里是**一整句**效果，
+     * 而这个框只有 86px 宽（`content/desc`，fs12 / 9 行 CLAMP）—— 整句硬排会任意断行。
+     * 拆成**一条效果一行**之后，行首就是一条独立效果（代价类效果也自成一行）。
+     */
     @property(Label)
     descLabel: Label = null;
+    /**
+     * **流派标签**（遗物 `relics.tags[0]` / 技能 `abilities.tags[0]` 的**主标签**，见 `common/RelicTags`）。
+     *
+     * 两种格子都只显示**主标签**一个词：这个框只有 70px 宽（4 汉字 @12px = 48px），而 `tags` 最多 3 个 ——
+     * 全铺上来会溢出到隔壁格子。词表 8 个词全是 4 汉字，主标签足够回答"这格是什么流派"
+     * （技能 30 条里 29 条本来就只有 1 个标签，主标签即全部）。
+     *
+     * 预制件里是 `content/tags`（fs12 / `#999999` / 居中 / `overflow=NONE`）；
+     * 没在编辑器里拖也能跑：`ensureTags()` 按名字兜底。
+     */
+    @property(Label)
+    tagsLabel: Label = null;
     /** 内容根节点：空槽 / 已选走时整块收起（按钮留在原地，靠 interactable 关掉点击） */
     @property(Node)
     contentNode: Node = null;
@@ -183,7 +206,8 @@ export class ShopRiItem extends UIWidget {
             this.baseColors.set('name', new Color(rarityColor(cfg.rarity)));
         }
         this.setFrameColor(rarityColor(cfg.rarity));
-        if (this.descLabel) this.descLabel.string = ShopConfig.getRelicDesc(cfg);
+        if (this.descLabel) this.descLabel.string = toEffectLines(ShopConfig.getRelicDesc(cfg));
+        this.setTagsLabel(primaryTag(cfg.tags));
         this.loadIcon(cfg.icon);
     }
 
@@ -209,8 +233,11 @@ export class ShopRiItem extends UIWidget {
             this.nameLabel.string = `${cfg.name ?? ''}  ${lvTag}`;
             this.baseColors.set('name', new Color(rarityColor(cfg.rarity)));
         }
-        if (this.descLabel) this.descLabel.string = ShopConfig.getSkillLevelDesc(cfg, shown);
+        if (this.descLabel) this.descLabel.string = toEffectLines(ShopConfig.getSkillLevelDesc(cfg, shown));
         this.setFrameColor(FRAME_COLOR_SKILL);  // 技能无品质 → 复位成中性白框，别留着上一格的品质色
+        // 技能与遗物**共用同一套词表**（`abilities.tags` 同样出自 `RELIC_ARCHETYPES` 那 8 个词），
+        // 所以技能格照写主标签 —— 一屏 4 格里遗物与技能混排，一边有标签一边没有会被读成"技能没有流派"。
+        this.setTagsLabel(primaryTag(cfg.tags));
         this.loadIcon(cfg.icon);
     }
 
@@ -231,6 +258,23 @@ export class ShopRiItem extends UIWidget {
         const found = this.node.getChildByName('content')?.getChildByName(FRAME_NODE_NAME);
         this.frame = found?.getComponent(Sprite) ?? null;
         return this.frame;
+    }
+
+    /** 标签 Label：同样优先用编辑器拖的引用，没拖就按名字 `content/tags` 找 */
+    private ensureTags(): Label {
+        if (this.tagsLabel?.isValid) return this.tagsLabel;
+        const found = this.node.getChildByName('content')?.getChildByName(TAGS_NODE_NAME);
+        this.tagsLabel = found?.getComponent(Label) ?? null;
+        return this.tagsLabel;
+    }
+
+    /**
+     * 写流派标签（空串 = 这行留白；配表没给标签时走这里）。
+     * 没有标签可写时**不清空节点**：那一行的位置是排好的，藏节点会让名字/描述跳位。
+     */
+    private setTagsLabel(text: string): void {
+        const label = this.ensureTags();
+        if (label) label.string = text;
     }
 
     /** 配置缺失时的收尾（别留上一格的脏内容） */
@@ -263,6 +307,7 @@ export class ShopRiItem extends UIWidget {
         tint(this.icon, 'icon', !canSelect);
         tint(this.ensureFrame(), 'frame', !canSelect);
         tint(this.descLabel, 'desc', !canSelect);
+        tint(this.ensureTags(), 'tags', !canSelect);
         // 名字用品质色，灰化时也要灰掉（品质色本身很亮，不然"置灰"看不出来）
         if (this.nameLabel) {
             if (!this.baseColors.has('name')) this.baseColors.set('name', new Color(rarityColor('common')));
@@ -283,11 +328,12 @@ export class ShopRiItem extends UIWidget {
      * `icon` 两种口径都要支持（历史原因，见 Notes「遗物图标落本地」）：
      *   · **本地**：resources 内相对路径且**不带扩展名**（`textures/relics/quelling_blade`，帧名取路径主干）；
      *   · **远程**：steam CDN 的 http(s) URL，走 `ezgame.res.loadRemoteFrame` ——
-     *     只剩 7 件局外独有中立道具（1294/1295/1297/1298/1299/1301/1302，素材站没有对应文件）。
+     *     2026-11 把那 9 件"只有局外版"的中立道具整行删除后，**表里已经一条远程 URL 都没有了**
+     *     （这一支保留着，兼容老表/老存档）。
      * **本地解析共用 `AtlasIcon`**（图集 → 帧子资源 → 旧碎图路径，三条都试，见 `common/AtlasIcon.ts`），
      * 这里只留「远程 URL 分支」与「按 `icon` 值缓存」两件本组件自己的事；
      * 全都失败只报错（不清空，别让格子看起来像坏了）。
-     * 没配图标（5 件手工 demo 遗物 + 1296/1300，以及**全部肉鸽技能**）→ 回落占位图。
+     * 没配图标（5 件手工 demo 遗物，以及**全部肉鸽技能**）→ 回落占位图。
      */
     private loadIcon(url: string): void {
         if (!this.icon) return;

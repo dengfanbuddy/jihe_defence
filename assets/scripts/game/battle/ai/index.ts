@@ -11,7 +11,8 @@ import { ChaseAI } from './ChaseAI';
 import { WanderAI } from './WanderAI';
 import { OrbitAI } from './OrbitAI';
 import { AttackStopAI } from './AttackStopAI';
-import { BossAI } from './BossAI';
+import { BossAI, normalizePhases, normalizeSkills, resolveAbilityRef } from './BossAI';
+import type { BossPhaseSpec, BossSkillSpec } from './BossAI';
 
 /** 注册全部内置 AI（Main 启动时调用一次） */
 export function initializeAI(): void {
@@ -23,3 +24,6 @@ export function initializeAI(): void {
 }
 
 export { MonsterAI, AIRegistry, ChaseAI, WanderAI, OrbitAI, AttackStopAI, BossAI };
+// Boss 配表解析（纯函数）：`tools/boss-ai-audit` 与场景侧都从这里取，别再抄第二份
+export { normalizePhases, normalizeSkills, resolveAbilityRef };
+export type { BossPhaseSpec, BossSkillSpec };

@@ -185,6 +185,7 @@ export class ModifierSystem {
         this.recollect();
         this.ctx.bus.publish(BattleEvents.OnModifierRemoved, {
             target: this.entity, modifierId: mod.getId(), stackCount: mod.stackCount,
+            origin: mod.origin ?? '', duration: mod.duration,
         });
     }
 
@@ -348,6 +349,11 @@ export class ModifierSystem {
         this.recollect();
         this.ctx.bus.publish(BattleEvents.OnModifierAdded, {
             target: this.entity, modifierId: mod.getId(), stackCount: mod.stackCount, source: mod.source,
+            // ⚠ `origin` / `duration` 是给**局内统计（RunStats）**用的两个只读字段：
+            //   origin 说明"这条效果是哪条线给的"（relic: / killbuff: / item: / ability:），
+            //   duration 区分"永久构筑件（-1）"与"限时 buff（>= 0）"。
+            //   加它们**不改任何既有行为**（现有消费方一个都没读），只是让统计不必再反射 Modifier。
+            origin: mod.origin ?? '', duration: mod.duration,
         });
     }
 }

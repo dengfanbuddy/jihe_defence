@@ -5,16 +5,23 @@
  *   · **当前选中的模式** —— 主界面「游戏」页那张模式卡点一下就落盘（`common/GameModeConfig` 是真源）
  *   · **已通关的最高档** —— 解锁推进的唯一依据：「通关第 N 档 → 解锁第 N+1 档」；
  *     **全局一份**（两个模式共用这条阶梯，见下）
- *   · **每个模式各自的**当前选择 / 上次玩过的档 —— 难度弹窗的默认选中项与主界面的「上次玩过」
+ *   · **每个模式各自的**当前选择 / 上次玩过的档 / 单局最高阶段 —— 难度弹窗的默认选中项、
+ *     主界面的「上次玩过」、以及**无尽模式唯一的成绩**（它没有通关，只有"打到第几阶段"）
  *
- * ── 解锁规则（`docs/difficulty-select/prompts.md` §0）──
- *   通关第 N 档 → 解锁第 N+1 档。所以**可玩档位 = 1 ~ min(已通关+1, 100)**：
- *   一档没通关时只有档 1 可玩（首次游玩默认难度 1，见 `docs/prd/阶段模式_局内规则详解.md` §2.2）。
+ * ── 解锁规则（2026-11 起是**两条取高**，别再照旧记忆恢复）──
+ *   ① 通关第 N 档 → 解锁第 N+1 档（老口径，「成绩」那条路）；
+ *   ② **按局外成长放开** → 推荐档位（`getRecommendLevel()`，见 `common/DifficultyRecommend`）。
+ *   可玩档位 = 1 ~ `max(已通关 + 1, 推荐档位)`。
+ *
+ *   为什么加了 ②：难度阶梯本身是对的（最高成长在档 100 打 40 秒、中位在档 80 打 41 秒、
+ *   最低成长在档 1 打 65 秒，三个锚点都成立），但只有 ① 的话玩家**永远追不上自己的档位** ——
+ *   集齐局外遗物的玩家该打档 80，却按"一局只解锁一档"被锁在档 3，
+ *   他能看到的全是"给新号准备的那一段"，于是体感就是"**一路秒杀，包括 Boss**"。
  *
  * ── 两个模式怎么分（本期口径，见 `docs/game-mode/README.md`）──
  *   · **共用**：`cleared`（已通关的最高档）→ 解锁阶梯。设计稿的口径是「无尽模式 = 在已解锁难度上无限阶段」，
  *     所以它**不单独解锁**，也**不单独记通关**（它没有终点，不会 `markCleared`）。
- *   · **各记一份**：`selected` / `lastPlayed`。切回某个模式时，难度弹窗默认停在
+ *   · **各记一份**：`selected` / `lastPlayed` / `bestStage`。切回某个模式时，难度弹窗默认停在
  *     "这个模式上次准备打的档"，而不是被另一个模式覆盖掉。
  *   · 于是主界面顶部那两个读数：**「最高通过」是全局的**（两个模式显示同一个数），
  *     **「上次玩过」跟着模式走**。要让「最高通过」也分模式，改 `getClearedLevel()` 一处即可。
@@ -45,10 +52,14 @@
  */
 
 import { DataModule } from '../DataModule';
+import { StorageUtil } from '../StorageUtil';
 import { DIFFICULTY_MAX, clampLevel } from '../../common/DifficultyConfig';
 import { DEFAULT_GAME_MODE, GAME_MODES, normalizeGameMode, type GameModeId } from '../../common/GameModeConfig';
 
-/** 单个模式的进度（`selected` / `lastPlayed` 按模式各记一份） */
+/** 本模块的存档键（`DataModule` 会加 `jihe_defence_` 前缀；构造里要读**原始存档**，所以抽成常量） */
+const LEVEL_PROGRESS_KEY = 'level_progress';
+
+/** 单个模式的进度（`selected` / `lastPlayed` / `bestStage` 按模式各记一份） */
 export interface IModeProgress {
     /** 模式 id（`GameModeConfig.GameMode`；取值只可能是 `GAME_MODES` 里的 id） */
     mode: string;
@@ -56,6 +67,17 @@ export interface IModeProgress {
     selected: number;
     /** 这个模式**上次实际打过**的档（0 = 还没打过；主界面「上次玩过」显示它） */
     lastPlayed: number;
+    /**
+     * 这个模式**单局到达过的最高阶段**（0 = 还没打过）—— 设计稿 §14.3 的「记录：最高到达阶段数」。
+     *
+     * ⚠ 为什么**不**并进 `PlayerInfo.maxWave`：那个是**全局**的一个数（跨模式共用），
+     *   而"最高阶段"在两个模式下量纲完全不同（阶段模式最多到 5，无尽模式可以到几十上百）。
+     *   混在一个字段里，无尽模式的一局会把阶段模式的读数顶成没有意义的大数。
+     *
+     * ⚠ 无尽模式是它唯一的"成绩"出口（那个模式没有通关，只有"打到第几阶段"）；
+     *   阶段模式也顺手记（同一行代码，不按模式分岔），但界面不用它（阶段模式看 `cleared`）。
+     */
+    bestStage: number;
 }
 
 /** 难度进度数据结构 */
@@ -83,11 +105,47 @@ function clampLastPlayed(value: unknown): number {
     return n > DIFFICULTY_MAX ? DIFFICULTY_MAX : n;
 }
 
+/**
+ * `bestStage` 的合法区间是 0~`BEST_STAGE_MAX`（0 = 还没打过）。
+ * **上界故意远大于阶段模式的 5** —— 无尽模式的阶段数没有上限，用难度档位那把尺（100）会把它夹爆。
+ */
+const BEST_STAGE_MAX = 9999;
+function clampBestStage(value: unknown): number {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n > BEST_STAGE_MAX ? BEST_STAGE_MAX : n;
+}
+
 export class LevelDataModule extends DataModule<ILevelData> {
+    /**
+     * 「按局外成长该从第几档开始」的**提供者**（由 `DataCenter.init()` 注入）。
+     *
+     * 为什么不在这里 `import` 那条计算链：`data/funcs/*` 是全工程被体检 stage 得最多的一片
+     * （`common/DifficultyRecommend` → `common/DifficultyConfig` 每多一层，
+     * `audit:bag` / `audit:mall` / `audit:draw` / `audit:mode` 的 `SOURCES` 白名单都要跟着补，
+     * 漏一个就是**整个体检跑不起来**、而报错长得像"体检脚本自己坏了"）。
+     * `DataCenter` 注入既避开这件事，也与 `TaskData.setHost` / `AchievementData.setHost` 同一套路。
+     *
+     * **未注入 = 恒 1 = 退回"只按通关进度解锁"**（体检脚本不注入，所以它们验的还是老口径）。
+     */
+    private recommendProvider: (() => number) | null = null;
+
+    /**
+     * 注入「推荐档位」提供者（`DataCenter.init()` 调一次；传 null 关掉这条通路）。
+     * 提供者可以随时返回不同值（它会跟着局外收集变化），所以**只存函数、不缓存结果**。
+     */
+    setRecommendProvider(fn: (() => number) | null): void {
+        this.recommendProvider = fn;
+    }
+
     constructor() {
-        super('level_progress');
-        // 读档之后补一次记录（老存档里没有 `modes` 数组 → 由 `selected`/`lastPlayed` 迁进来）
-        this.ensureRecords();
+        super(LEVEL_PROGRESS_KEY);
+        // 老存档迁移的判据必须看**原始存档**：`DataModule` 的构造已经把默认值合并进来了，
+        // 所以 `this.data.modes` 永远是"每个模式都有一条"的全量数组 ——
+        // 只看 `this.data` 的话，"没有 `modes` 的旧档"和"新档"长得一模一样，迁移会永远不触发
+        // （2026-11 之前就是如此：代码写着迁移、实际从来没跑过，旧档的选中难度会被悄悄归 1）。
+        const raw = StorageUtil.getItem<Partial<ILevelData>>(LEVEL_PROGRESS_KEY) as Record<string, unknown> | null;
+        this.ensureRecords(!raw || !Array.isArray(raw.modes));
     }
 
     protected defaultData(): ILevelData {
@@ -96,7 +154,7 @@ export class LevelDataModule extends DataModule<ILevelData> {
             selected: 1,
             lastPlayed: 0,
             mode: DEFAULT_GAME_MODE,
-            modes: GAME_MODES.map((m) => ({ mode: m.id, selected: 1, lastPlayed: 0 })),
+            modes: GAME_MODES.map((m) => ({ mode: m.id, selected: 1, lastPlayed: 0, bestStage: 0 })),
         };
     }
 
@@ -131,7 +189,8 @@ export class LevelDataModule extends DataModule<ILevelData> {
         const parts: string[] = [this.getMode(), `${this.getClearedLevel()}`];
         for (const info of GAME_MODES) {
             const rec = this.findRecord(info.id);
-            parts.push(`${info.id}:${rec ? clampLevel(rec.selected) : 0}/${rec ? clampLastPlayed(rec.lastPlayed) : 0}`);
+            parts.push(`${info.id}:${rec ? clampLevel(rec.selected) : 0}/${rec ? clampLastPlayed(rec.lastPlayed) : 0}`
+                + `/${rec ? clampBestStage(rec.bestStage) : 0}`);
         }
         return parts.join('|');
     }
@@ -158,12 +217,36 @@ export class LevelDataModule extends DataModule<ILevelData> {
     }
 
     /**
+     * **按局外成长推荐到第几档**（1 ~ 100）—— 「你该打哪一档」的判据，由注入的提供者给。
+     *
+     * 为什么要它：难度阶梯本身是对的（每个成长档都有自己的"正正好"档位），但
+     * "通关第 N 档才解锁第 N+1 档"这条串行门槛让玩家**永远追不上自己的档位** ——
+     * 集齐局外遗物的玩家该打档 80，却被锁在档 3，于是他看到的是"一路秒杀，包括 Boss"。
+     * 实测口径见 `common/DifficultyRecommend` 的文件头（含标定脚本）。
+     *
+     * **未注入提供者时恒为 1**（= 老口径：只有档 1），所以体检与老存档行为不变。
+     */
+    getRecommendLevel(): number {
+        if (!this.recommendProvider) return 1;
+        const n = Math.floor(Number(this.recommendProvider()));
+        if (!Number.isFinite(n)) return 1;
+        return clampLevel(n);
+    }
+
+    /**
      * **已解锁到第几档** —— 可玩档位 = 1 ~ 本值。
-     * 通关第 N 档解锁第 N+1 档，所以它 = min(已通关 + 1, 100)：一档没过时只有档 1 可玩。
+     *
+     * 两条路**取高**（2026-11 起）：
+     *   ① `已通关 + 1` —— 通关推进（老口径，一档没过时只有档 1 可玩）；
+     *   ② `getRecommendLevel()` —— **按局外成长放开**。
+     *
+     * 为什么是"取高"而不是"取代"：`cleared` 是玩家的**成绩**（主界面「最高通过」读它、
+     * 结算面板据它提示"解锁了下一档"），拿掉它等于把推进感一起删了；
+     * 而只留它就会出现"档位追不上战力"。两者取高既保住成绩，又让玩家够得到自己的档位。
      * **两个模式共用**（无尽模式不单独解锁，见文件头）。
      */
     getUnlockedLevel(): number {
-        return Math.min(DIFFICULTY_MAX, this.getClearedLevel() + 1);
+        return Math.min(DIFFICULTY_MAX, Math.max(this.getClearedLevel() + 1, this.getRecommendLevel()));
     }
 
     /** 该档是否可玩（弹窗里"已解锁"的那一档底色） */
@@ -195,6 +278,16 @@ export class LevelDataModule extends DataModule<ILevelData> {
         return clampLastPlayed(this.recordOf(mode).lastPlayed);
     }
 
+    /**
+     * 某个模式**单局到达过的最高阶段**（`mode` 省略 = 当前模式；**0 = 还没打过**）。
+     *
+     * 这是**无尽模式唯一的成绩出口**（那个模式没有"通关"，只有"打到第几阶段"）。
+     * 主界面「游戏」页/结算面板要显示它就读这里，**不要**去读 `PlayerInfo.maxWave`（那是全局的，见 `IModeProgress`）。
+     */
+    getBestStage(mode?: string): number {
+        return clampBestStage(this.recordOf(mode).bestStage);
+    }
+
     /* ===================================================================
      * 写（唯一入口，界面只调这几个）
      * =================================================================== */
@@ -216,6 +309,23 @@ export class LevelDataModule extends DataModule<ILevelData> {
         const n = clampLevel(level);
         const rec = this.recordOf(mode);
         if (rec.lastPlayed !== n) rec.lastPlayed = n;
+    }
+
+    /**
+     * 记「本局到达过第几阶段」（`Scene_Game_Stage.endRun` 调；**只增不减**）。
+     *
+     * 两个模式下都会记（同一行代码，不按模式分岔 —— 分岔会多出一处"按模式判断"），
+     * 但**意义只在无尽模式**：阶段模式的阶段数天然封顶在 5，那个模式的成绩看 `cleared`。
+     *
+     * @returns 是否刷新了纪录（true = 本局比之前打得远，界面可以据此提示）
+     */
+    markBestStage(stage: number, mode?: string): boolean {
+        const n = clampBestStage(stage);
+        if (n <= 0) return false;
+        const rec = this.recordOf(mode);
+        if (n <= clampBestStage(rec.bestStage)) return false;
+        rec.bestStage = n;
+        return true;
     }
 
     /**
@@ -256,26 +366,28 @@ export class LevelDataModule extends DataModule<ILevelData> {
         const id = normalizeGameMode(mode);
         const found = this.findRecord(id);
         if (found) return found;
-        const created: IModeProgress = { mode: id, selected: 1, lastPlayed: 0 };
+        const created: IModeProgress = { mode: id, selected: 1, lastPlayed: 0, bestStage: 0 };
         if (!Array.isArray(this.data.modes)) this.data.modes = [];
         this.data.modes.push(created);
         return created;
     }
 
     /**
-     * 读档后把 `GAME_MODES` 里每个模式都补齐一条记录（幂等）。
+     * 读档后把 `GAME_MODES` 里每个模式都补齐一条记录（幂等），并在**旧档**上做一次迁移。
      *
-     * ⚠ **老存档迁移**：只有 `selected` / `lastPlayed` 两个标量、没有 `modes` 数组时，
-     *   那两个值归到**默认模式（阶段模式）**名下 —— 那时工程里只有它一个模式，
+     * ⚠ **老存档迁移**：只有 `selected` / `lastPlayed` 两个标量、没有 `modes` 数组的存档，
+     *   把那两个值归到**默认模式（阶段模式）**名下 —— 那时工程里只有它一个模式，
      *   所以这是无损迁移，不丢玩家进度。
+     *
+     * @param legacy 这份存档是不是"模式之前的旧档"（判据在构造里，看的是**原始存档**有没有 `modes`）
      */
-    private ensureRecords(): void {
+    private ensureRecords(legacy: boolean): void {
         for (const info of GAME_MODES) {
-            if (this.findRecord(info.id)) continue;
-            const rec = this.recordOf(info.id);
-            if (info.id !== DEFAULT_GAME_MODE) continue;
-            rec.selected = clampLevel(this.data.selected);
-            rec.lastPlayed = clampLastPlayed(this.data.lastPlayed);
+            if (!this.findRecord(info.id)) this.recordOf(info.id);
         }
+        if (!legacy) return;
+        const rec = this.recordOf(DEFAULT_GAME_MODE);
+        rec.selected = clampLevel(this.data.selected);
+        rec.lastPlayed = clampLastPlayed(this.data.lastPlayed);
     }
 }

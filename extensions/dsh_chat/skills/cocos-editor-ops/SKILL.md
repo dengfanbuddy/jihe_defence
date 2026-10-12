@@ -27,8 +27,8 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 
 **不适用**：纯 TS 代码改动（那直接改源码）。
 
-## 工具面：只有 8 个 tool
-<!-- fact: tool-count | verify: script:tool-count-is-8 | 断言 bridge 里 ctx.tools.register 正好 8 次 -->
+## 工具面：只有 7 个 tool
+<!-- fact: tool-count | verify: script:tool-count-is-7 | 断言 bridge 里 ctx.tools.register 正好 7 次 -->
 
 编辑器执行能力由 **`dsh_chat` 扩展自带**（沙箱与场景脚本都在它里面，见
 `extensions/dsh_chat/source/core/engine.ts` + `source/scene.ts`）。
@@ -42,7 +42,9 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 | `cocos_logs` | 读**工程里的日志文件**（路径 + 行号 + 原文）。控制台里的字代码拿不到，只能另开一条通道（见「日志」一节） |
 | `cocos_click_node` | 在节点/坐标上**真点一下**（真鼠标事件）—— 按钮回调、列表选中这类"光看数据验不出来"的事靠它（见「点与跑」一节） |
 | `cocos_send_keys` | **真发键盘**：按一下某个键（快捷键/方向键/Esc）、或往输入框里打字 |
-| `cocos_runtime` | 运行预览（编辑器内 game view）**只读**状态：`state`。⚠ 开关（`play`/`stop`/`pause`/`resume`/`step`）**已撤掉**（见坑 17） |
+
+⛔ **原来还有第八个 `cocos_runtime`（运行预览的状态/开关），2026-10-08 撤掉五个开关、2026-10-09 连只读探针一起删了**（见坑 17）。
+运行态本身**没有消失**：判据在 `cocos_capture_view` 的 `mode` 与 `cocos_click_node` 的拒绝里。
 
 **每个回执的结尾可能带一段 `refs`**（结果里出现过的全形 uuid / `db://` 路径，去重后列出）。
 这是省往返用的：下一步要「用刚才那个节点/那张图」时，**直接抄 `refs` 里的值**，
@@ -50,9 +52,9 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 它只搬运事实：抽的是压缩型 uuid 的话会误报，所以**只有全形 uuid 与 `db://` 会被列出来**。
 
 ### 点与跑：把「整屏交互只能人肉验收」变成可复现的判据
-<!-- fact: interaction-tools-wired | verify: script:interaction-tools-wired | 断言三件都在（bridge 注册 + 发的帧名 + cocos-tools 分发表 + input.ts/preview.ts 的关键实现） -->
+<!-- fact: interaction-tools-wired | verify: script:interaction-tools-wired | 断言两件都在（bridge 注册 + 发的帧名 + cocos-tools 分发表 + input.ts 的关键实现），且运行预览那个探针文件已删除 -->
 
-改完 UI 光截图只能看「长得对不对」，**点下去有没有反应**是另一件事。三件合起来才闭环：
+改完 UI 光截图只能看「长得对不对」，**点下去有没有反应**是另一件事。两件合起来才闭环：
 
 | 想干什么 | 怎么调 |
 |---|---|
@@ -61,8 +63,8 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 | 双击 / 右键 / 组合键点击 | `clickCount: 2` / `button: 'right'` / `modifiers: ['shift']` |
 | 按一下键（Esc、方向键、快捷键） | `cocos_send_keys({ key: 'Escape' })`（`key` 是 Electron 加速键名，不是 `event.key`） |
 | 往输入框打字 | 先 `cocos_click_node` 点那个输入框，再 `cocos_send_keys({ text: 'abc' })` |
-| 现在是不是运行态 | `cocos_runtime({ action: 'state' })` —— 判据是 `scene.previewState`，**不是** `mode` |
-| 开始 / 停止运行预览 | ⛔ **本工具不做**（2026-10-08 撤掉，见坑 17）—— 请**人在编辑器工具栏上按那颗播放键**；跑起来之后 `state` 照样能看，`view:'game'` 照样能截 |
+| 现在是不是运行态 | 不用单独问：`cocos_capture_view` 回执的 `mode`（`actual` / `running` / `previewState`）就是判据；按节点点击在运行态下会被**明确拒绝**并说明原因 |
+| 开始 / 停止运行预览 | ⛔ **本扩展不做、也没有工具能做**（开关 2026-10-08 撤、只读探针 2026-10-09 删，见坑 17）—— 请**人在编辑器工具栏上按那颗播放键**；跑起来之后 `view:'game'` 照样能截、状态照样在回执里看得见 |
 
 <!-- fact: editor-input-not-dom | verify: script:editor-input-not-dom | 断言 bridge 的 click/keys 描述里写着"引擎在编辑器构建里不注册 DOM 监听"，且 scene.ts 的 readSceneMode 仍以 _state 为判据 -->
 **⚠ 真机实测（2026-11，两轮）：合成点击/按键到不了引擎，但**引擎级注入能**。** `sendInputEvent`
@@ -95,10 +97,12 @@ description: 用 dsh_chat 扩展的 cocos_* 原生工具（Code Mode）操作 Co
 - **焦点不抢**：`cocos_send_keys` 不会替你把焦点抢过去（那会打断用户打字），
   回执里的 `focused` 是**如实报**的。要打字先点一下那个输入框。
 - **只认编辑器内预览**：浏览器 / 模拟器预览是另一个应用的另一个进程，点击、截图都够不着。
-- **`cocos_runtime` 只剩只读**：`state` 把两条来源摆出来（编辑器消息 `query-scene-mode` + 场景进程
-  `cce.PreviewPlay._state`）—— 后者才是**运行态的真判据**（facade 那两条实测判不出来）。
-  改状态的那五个动作**已经撤掉**：它们与两次「场景面板画面停住 / 黑掉」同一条时间线（见坑 16 / 坑 17），
-  而且在本工程里编辑器内预览根本跑不进游戏（卡在 `Loading` 的 `loadBundle('scripts')`，`0%`）。
+- **运行态怎么知道的**：判据是**场景进程**读到的 `cce.PreviewPlay._state`（`capture_view` 回执的
+  `mode.sources.previewState`：`stop` / `play` / `pause`）—— facade 那两条实测**判不出运行态**
+  （预览跑着时 `facadeMode` / `queryMode` 仍是 `general`），所以它们只用来认「预制件 / 动画」这类**非运行**模式。
+  读不到 `_state` 时回执的 `mode.note` 会**明说这条判据不可信**（别把 `mode.actual` 当保证）。
+  ⛔ 原来那个专门查运行态的 `cocos_runtime` 工具**已经删了**（见坑 17）—— 要判运行态就看截图回执，
+  它比那个工具说得更全（连"判据可不可信"一起说）。
 
 
 ### 日志：控制台里的字怎么拿到
@@ -741,7 +745,7 @@ uuid 从 `cocos_execute_code({code:"return (await Editor.Message.request('asset-
 （抓图前 `webContents.invalidate()` 逼重绘 **与** 从编辑器内部开关运行预览 `cce.PreviewPlay`）。
 **现在两条都整体撤掉了**（2026-10-08 口径）：
 - 本扩展**一处 `invalidate()` 都不调**（抓到的图是空的就是空的，如实报 `blankRatio`，退路是换数值判据）；
-- **再也不能从工具里开关运行预览**（见坑 17）。
+- **再也不能从工具里开关运行预览**（连"看运行态"那个只读工具也在 2026-10-09 一起删了，见坑 17）。
 
 也就是说：**能做的是"把发生的条件撤掉"，不是"修好了"** —— 因果没证实时，写死一个结论比留着不确定性更危险。
 完整判定、逐字回执与对照实验：**`docs/冻结诊断.md`**（§1 只读诊断代码 / §2 判读表 / §3 解法 / §5 判定 / §5.4.1 落地改动）。
@@ -751,13 +755,20 @@ uuid 从 `cocos_execute_code({code:"return (await Editor.Message.request('asset-
 
 ---
 
-## 坑 17：⛔ 本工具**不会替你开关运行预览**（编辑器内 game view）—— 要看画面请人在工具栏上按
-<!-- fact: pit-17-preview-removed | verify: script:preview-control-removed | 断言 `cocos_runtime` 只剩只读 `state`：bridge 的 enum 只有 state、cocos-tools 里五个动作被拒、package.json 的 scene methods 没有 runtimeControl、scene.ts 里不再直调 PreviewPlay 的开关方法 -->
+## 坑 17：⛔ 「运行预览」（编辑器内 game view）这条能力**已整个退出工具面** —— 要看画面请人在工具栏上按
+<!-- fact: pit-17-preview-removed | verify: script:preview-tool-removed | 断言入口一处不剩：bridge 里没有 cocos_runtime 工具/描述常量/runtime 帧、cocos-tools 里没有 runRuntime/分发表项/query-scene-mode 探针、source/preview.ts 与 dist/preview.js 都已删除、package.json 的 scene methods 没有 runtimeControl；同时断言运行态判据仍在 scene.ts（读 PreviewPlay._state） -->
 
-**症状/边界**：`cocos_runtime({action:'play'})` 这类调用会**明确被拒**（`ok:false` + 说清为什么）。
-它**不是参数写错了**，别再换个写法重试。
+**症状/边界**：`cocos_runtime` 这个工具**不存在**（2026-10-09 删除）。调它会得到"没有这个工具"，
+不用怀疑是不是参数写错了。
 
-**撤掉的三个理由**（前两条写进回执里，第三条是收益账）：
+**撤到什么程度（两次收口）**：
+1. **2026-10-08**：五个开关 `play` / `stop` / `pause` / `resume` / `step` 整条撤掉（调它们会被明确拒绝），
+   只留只读的 `state`；
+2. **2026-10-09**：连只读的 `state` 也删了 —— 它只回答"现在是不是运行态"这一句，而这句话
+   **截图/点击链路本来就在回答**（`cocos_capture_view` 回执的 `mode`、`cocos_click_node` 在运行态下的拒绝），
+   而且回答得更全。
+
+**撤掉的三个理由**（前两条写在 `docs/冻结诊断.md` 里）：
 1. **它与两次画布事故同一条时间线**（见坑 16）：`cce.PreviewPlay.start()/stop()` 是**换掉那块画布的渲染相机**
    （`start` 藏编辑器相机、`stop` 再还回来）——这是"我们主动改过用户眼前那块画布"的少数几个动作之一；
 2. **它让"谁干的"永远说不清**：重启编辑器之后没人能复盘是哪一步把画面弄停的；
@@ -767,8 +778,9 @@ uuid 从 `cocos_execute_code({code:"return (await Editor.Message.request('asset-
    即"编辑器内预览进不了游戏"，收益是零。
 
 **要看游戏画面怎么办**：请**人在编辑器工具栏上按那颗播放键**（那是编辑器自己的能力，与本扩展无关），
-然后回来用 `cocos_capture_view({view:'game'})` 截图 / `cocos_runtime({action:'state'})` 看状态 ——
-**只读那一条仍然在**：`running:true` 时按节点投影/裁图/点击都不成立（它们建立在编辑器相机上），要交互就用坐标。
+然后回来用 `cocos_capture_view({view:'game'})` 截图 —— **运行态判据仍然在回执里**：
+`mode.actual` / `running` / `sources.previewState`，以及"判据可不可信"那句 `mode.note`。
+`running:true` 时按节点投影 / 裁图 / 点击**都不成立**（它们建立在编辑器相机上），要交互就用坐标。
 
 ---
 
@@ -940,10 +952,11 @@ vs `archive/build-login-ui-tree`（结构写死 + 按用途命名，❌ 已退�
   它只证明"这个坐标在页面上是那个节点"，证明 Chromium 真送到了只有**点前后截图对比**；
   ③ **`cocos_send_keys` 不抢焦点**，回执里的 `focused: false` 就是"打字多半不会进输入框"的判据。
 - **运行态**只与编辑器**内部**那个 game view 有关（浏览器 / 模拟器预览是另一个应用的另一个进程，
-  够不着）。**`cocos_runtime` 只剩只读的 `state`**：开关那五个动作 2026-10-08 撤了（见坑 17），
-  要跑游戏请**人在编辑器工具栏上按播放键**。**没有 `timeScale`**：编辑器没给入口，
-  硬拧引擎私有状态属于"看着像能用"。
-  只读那条的判据是 `scene.previewState`（`cce.PreviewPlay._state`）+ `paused` + `frames`；
+  够不着）。**本扩展没有"开预览"的能力、也没有专门查运行态的工具**
+  （开关 2026-10-08 撤、只读探针 2026-10-09 删，见坑 17）—— 要跑游戏请**人在编辑器工具栏上按播放键**。
+  **没有 `timeScale`**：编辑器没给入口，硬拧引擎私有状态属于"看着像能用"。
+  运行态的判据是 `capture_view` 回执里的 `mode.sources.previewState`（`cce.PreviewPlay._state`）
+  + `mode.paused` + 帧计数；读不到 `_state` 时 `mode.note` 会明说这条判据不可信。
   ⚠ 别拿 `applied.by` 当判据了 —— 那三格（`direct-previewplay` / `editor-message`）**已经不存在**。
   原记录的 `docs/真机验收-结果.md` / `docs/真机验收2-结果.md` 原文仍在（它们是**撤掉之前**的实测）。
 - ⚠ **点按 / 按键：真机实测（2026-11）到不了引擎** —— 详见上面「点与跑」那节的 `editor-input-not-dom`。

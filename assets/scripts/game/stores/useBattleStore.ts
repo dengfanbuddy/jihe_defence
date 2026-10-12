@@ -32,14 +32,17 @@
 import { defineStore } from '../../platform/store'
 import { ref } from '../../platform/reactivity'
 import { DEFAULT_GAME_MODE } from '../common/GameModeConfig'
+import { BATTLE_SPEED_DEFAULT } from '../common/BattleSpeedConfig'
 
 /**
- * 每击杀一只怪得到的**击杀数**（击杀商店货币）。
+ * 每击杀一只怪得到的**击杀数**（击杀商店货币）—— **缺省值**。
  *
- * 取 1 = 设计稿 `docs/局内刷怪节奏设计.md` §9.2(a) 的「击杀数」方案（零配置改动）。
- * 想按怪种加权（精英/Boss 多给）就把这里换成读 `units.json.killReward`。
+ * 真值在 `units.json.killReward`（缺省回落这里）：杂兵一律 1，**玩家自己放的「击杀怪」**
+ * （units#2009，`rewardType = 'kill_boss'`）是 150 —— 那个槽位的设计就是"用一场硬仗换一叠击杀数"。
+ * 宿主（`Scene_Game_Stage`）按死者配置解析出点数，再调 `onEnemyKilled(points)`；
+ * 这一条同时是"配表没写 / 写脏了"的兜底。
  */
-const KILL_POINTS_PER_KILL = 1
+export const KILL_POINTS_PER_KILL = 1
 
 export const useBattleStore = defineStore('battle', () => {
   // ── 英雄状态（投影值，实际真源在 Entity/战斗系统，由场景 syncHeroToStore 写入） ──
@@ -63,12 +66,38 @@ export const useBattleStore = defineStore('battle', () => {
 
   // ── 战斗状态 ──
   const phase = ref(1)//阶段
-  const maxPhase = ref(4)//最大阶段 0表示无限
+  /**
+   * 阶段数**分母**（HUD 进度条那行「阶段 N/M」的 M）。**0 = 无限**（不画分母）。
+   *
+   * ✅ 2026-11 起它**真的会动**：`Scene_Game_Stage.resetRun` 按 `modeRules.maxPhase` 写入 ——
+   * 阶段模式 = `StageTimingConfig.STAGE_COUNT`（4），无尽模式 = 0。
+   * （此前它恒为 4，而唯一的写入方是那个全工程没人用的旧 FSM `game_states/states/BattleState`，
+   * 所以"选无尽模式进局、HUD 还写着阶段 7/4"就是这样来的。）
+   */
+  const maxPhase = ref(4)
   const phaseRemainTime = ref(300)//当前阶段剩余时间
   /** 当前阶段的**总时长**（阶段进度条的分母；真源在场景的 GameStageConfig，UI 只读） */
   const phaseTotalTime = ref(0)
   const enemiesAlive = ref(0)//存活敌人数量
   const isPaused = ref(false)//是否暂停
+  /**
+   * **UI 面板导致的暂停**（选英雄 / 遗物商店 / Buff 商店打开时 = true）。
+   *
+   * 为什么要与 `isPaused` 分开存：`isPaused` 是"玩家按了暂停键"（以及看广告、复活面板那几处
+   * 会临时借用它），**暂停按钮的图标认的是它**。面板一开就往 `isPaused` 里写，
+   * 按钮图标会当场翻成"继续"—— 玩家没按过，那是在撒谎。
+   *
+   * 场景的推进判定读两者之或，见 `isBattleFrozen()`。
+   */
+  const panelPaused = ref(false)
+  /**
+   * **局内倍速**（1 / 1.5 / 2；档位与解锁级见 `game/common/BattleSpeedConfig`）。
+   *
+   * ⚠ **不属于"这一局"**：`reset()` 刻意**不**复位它 —— 玩家选了 2× 就该下一局还是 2×，
+   *   每局都要重选一次是纯粹的骚扰。它是"玩家在本局的偏好"，与 `hp` / `level` 那类每局重来的投影不同。
+   * ⚠ 解锁判据（账号等级）**不在这里**：那是 HUD 显隐的事，本字段只管值。
+   */
+  const speedMul = ref(BATTLE_SPEED_DEFAULT)
   const isGameOver = ref(false)//是否结束
   /**
    * **本局的难度档位**（1 ~ `DifficultyConfig.DIFFICULTY_MAX`）。
@@ -86,13 +115,15 @@ export const useBattleStore = defineStore('battle', () => {
    * 场景在换局（`resetRun`）时读一次写进来，本局全程不变 ——
    * HUD 的 `info/mode` 靠它显示模式名（**原来那一格是预制件里的死文案「阶梯模式」，全工程没有写入方**）。
    *
-   * ⚠ **模式还没有分玩法规则**：无尽模式目前仍会走到最终 Boss 阶段结束（见 `GameModeConfig` 文件头）。
-   *   落地时在 `Scene_Game_Stage.checkStage` 一处消费这个字段即可。
+   * ✅ **2026-11 起玩法规则真的按模式分岔了**：判据全在 `common/GameModeRules.ts`（纯函数），
+   *   由 `Scene_Game_Stage` 持有一个 `modeRules` 并在七个落点消费（详见该字段的注释）。
+   *   本字段仍然只是**投影**：**别拿它当规则的判据**（界面要按模式分岔就读场景投影过来的数，
+   *   例如 `maxPhase` —— 0 = 无尽模式，不画分母）。
    */
   const mode = ref<string>(DEFAULT_GAME_MODE)
 
   // ── 统计 ──
-  /** 本局**累计**击杀数（统计口径：结算 / 成就 `kill_in_run`；**花掉不会减少**） */
+  /** 本局**累计**击杀数（统计口径：结算 / 成就 `run_kill`；**花掉不会减少**） */
   const kills = ref(0)
   const damageDealt = ref(0)
   const damageTaken = ref(0)
@@ -101,14 +132,16 @@ export const useBattleStore = defineStore('battle', () => {
    * **击杀数余额** —— 击杀商店（Buff 商店）的唯一货币（可花费，买一层就扣掉）。
    *
    * 与 `kills` 的关系：`kills` 是**累计**统计（只增不减），本字段是**余额**（花掉会减）。
-   * 两者同源（每次击杀各 +1，见 `onEnemyKilled`）。HUD 的 `money/kill/value` 显示的是**余额**
+   * 两者同源（每次击杀都记一笔，见 `onEnemyKilled`）。HUD 的 `money/kill/value` 显示的是**余额**
    * （与金币并排的货币读数），`kills` 只进结算面板与成就。
    *
-   * ⚠ 口径：**每杀 1 只 = 1 点**（`KILL_POINTS_PER_KILL`）。设计稿
-   *   `docs/局内刷怪节奏设计.md` §9.2(a) 的「击杀数（零配置改动）」方案 —— 若将来要按怪种加权
-   *   （哥布林 2 / 重击者 8 / Boss 40~80），需要给 `units.json` 加一列 `killReward` 并同步
-   *   `tools/excel_export/src/core/schema.ts` + `Tb_UnitConfig.ts`，届时把 `onEnemyKilled`
-   *   换成 `addKillPoints(reward)` 即可（消费侧一行都不用改）。
+   * ⚠ 口径：**每杀 1 只 = 1 点，但按怪种加权**（真值 = `units.json.killReward`，缺省
+   *   `KILL_POINTS_PER_KILL`）。加权的唯一出口就是**玩家自己放的「击杀怪」**（units#2009，
+   *   `rewardType = 'kill_boss'`，现 150 点）—— 它 cd 150s、限时 90s、打不动就白放一只，
+   *   是"用一场硬仗换一叠击杀数"的那个槽位（见 `BossScheduler.BOSS_SLOTS`）。
+   *   其余怪（含金币怪 / 守卫 / 阶段 Boss）一律 1：击杀数是神器的货币，
+   *   让 Boss 也发大额会把这套经济从"取舍"变成"都能买满"。
+   *   宿主按死者配置解析出点数后调 `onEnemyKilled(points)`。
    */
   const killPoints = ref(0)
 
@@ -137,9 +170,19 @@ export const useBattleStore = defineStore('battle', () => {
   const expToNext = ref(60)
 
   // ── Actions ──
-  function onEnemyKilled(): void {
+  /**
+   * 记一次击杀：累计击杀 +1、**按怪种给击杀数**、场上敌人数 −1。
+   *
+   * @param points 这一只值几点击杀数（宿主 `Scene_Game_Stage.killPointsOf` 按 `units.json.killReward`
+   *               解析后递进来）。⚠ **刻意不给默认值**：漏传就等于"所有怪又变回 1 点"，
+   *               而那种回归在运行期完全看不出来 —— 设成必填，漏了就是编译错误。
+   *               这里对脏值再兜一次底（`KILL_POINTS_PER_KILL`），但**真源在配表那一侧**。
+   *               ⚠ 只有**击杀数**按它加权 —— `kills`（累计统计）恒 +1（它统计的是"几只"，不是"几分"）。
+   */
+  function onEnemyKilled(points: number): void {
     kills.value++
-    killPoints.value += KILL_POINTS_PER_KILL
+    const gain = Number.isFinite(points) ? Math.floor(points) : 0
+    killPoints.value += gain > 0 ? gain : KILL_POINTS_PER_KILL
     enemiesAlive.value = Math.max(0, enemiesAlive.value - 1)
   }
 
@@ -173,6 +216,7 @@ export const useBattleStore = defineStore('battle', () => {
     phaseTotalTime.value = 0
     enemiesAlive.value = 0
     isPaused.value = false
+    panelPaused.value = false
     isGameOver.value = false
     kills.value = 0
     killPoints.value = 0
@@ -191,12 +235,34 @@ export const useBattleStore = defineStore('battle', () => {
     isPaused.value = !isPaused.value
   }
 
+  /** 切倍速（HUD 的三档按钮调它；值必须是 `BATTLE_SPEED_STEPS` 里的一档，认不出就归 1×） */
+  function setSpeed(mul: number): void {
+    const v = Number.isFinite(mul) && mul > 0 ? mul : 1
+    if (speedMul.value !== v) speedMul.value = v
+  }
+
+  /** 写"面板导致的暂停"（唯一写入方是 `Scene_Game_Stage` 对三个面板的 watch） */
+  function setPanelPaused(paused: boolean): void {
+    const v = !!paused
+    if (panelPaused.value !== v) panelPaused.value = v
+  }
+
+  /**
+   * **本局是否冻结**（战斗推进的唯一判据）—— 玩家暂停 / 看广告 / 复活面板 / 任一功能面板打开
+   * 都算冻结。`Scene_Game_Stage.update` 的早退与点选索敌都用它，别再各自读 `isPaused`。
+   */
+  function isBattleFrozen(): boolean {
+    return isPaused.value || panelPaused.value
+  }
+
   return {
     hp, maxHp,
     heroId, heroSkills,
     phase, maxPhase, phaseRemainTime, phaseTotalTime, enemiesAlive, isPaused, isGameOver,
     kills, killPoints, damageDealt, damageTaken,
     onEnemyKilled, addKillPoints, spendKillPoints, reset, togglePause,
+    panelPaused, setPanelPaused, isBattleFrozen,
+    speedMul, setSpeed,
     gold,
     level, exp, expToNext,
     relicBag,

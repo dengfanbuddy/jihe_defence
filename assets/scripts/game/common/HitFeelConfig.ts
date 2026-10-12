@@ -33,7 +33,14 @@ export enum HitFeelTier {
     Crit = 'crit',
     /** T2 击杀：普通怪死亡 */
     Kill = 'kill',
-    /** T3 精英/技能：命中精英及以上，或技能伤害（`ability != null`） */
+    /**
+     * T3 精英：命中精英及以上。
+     *
+     * ⚠ 原设计还写着"或技能伤害（`ability != null`）" —— **那个前提在实机里不成立、已作废**：
+     * `dmgEvent.ability` 恒为 `undefined`（`Entity.Attack` 把 ability 写死成 undefined、
+     * `EffectExecutor` 调 `ApplyDamage` 时不传 ability）⇒ 下面 `resolveHitTier` 里那条分支是死代码，
+     * 留着只为"载荷形状变了也读得对"。**技能由 `HitShapeKind`（形态层）承担，见文件后半的 B5 章节。**
+     */
     Elite = 'elite',
     /** T4 Boss 命中 */
     BossHit = 'boss_hit',
@@ -289,6 +296,26 @@ export const HIT_FEEL_BUDGET = {
     /** 碎片同时在场上限；超限淘汰最老的（碎片是"残骸"，没有档位可分） */
     shardAliveMax: 48,
 
+    // ---- 数量（技能形态层消费，见 HIT_FEEL_SHAPES）----
+    /**
+     * 技能形态图形（链折线 / 爆炸环 / 多段叠印 / **扇形**）同时在场上限。
+     *
+     * ⚠ **它是一份独立的额度，不与印痕共用**，这不是偷懒而是刻意的：
+     * 一次技能形态图形**替代** N 个个体印痕（N = 被打中的怪物数），
+     * 所以形态层越活跃、印痕层越清闲 —— 两边共用一个额度会让"技能救不了糊屏"。
+     * 上限取得很小（8）：形态是"这一下是什么"的**答案**，同一瞬间不该有 8 个答案。
+     */
+    shapeAliveMax: 8,
+    /**
+     * 技能形态图形每秒新建上限（1s 滑动窗口；超限**丢弃并计数**，不排队不补偿）。
+     *
+     * 12/s 的量级依据：形态只在"一次普攻引发的多目标结算"上产生，
+     * 而攻速上限 3 次/秒、每次最多一个形态 → 常态远低于它。
+     */
+    shapeSpawnPerSecMax: 12,
+    /** 形态新建速率的统计窗口（秒） */
+    shapeSpawnWindowSec: 1.0,
+
     // ---- 墨色闪帧（B3 消费）----
     /**
      * 单次墨闪时长（毫秒）—— 设计要求单次 ≤ 50ms。
@@ -462,6 +489,483 @@ export const HIT_FEEL_MARK = {
     /** 合并的距离阈值（像素）：80px ≈ 3 个哥布林直径，正好是"这一片"的视觉尺度 */
     mergeRadius: 80,
 } as const;
+
+/**
+ * ============================================================
+ * 技能形态层（B5）—— **力度台阶之外的第二根轴**
+ * ============================================================
+ *
+ * ---- 为什么必须有这一层（这是 B0~B4 留下的唯一空洞）----
+ * B0~B4 只有**一根轴**：档位（T0~T7）回答「打谁多重」。它的判据是 `target.unitKind` + `isCrit`，
+ * 而**不包含"这一下是什么技能"**。设计文档 §4 原本写着 T3 的触发条件之一是「`ability != null` 的技能伤害」，
+ * 但**那个前提在实机里不成立**：`dmgEvent.ability` 恒为 `undefined`
+ * （`Entity.Attack` 把 ability 写死成 undefined，`EffectExecutor` 的 `damage`/`aoe_damage`
+ * 调 `ApplyDamage` 时根本不传 ability，全工程 39 处 `ApplyDamage` 没有一处能传出它）。
+ * ⇒ **玩家所有技能伤害（30 个肉鸽技能 + 43 个遗物钩子 + 4 个机制神器 + 掉落 Buff）都落在 T0，
+ * 与一次普通普攻逐图元相同** —— 榴弹炸 6 只怪 = 屏幕上 1 个刻度 + 1 个 26px 细环。
+ *
+ * ---- 第二根轴回答什么 ----
+ *   · 第一根轴（档位）：**多重** —— 顿帧多久、抖多少、几个环、几条刻度；
+ *   · 第二根轴（形态）：**是什么** —— 链式？爆炸？多段？全场？
+ * 两根轴**正交**：一次技能爆炸打普通怪 = 形态 Blast + 档位 T0（个体印痕被形态吸收，所以看不见 T0 的弱）。
+ *
+ * ---- 形态是怎么判出来的（**纯表现层推断，战斗侧零改动**）----
+ * 靠一个已经存在的事实：**一次 chain / AoE 的 N 次结算全部落在同一帧**
+ * （`EventBus.publish` 是同步的，`DamagePipeline` 第 7 阶段逐目标发 `OnTakeDamage`）。
+ * 于是「同源 + 同帧 + 一次普攻锚点」的命中点集合就是一次技能的**全部落点**，几何形状足以分类。
+ * 锚点（`OnAttackLanded` 的目标 / `OnKill` 的死者）是关键：
+ *   · 它把"技能打出来的一片"与"两个互不相干的 DoT 恰好在同一帧跳字"分开
+ *     —— 后者没有锚点，**不会被误判成技能**（这是本规则最重要的一条保险）；
+ *   · 它同时给出爆炸的**圆心**。
+ *
+ * ---- 分类规则（几何口径，**刻意不看伤害数值**）----
+ * 追踪弹/遗物连锁用的是**定值不衰减**的伤害、雷链用的是递减伤害、AoE 用的是同一个值，
+ * 所以"按伤害模式区分"区分不出来（前两者数值上完全同形）。最终按"哪种画法最能解释玩家看到的事"分：
+ *   1. 只有一个目标、但同帧被打 ≥2 次 → **Multi**（分裂弹的"额外子弹"）；
+ *   2. 全部落点都在锚点 80px 内 → **Blast**（挤成一堆，画"面"才有信息）；
+ *   3. 落点散开、且能用「从锚点贪心取最近未命中」串起来（= `chain()` 的原始规则）→ **Chain**（画"线"）；
+ *   4. 落点又多又远（≥6 个 且 >225px）→ **Fullscreen**（天怒那种全场）。
+ * ⚠ **已知的降级**：短跳距的链式弹射（跳距 < 80px）会落进第 2 条、被画成爆炸环 ——
+ * 这在几何上无法与 AoE 区分（两者的落点分布完全同形），而爆炸环同样读作"这一片被技能打了一下"，
+ * 是可接受的降级。要精确区分必须让战斗侧在 `chain()`/`aoe()` 上打标（设计文档 §13 的"路 B"）。
+ *
+ * ⚠ **第二处已知降级（如实记下，别当它不存在）**：**同源的多目标周期性伤害**（典型是
+ * `Modifier_Poison` 的"死亡传染"一次给一片怪挂上同一个 DoT，此后它们**每秒同帧一起跳字**）
+ * 只要与一次普攻落在**同一帧**，就会被当成"一次技能"。
+ * 为什么挡不住：`Scene_Game_Stage.tick` 里 `heroAI()`（普攻 + 同步引发的技能伤害）排在 `ctx.Tick()`
+ * （DoT 计时）**之前**，所以 DoT 那几条命中正好跟在本批锚点之后，**几何与顺序上都与"技能打了一片"同形**；
+ * 而伤害数值也区分不出来（DoT 单跳与 AoE 用的是同一个值）。
+ * 影响面：只在"一片怪挂着同一个 DoT"的构筑里出现，表现为**多出一个环/一条短折线**（不会漏画、不影响数值）。
+ * 要根治同样得走"路 B"（或者给 `ApplyDamage` 加一个 `isTick` 标记 —— 那正是设计文档 §2 口径 5 否掉的做法）。
+ */
+export enum HitShapeKind {
+    /** 普通命中：形态层不介入，走档位印痕（T0~T7） */
+    None = 'none',
+    /** 链式弹射（119 雷链 / 114 追踪弹 / 120 静电磁场 / 遗物「连锁」）：沿跳点画折线 */
+    Chain = 'chain',
+    /** 圆形爆炸（115 榴弹 / 120 引爆 / 126 暴击连锁 / Boss 深渊诅咒 / 遗物溅射·暴击回响·击杀爆炸）：扩散环到真实半径 */
+    Blast = 'blast',
+    /** 同目标多段（101 分裂弹）：沿伤害方向叠印 */
+    Multi = 'multi',
+    /**
+     * **扇形**（2026-11 新增：Boss「恐惧咆哮」/ 神器「天怒」）：从顶点向外快速扩散的扇面。
+     *
+     * 为什么要有它（用户口径「最好不要有全屏范围技能，最好是攻击范围内；如果要大范围，
+     * 可以是扇形，但也要有所表现，比如从中心向外快速扩散」）：
+     *   · 圆形（Blast）回答的是"以某点为中心炸了多大一片"，它**没有朝向**；
+     *   · 近战的"正前方一击"、Boss 的"咆哮"在语义上是**有朝向的一段** ——
+     *     画成圆会读成"这是个光环"，画成扇面才读得出"它朝我这边吼了一下"。
+     * 半径仍然**等于真实作用半径**（与 Blast 同一条硬口径），只是多了 `dirX/dirY/halfAngleDeg`。
+     */
+    Fan = 'fan',
+}
+
+/**
+ * 单个形态的**力度 + 画法**规格。
+ *
+ * ⚠ 这里的 `stopMs` 走的是**和档位表同一本账**（`HIT_FEEL_BUDGET.stopMsPerWindow` 的 1s 滑窗），
+ * 所以形态只是"让技能够得着这本账的额度"，而不是绕过它 —— 时间税 ≤3% 的硬口径不变。
+ */
+export interface HitShapeSpec {
+    /** 顿帧请求（毫秒；最终由账本决定能不能真停，与档位表同一条链路） */
+    stopMs: number;
+    /** 内容层位移请求（像素；最终由 `shakeMaxPx` 钳制） */
+    shakePx: number;
+    shakeMs: number;
+    shakeFreq: number;
+    /** 音效键（空串 = 不发声）。**复用已有音，不新增素材**：形态的音效区分留待 B5 之后单独渲染 */
+    sfx: string;
+    sfxVolume: number;
+    sfxVariants: number;
+    /** 图形寿命（毫秒） */
+    lifeMs: number;
+    /** 线宽（像素） */
+    lineWidth: number;
+    /**
+     * 起始不透明度峰值。
+     *
+     * ⚠ **与印痕刻意不是一档**：形态层取 **0.85~0.95**（同时最多 8 个，是"这一下是什么"的**答案**，
+     * 压在整屏怪堆上必须一次读出来）；印痕那一档才是 ≤0.55（同时最多 24 个，是背景层的"盖章"，
+     * 见 `HIT_FEEL_MARK.ringAlpha` 的"浅底上墨线压到 1.0 会像 UI 边框"）。
+     * 两者同 α 会出现"满屏都一样重"，所以这条区分是**结构性的**、不是调参。
+     */
+    alpha: number;
+}
+
+/**
+ * 形态参数表。
+ *
+ * 三条取值口径：
+ *   · **寿命 180~280ms**：比个体印痕（90~120ms）长 —— 它是"一次技能"，值得多看一眼；
+ *     但都短于 300ms，避免后期多个形态叠在场上互相干扰。
+ *   · **线宽 2.0~2.8px**：落在风格预设 §3 的"1.2~3px、圆头、只描边不填充"区间内。
+ *     ⚠ 2026-11 由 1.4~1.8px **加粗**上来 —— 用户口径「爆炸的圈、扇形看着太浅，看不清」。
+ *     加粗（而不是加发光）是设计文档 §3 的 C3 明确指定的路子：**浅底上加法发光/白闪做了也看不见**，
+ *     要"更重"只能靠**描边加粗**与**环**（同 §9 不做清单）。
+ *   · **顿帧 20~30ms**：与 T3 同级（技能本来就该比普攻重），且单次不超过账本上限。
+ */
+export const HIT_FEEL_SHAPES: Record<HitShapeKind, HitShapeSpec> = {
+    [HitShapeKind.None]: {
+        stopMs: 0, shakePx: 0, shakeMs: 0, shakeFreq: 0,
+        sfx: '', sfxVolume: 0, sfxVariants: 1, lifeMs: 0, lineWidth: 0, alpha: 0,
+    },
+    [HitShapeKind.Chain]: {
+        stopMs: 20, shakePx: 2, shakeMs: 100, shakeFreq: 24,
+        sfx: 'hit_heavy', sfxVolume: 0.55, sfxVariants: 1, lifeMs: 240, lineWidth: 2.2, alpha: 0.88,
+    },
+    [HitShapeKind.Blast]: {
+        stopMs: 25, shakePx: 3, shakeMs: 120, shakeFreq: 22,
+        sfx: 'hit_heavy', sfxVolume: 0.62, sfxVariants: 1, lifeMs: 260, lineWidth: 2.8, alpha: 0.95,
+    },
+    [HitShapeKind.Multi]: {
+        stopMs: 15, shakePx: 2, shakeMs: 90, shakeFreq: 26,
+        sfx: 'hit_heavy', sfxVolume: 0.45, sfxVariants: 1, lifeMs: 200, lineWidth: 2.0, alpha: 0.85,
+    },
+    [HitShapeKind.Fan]: {
+        stopMs: 28, shakePx: 4, shakeMs: 160, shakeFreq: 21,
+        sfx: 'hit_heavy', sfxVolume: 0.70, sfxVariants: 1, lifeMs: 280, lineWidth: 2.6, alpha: 0.95,
+    },
+};
+
+/** 取形态规格（未知形态兜底为 None = 不介入） */
+export function getShapeSpec(kind: HitShapeKind): HitShapeSpec {
+    return HIT_FEEL_SHAPES[kind] ?? HIT_FEEL_SHAPES[HitShapeKind.None];
+}
+
+/**
+ * 形态层的**分类与画法**参数。
+ *
+ * 分类阈值（前三条）与画法参数（其余）放在一起：它们只有这一份实现，
+ * 而"阈值"与"画法"必须一起调 —— 把阈值调大就会改变哪些技能落到哪个形状上。
+ */
+export const HIT_FEEL_SHAPE = {
+    // ---- 分类阈值 ----
+    /**
+     * 落点"挤成一堆"的判定半径（像素）。
+     *
+     * 取 80 = `HIT_FEEL_MARK.mergeRadius`，**刻意同值**：超过它，个体印痕就已经不再合并了，
+     * 说明落点分布已经"散开"、画线比画面更有信息。两处若要分别调，这条注释失效、需重估。
+     */
+    blastRadiusMax: 80,
+    /**
+     * 链式串接的单跳上限（像素）。
+     *
+     * 取 260 = `ShopSkillModifiers` / `RelicHooks` 里那份 `CHAIN_RANGE_PX`（两处硬编码常量，
+     * 也是 114/119/120/遗物连锁的 `kv.range` 默认值）。它是"这个游戏的链到底能跳多远"的唯一口径。
+     */
+    chainHopMax: 260,
+    /**
+     * 同一批命中的时间窗口（秒）。
+     *
+     * 取 40ms 与 `HIT_FEEL_MARK.mergeWindowSec` **同值同理由**：60fps 一帧 16.7ms，
+     * 同一次技能的 N 次结算有可能被分到相邻两帧（掉帧 / 多段），严格"同一帧"会让一批在帧边界上裂开。
+     */
+    batchWindowSec: 0.04,
+
+    // ---- 通用画法（四种形态共用）----
+    /**
+     * 淡出曲线：`α = spec.alpha × (1 − t^fadePow)`（`t` = 已过寿命比例，0→1）。
+     *
+     * ⚠ 2026-11 由**线性** `× (1 − t)` 改成现在这个"先实后收"的指数，起因是用户口径
+     * 「爆炸的圈、扇形看着太浅，看不清」。线性淡出配 200~280ms 的寿命意味着
+     * **它一生里有大半时间只剩半透明**（t=0.5 时 α 已经腰斩到 0.48）—— 峰值再高也只是"闪一下"。
+     * 改成 >1 的指数之后：前 2/3 寿命都压在峰值附近（t=0.5 → 仍有峰值的 70%），
+     * 最后 1/3 一口气收到 0，读作**"这一笔画得实、收得干脆"** ——
+     * 正是风格预设里"实线 = 已存在的实体"那条语法（与档位印痕的"盖章"共用同一条语义）。
+     *
+     * 与 `alpha`、`lineWidth` 的分工：这三条一起构成"看得见"——α 决定**有多黑**、
+     * 线宽决定**有多粗**、这一条决定**黑多久**。三者都只作用于形态层，
+     * 印痕层（`HIT_FEEL_MARK`）不受影响：那是背景层，本来就该淡一档。
+     */
+    fadePow: 1.7,
+
+    // ---- 链折线（Chain）画法 ----
+    /**
+     * 折线的锯齿幅度（像素）与每段的拆分数。
+     *
+     * 为什么要锯齿：两点之间一条**直线**读作"弹道"（本作已经有弹道拖尾），
+     * 而"电"的语言是**折线**。中点垂直偏移 ±`jagPx`，每段拆 `jagSegments` 折 ——
+     * 拆 3 折 + 偏移 3.2px 在 260px 的跳距上约 2° 偏角，看得出折、不显得歪。
+     * ⚠ 锯齿靠**折点坐标**实现，**不旋转节点**（口径 5：图纸不该歪）。
+     */
+    chainJagPx: 3.2,
+    chainJagSegments: 3,
+    /** 逐段显现的延迟（毫秒）—— 读作"电一段一段跳过去"，而不是"整条线突然出现" */
+    chainSegDelayMs: 22,
+    /** 每个落点的端头刻度长度 / 线宽（像素）：制图里"尺寸线两端"的语法，读作"接上了" */
+    chainEndTickLen: 7,
+    chainEndTickWidth: 2.2,
+
+    // ---- 爆炸扩散环（Blast）画法 ----
+    /** 环层数（逐层延迟扩散，与档位印痕的细环同一套画法） */
+    blastRings: 2,
+    blastRingStaggerMs: 24,
+    /**
+     * 环的起始半径比例（0.25 = 从真实半径的 25% 起扩到 100%）。
+     *
+     * ⚠ 与档位印痕的细环**反向**：那边是"从 6px 起扩到 26px"（猜一个视觉尺度），
+     * 这边是"扩到**真实作用半径**" —— 这是本层存在的主要理由：
+     * 玩家第一次能看见"我这颗榴弹到底盖住了多大一片"（`kv.radiusM = 1.5` → 75px）。
+     */
+    blastRingFromRatio: 0.25,
+    /** 环上等距刻度条数（制图"尺寸标注"语法，读作"这一圈就是范围"） */
+    blastRadialTicks: 8,
+    /** 环上刻度的长度 / 线宽（像素） */
+    blastTickLen: 6,
+    blastTickWidth: 1.9,
+    /** 半径的视觉下限 / 上限（像素）：炸到 1 只也要看得出是个环；大范围爆炸不许把环画到屏幕外 */
+    blastMinRadiusPx: 24,
+    blastRadiusDrawMax: 260,
+    /** 环半径的缓动指数（< 1 → 起步快、末段收，与档位印痕同口径） */
+    blastGrowPow: 0.55,
+
+    // ---- 扇形扩散（Fan）画法 ----
+    /**
+     * 扇面里**逐层向外**画几条弧（每条延迟 `fanRingStaggerMs` 出现）。
+     *
+     * 三条比一条好：一条弧读作"一条曲线"，三条错开的外扩弧才读作"**一波推出去**"
+     * （与档位印痕的"细环逐层延迟"、Blast 的双环同一条语法）。
+     */
+    fanRings: 3,
+    fanRingStaggerMs: 30,
+    /** 弧的径向分段数（用折线逼近弧 —— 全工程只用 moveTo/lineTo/circle，不引入 arc） */
+    fanArcSegments: 10,
+    /**
+     * 半径的缓动指数（0.45 < Blast 的 0.55 → **起步更快**）。
+     *
+     * 用户口径的原话是"从中心**快速**向外扩散"，而扇形是近战/Boss 的"一瞬间的出手"，
+     * 比爆炸更该有"刷地铺开"的速度感。
+     */
+    fanGrowPow: 0.45,
+    /**
+     * 扇面内的径向排线数（不含两条边）。
+     *
+     * "纸面排线"是风格预设 §0 的基本语法（与全场扫线同源）；放在扇面里读作
+     * "这一片被扫过一遍"，而且它**自带方向**（每一条都从顶点出发），比一圈弧更能说明"朝向"。
+     */
+    fanRadialLines: 5,
+    /** 弧两端那两条边的端头刻度长度 / 线宽（制图"尺寸线两端"的语法，读作"扇面的边界在这里"） */
+    fanEdgeTickLen: 8,
+    fanEdgeTickWidth: 2.4,
+    /** 半径的视觉下限 / 上限（像素）—— 与 Blast 同一理由，但上限更大（扇形本来就大） */
+    fanMinRadiusPx: 28,
+    fanRadiusDrawMax: 320,
+    /** 上报里没给半角时的兜底半角（度）：40° 半角 = 80° 扇面，读作"正前方一下" */
+    fanDefaultHalfAngleDeg: 40,
+    /** 半角的安全夹取范围（度）：太窄读成一条线、太宽读成一个圆 */
+    fanMinHalfAngleDeg: 8,
+    fanMaxHalfAngleDeg: 170,
+
+    // ---- 多段叠印（Multi）画法 ----
+    /** 相邻两段的沿伤害方向偏移（像素）与逐段延迟（毫秒）—— 读作"一节一节打出去" */
+    multiDriftPx: 5,
+    multiStaggerMs: 34,
+    /** 最多画几段（分裂弹最多 count=3，留 1 段余量；超出的段只计数不画） */
+    multiMaxStacks: 4,
+
+    // ---- 「击杀锚点的一小片」的判定上限 ----
+    /**
+     * 击杀锚点（`OnKill`）的一批落点**仍然读作"一次爆炸"**的最大扩散半径（像素）。
+     *
+     * 原先是 `fullscreenMinRadius`（225，配合"≥6 个落点就画全场扫线"那一支）。
+     * 2026-11 去掉 Fullscreen 之后，这条阈值只剩一个作用：**超过它就不介入**
+     * （退回个体印痕），因为落点铺得那么开时，一个环已经解释不了"发生了什么"，
+     * 而画一条横扫整屏的排线正是用户明确否掉的观感。
+     */
+    killBlastRadiusMax: 225,
+} as const;
+
+/** 一次命中（形态层的输入；只取分类与画法需要的字段） */
+export interface HitShapeHit {
+    /** 目标实体 uid（同一实体在一批里可能出现多次 = 多段命中） */
+    uid: number;
+    /** 命中点（逻辑坐标，事件回调里快照过） */
+    x: number;
+    y: number;
+}
+
+/** 一批命中的分类输入 */
+export interface HitShapeInput {
+    /** 本批命中（同源、同 `batchWindowSec` 窗口内） */
+    hits: HitShapeHit[];
+    /**
+     * 普攻锚点：本批所属那一次普攻命中的目标 uid（0 = 本批不是普攻引发的）。
+     * ⚠ **这是"是不是技能"的唯一判据** —— 没有它，两个互不相干的 DoT 恰好同帧跳字会被误判成技能。
+     */
+    anchorUid: number;
+    /** 锚点坐标（普攻目标 / 击杀点） */
+    anchorX: number;
+    anchorY: number;
+    /** 本批是否伴随击杀（天怒、击杀爆炸的判据；无普攻锚点时的第二条路） */
+    hasKill: boolean;
+}
+
+/** 分类结果 */
+export interface HitShapeResult {
+    kind: HitShapeKind;
+    /**
+     * 画折线用的落点（**已按跳序排好**，Chain 专用）。
+     *
+     * ⚠ 顺序是复刻 `chain()` 的"从当前落点贪心取最近未命中"得到的 —— 规则同源、输入同源，
+     * 所以算出来的顺序就是真实的跳序（`OnTakeDamage` 的发布顺序也是这个顺序，两者互为交叉验证）。
+     */
+    points: { x: number; y: number }[];
+    /** 爆炸/扇形/链的中心（圆心或扇形顶点）与半径（像素） */
+    cx: number;
+    cy: number;
+    radius: number;
+    /** 多段命中的段数（Multi 专用） */
+    stacks: number;
+    /**
+     * 扇形朝向（单位向量；**Fan 专用**）。
+     *
+     * 只有显式上报（`battle/SkillShape.ts`）会填它 —— `resolveHitShape` 从落点几何里
+     * 推不出朝向（见该函数的注释）。缺省 `(1, 0)`，画出来是"朝右的一扇"，不会画成空。
+     */
+    dirX?: number;
+    dirY?: number;
+    /** 扇形**半角**（度；Fan 专用。40 = 总共 80° 的扇面） */
+    halfAngleDeg?: number;
+}
+
+/** 从锚点出发的贪心最近邻串接（复刻 `ShopSkillModifiers.chain()` 的取点规则）；串不完返回 null */
+function greedyWalk(
+    startX: number, startY: number,
+    pts: { x: number; y: number }[],
+): { x: number; y: number }[] | null {
+    const left = pts.slice();
+    const order: { x: number; y: number }[] = [];
+    let cx = startX;
+    let cy = startY;
+    const r2 = HIT_FEEL_SHAPE.chainHopMax * HIT_FEEL_SHAPE.chainHopMax;
+    while (left.length > 0) {
+        let best = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < left.length; i++) {
+            const dx = left[i].x - cx;
+            const dy = left[i].y - cy;
+            const d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        if (best < 0 || bestD > r2) return null;    // 跳不到 → 不是一条链
+        const p = left[best];
+        order.push(p);
+        left.splice(best, 1);
+        cx = p.x;
+        cy = p.y;
+    }
+    return order;
+}
+
+/**
+ * 一批命中 → 形态（**本层唯一的判定点**）。
+ *
+ * 判定顺序（先专后泛，与 `resolveHitTier` 同一条思路）：
+ *   ① 单目标多段 → Multi
+ *   ② 有普攻锚点且落点全在锚点附近 → Blast
+ *   ③ 有普攻锚点且能串成链 → Chain（串不成 → 退回 Blast）
+ *   ④ 无普攻锚点但有击杀锚点的一小片 → Blast
+ *   ⑤ 其余 → null（形态层不介入，退回档位印痕）
+ *
+ * ⚠ **这里永远判不出 `Fan`**：扇形（Boss 咆哮 / 神器天怒）是**有朝向**的作用域，
+ *   而批次的落点里根本没有"朝向"这条信息（只打中一个目标时更是什么都推不出来）。
+ *   所以 Fan 一律走 `battle/SkillShape.ts` 的**显式上报**（`OnSkillShape`），
+ *   判据与结算几何同源 —— 见 `docs/打击反馈设计.md` §13.4 的"路 B"。
+ *
+ * ⚠ **Fullscreen 已在 2026-11 删除**（用户口径「最好不要有全屏范围技能」）：
+ *   原先"无锚点 + 点多且散"会画一条横扫整屏的排线，而那个观感的唯一来源是神器天怒 ——
+ *   它现在是一个**扇形**（见 `SpecialBuffs.KillBuff_Skyfall`）。删掉整条路径之后，
+ *   铺得过开的批次一律**退回个体印痕**（每个受击者身上照旧有自己的印痕，
+ *   只是不再有一条"解释一切"的横扫线）。
+ *
+ * @returns 形态；`null` = 不介入 —— **调用方必须按"不介入"处理，不许兜底成某个形状**
+ */
+export function resolveHitShape(input: HitShapeInput): HitShapeResult | null {
+    const hits = input?.hits ?? [];
+    if (hits.length < 2) return null;               // 一次单体命中没有"形态"可言
+
+    // 去重成"落点"（同一实体被普攻 + AoE 各打一次只算一个落点，除非它是多段的唯一目标）
+    const seen: number[] = [];
+    const pts: { x: number; y: number }[] = [];
+    for (const h of hits) {
+        if (seen.indexOf(h.uid) >= 0) continue;
+        seen.push(h.uid);
+        pts.push({ x: h.x, y: h.y });
+    }
+    if (pts.length === 0) return null;
+
+    const ax = input.anchorX;
+    const ay = input.anchorY;
+    const distToAnchor = (p: { x: number; y: number }) => Math.hypot(p.x - ax, p.y - ay);
+    let maxR = 0;
+    for (const p of pts) maxR = Math.max(maxR, distToAnchor(p));
+
+    const anchored = input.anchorUid > 0 && seen.indexOf(input.anchorUid) >= 0;
+
+    // ⚠ **普攻必须在最前**：这一批的**第一个**命中必须是锚点自身那一下。
+    // 依据是场景的真实帧序 —— `Scene_Game_Stage.tick` 里 `heroAI()`（普攻 + 它同步引发的技能伤害）
+    // 排在 `ctx.Tick()`（DoT 计时 / 怪物 AI）**之前**，所以"普攻那一下"永远是本批的第一条命中。
+    // 这条守卫挡掉的是"别的伤害先落、普攻后到"的批次（那些不是同一次技能）。
+    const anchorFirst = anchored && hits[0]?.uid === input.anchorUid;
+
+    // ① 单目标多段（分裂弹）：同帧同一个目标被打 ≥2 次
+    if (pts.length === 1) {
+        if (hits.length < 2) return null;
+        if (anchorFirst || input.hasKill) {
+            return {
+                kind: HitShapeKind.Multi, points: pts,
+                cx: pts[0].x, cy: pts[0].y, radius: 0, stacks: hits.length,
+            };
+        }
+        return null;
+    }
+
+    // ②③ 有普攻锚点且普攻在最前：这一批是"一次普攻引发的一次技能"
+    if (anchorFirst) {
+        const clusterMax = Math.max(HIT_FEEL_SHAPE.blastMinRadiusPx, Math.min(maxR, HIT_FEEL_SHAPE.blastRadiusDrawMax));
+        // ② 挤成一堆 → 画"面"（爆炸环）
+        if (maxR <= HIT_FEEL_SHAPE.blastRadiusMax) {
+            return {
+                kind: HitShapeKind.Blast, points: pts,
+                cx: ax, cy: ay, radius: clusterMax, stacks: 0,
+            };
+        }
+        // ③ 散开 → 画"线"（链折线）
+        //
+        // ⚠ **必须先剔掉与锚点重合的那个落点**：普攻命中的目标就是链首（`chain()` 的 `start`），
+        // 它的距离恒为 0 ⇒ 会生成一段"零长折线"，白白占掉一个逐段延迟槽，
+        // 让真正意义上的**第一跳晚 `chainSegDelayMs` 才出现**（体检脚本第 ⑱ 组就是这么抓到的）。
+        const jumpPts: { x: number; y: number }[] = [];
+        for (const p of pts) if (distToAnchor(p) > 1) jumpPts.push(p);
+        const walk = jumpPts.length > 0 ? greedyWalk(ax, ay, jumpPts) : null;
+        if (walk) {
+            return {
+                kind: HitShapeKind.Chain, points: walk,
+                cx: ax, cy: ay, radius: clusterMax, stacks: 0,
+            };
+        }
+        // 串不成链（跳距超上限）→ 退回爆炸环（宁可画"面"，也别什么都不画）
+        return {
+            kind: HitShapeKind.Blast, points: pts,
+            cx: ax, cy: ay, radius: clusterMax, stacks: 0,
+        };
+    }
+
+    // ④ 没有普攻锚点：只认"有击杀锚点的一小片"（击杀爆炸 / 击杀回响）→ 爆炸环。
+    //    ⚠ 这条**必须严格**：DoT 恰好同帧跳字、光环周期伤害都会落进"同源同帧多目标"。
+    //    ⚠ 2026-11 去掉了原来的"点多且散 → 全场扫线"那一支（用户口径：不要全屏范围的表现）。
+    //      落点铺得比 `killBlastRadiusMax` 还开时**不介入**（退回个体印痕）——
+    //      那不是"什么都不画"：每个受击者身上照旧有自己的印痕，只是没有一条解释一切的横扫线。
+    if (input.hasKill && pts.length >= 2 && maxR <= HIT_FEEL_SHAPE.killBlastRadiusMax) {
+        const r = Math.max(
+            HIT_FEEL_SHAPE.blastMinRadiusPx,
+            Math.min(maxR, HIT_FEEL_SHAPE.blastRadiusDrawMax),
+        );
+        return { kind: HitShapeKind.Blast, points: pts, cx: ax, cy: ay, radius: r, stacks: 0 };
+    }
+
+    return null;
+}
 
 /**
  * ============================================================
@@ -691,6 +1195,10 @@ export function isBossUnitKind(kind: UnitKind): boolean {
  * `OnTakeDamage` 载荷 → 命中档位
  *
  * 判定顺序（先专后泛）：英雄受击 → 暴击 → 技能 → 精英 → Boss → 普攻/DoT。
+ *
+ * ⚠ **`e.ability` 那条分支是死代码**（实机里它恒为 `undefined`，见 `HitFeelTier.Elite` 的注释）——
+ * 保留它是为了让"载荷形状万一变了"也读得对，**但不要指望它承担技能分档**：
+ * 技能由形态层 `resolveHitShape` 承担（那是"这一下是什么"，与本函数回答的"多重"正交）。
  *
  * ⚠ **DoT 与普攻同档（都走 T0）是设计选择，不是妥协**：DoT 单跳本就该用最弱档，
  * 再叠上密度自适应衰减，高频跳字会被自动压到几乎看不见 —— 因此**不需要**给

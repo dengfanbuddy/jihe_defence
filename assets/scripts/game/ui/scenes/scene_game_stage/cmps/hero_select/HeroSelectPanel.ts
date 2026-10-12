@@ -1,4 +1,4 @@
-import { _decorator, Button, Label, Node } from 'cc';
+import { _decorator, Button, Label, Layout, Node } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { HeroItem } from './HeroItem';
 import { StageScopeEvents, StageScopeKeys } from '../StageScope';
@@ -79,7 +79,15 @@ export class HeroSelectPanel extends UIWidget {
         this.offNodeEvent(this.closeBtnNode, Node.EventType.MOUSE_DOWN, this.closePanel, this);
     }
 
-    /** 把候选英雄铺到 item 上（空位保持预制件原样，item 自己会拒绝 id ≤ 0 的点击） */
+    /**
+     * 把候选英雄铺到 item 上。
+     *
+     * ⚠ **没铺到的槽位整格收起**（`item.node.active = false`）：候选池 = 已解锁英雄，
+     *   解锁 1~3 位时候选就比 4 个槽位少 —— 留着不用的槽位，玩家看到的是几个**空白头像框 + 一个
+     *   点了没反应的「选择」按钮**（预制件里那些占位 Sprite 是空白底图），像是"英雄没加载出来"。
+     *   收起之后看到的恰好是"我现在拥有的全部英雄"（与"只出已解锁"这条规则一致）。
+     *   `items` 上有 `Layout` → 收起后必须**显式重排一次**（否则会留出两个空位）。
+     */
     checkHeroList() {
         // 首次调用：缓存 heroItemListNode 子节点上的 HeroItem 组件（只在有列表时缓存一次）
         if (this.heroItems.length == 0 && this.heroItemListNode) {
@@ -89,14 +97,30 @@ export class HeroSelectPanel extends UIWidget {
             })
         }
         const heroList = this.heroSelect ? this.heroSelect.candidates.value : [];
-        const count = Math.min(this.heroItems.length, heroList.length);
-        for (let index = 0; index < count; index++) {
-            const heroId = Number(heroList[index]);
-            if (heroId > 0) {
-                // selectType=0 普通获取（广告获取是 item 的展示态，选取规则在 HeroSelect 里）
-                this.heroItems[index].setHeroInfo(heroId, 0);
+        let laidOut = false;
+        this.heroItems.forEach((item, index) => {
+            const heroId = index < heroList.length ? Number(heroList[index]) : 0;
+            const used = heroId > 0;
+            if (item.node.active !== used) {
+                item.node.active = used;
+                laidOut = true;
             }
-        }
+            if (!used) {
+                // 收起的同时把 id 清零：留着上一次抽到的 id，将来这一格被重新启用时
+                // 会先按旧英雄画一帧（`onShow` → `applySelected`），而且清掉的成本是 0。
+                item.heroId = 0;
+                return;
+            }
+            // selectType=0 普通获取（广告获取是 item 的展示态，选取规则在 HeroSelect 里）
+            item.setHeroInfo(heroId, 0);
+        });
+        if (laidOut) this.relayoutItems();
+    }
+
+    /** 槽位增删后让 `items` 上的 `Layout` 立刻重排（`Layout.updateLayout` 是引擎的公开方法） */
+    private relayoutItems(): void {
+        const layout = this.heroItemListNode?.getComponent(Layout);
+        layout?.updateLayout?.();
     }
 
     /**

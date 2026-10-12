@@ -28,9 +28,53 @@ export interface ModifierEventAction {
 export interface ModifierCfg {
     id: number;                   // Modifier ID（number）
     name: string;
+    /**
+     * **这一行自己的图标**（buff 图标；`resources` 相对路径、不带扩展名，如 `textures/buffs/burn`）。
+     *
+     * 2026-11 起状态栏真的会消费它，但**它是兜底**：一格优先显示**来源的图标**
+     * （遗物 → `relics.icon` / 技能 → `abilities.icon` / 药水 → `battle_items.icon`，
+     *  判据在 `battle/StatusBar.ts` 的 `originInfo`），来源表没有（或这行没有 `origin`）才用这一列。
+     * 空 = 运行期回落「色块 + 短标 + 值」的画法（不是空白格）；取不到图**不重试**。
+     * ⚠ 写进来的那张帧**必须真在某个图集 / 碎图里** —— `audit:statusbar` 的 G5 会读 `plist` 逐条核。
+     */
     icon?: string;
     is_debuff: boolean;           // 是否为负面
     is_hidden?: boolean;          // 是否在 Buff 栏隐藏
+    /**
+     * **允许进 HUD 状态栏**（2026-11 新增；白名单，缺省 false）。
+     *
+     * 只有标了它的行才**可能**出现在英雄头像下方那一行（`View_Game_Stage/buff_status`）。
+     * 标它的两类：
+     *   ① 会挂到**英雄**身上的限时 / 负面效果（燃烧 / 无敌 / 共享模板 1000 的限时实例）；
+     *   ② 常驻载体里「有就绪态 / 层数可讲」的脚本行（遗物·蓄力 / 不屈 / 圣盾 …），
+     *      它们的值时有时无，由实例的 `Modifier.GetBarState()` 现算 —— 返回 null 就不占格子。
+     *
+     * ⚠ 只打**怪物**的 debuff（遗物减速 / 点燃 / 中毒那一族）**一律不标**：英雄栏看不到它们。
+     * ⚠ 标了它不等于一定显示：还要「本帧真的有内容」（有剩余时长 或 `GetBarState()` 非空）。
+     */
+    bar_show?: boolean;
+    /**
+     * 状态栏格子的**占位短标**（≤2 汉字，如「燃烧」「蓄力」）。
+     *
+     * 留空 = 运行期按来源取名兜底：共享模板 1000 的限时实例按 `origin`
+     * （`item:<id>` / `relic:<id>` / `ability:<id>`）取药水 / 遗物 / 技能名。
+     *
+     * ⚠ 图标不走这一列（那是 `icon` 列或来源配表的事），本列也**不改成路径** ——
+     *   它的职责是"**没有图**的时候格子上写什么"（有图时格子只画「值」一行，见 docs/status-bar/README.md §4.5）。
+     */
+    bar_text?: string;
+    /**
+     * **状态说明**（2026-11 新增）：点 HUD 状态栏那一格时弹出的说明面板上那一句话。
+     *
+     * 玩家能点到的只有 `bar_show = 1` 的那十几行（其余行根本不进状态栏），
+     * 所以这一列主要服务它们 —— 其余行留空即可。
+     *
+     * 留空时的兜底：面板退化成一个通用句（「持续 N 秒 / 永久」+ 正面/负面），
+     * 而**共享模板 1000 的限时实例**永远走 `origin` 的配表名与说明
+     * （药水取 `battle_items.desc`、遗物取 `relics.description_inner`、技能取 `abilities.lv1`），
+     * 不看这一列 —— 它只是一个模板，本身没有语义。
+     */
+    desc?: string;
     dispel_level: DispelLevel;    // 可驱散等级
     duration: number;             // 默认持续时间（秒，-1 永久）
     /**

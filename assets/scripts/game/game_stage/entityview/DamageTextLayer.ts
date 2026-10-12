@@ -2,6 +2,7 @@ import { _decorator, Color, Component, Graphics, Node, UITransform } from 'cc';
 import { BattleContext, BattleEvents } from '../../battle';
 import { UnitKind } from '../../common/EntityVisualConfig';
 import { DAMAGE_TEXT, DamageTextTier, getDamageTextStyle } from '../../common/DamageTextConfig';
+import { formatNumber } from '../../common/GoldText';
 import { drawDigits, fillDiamond, measureDigits } from './GeometricDigits';
 const { ccclass } = _decorator;
 
@@ -343,7 +344,7 @@ export class DamageTextLayer extends Component {
         // 逻辑坐标 == 本层局部坐标（同一坐标系，零转换，见类注释）
         const x = it.x0 + it.offsetX;
         const baseline = it.y0 + st.rise * easeOutCubic(t);
-        const text = String(it.value);
+        const text = formatNumber(it.value);
 
         // 几何先算好：暴击的左侧菱形标与数字**作为一组整体居中**（数字右移一点）
         let badgeCx = 0;

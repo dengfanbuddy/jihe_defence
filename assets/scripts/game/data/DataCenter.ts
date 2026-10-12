@@ -23,7 +23,7 @@
 
 import { StorageUtil } from './StorageUtil';
 import { PlayerInfoModule } from './funcs/PlayerInfo';
-import { HeroDataModule } from './funcs/HeroData';
+import { DEFAULT_UNLOCKED_HERO_IDS, HeroDataModule } from './funcs/HeroData';
 import { ItemDataModule, CurrencyType } from './funcs/ItemData';
 import { EquipmentCollectionModule } from './funcs/EquipmentCollection';
 import { TaskDataModule } from './funcs/TaskData';
@@ -42,8 +42,12 @@ import { BAG_ITEM_KEY } from './configs/BagConfig';
 import { OuterRelicDraw } from '../battle/OuterRelicDraw';
 import type { OuterDrawPlan } from '../battle/OuterRelicDraw';
 import type { RelicRarity } from '../excel_table/Tb_RelicConfig';
-import { BattleConstUtil } from '../battle/core/BattleConstUtil';
-import { rewardMul } from '../common/DifficultyConfig';
+// ⚠ `BattleConstUtil` / `rewardMul` 曾在这里被 `grantClearHeroExp` 直接用；
+//   2026-11 起那条口径搬进了 `common/RunClearHeroExp`（结算经验 = 阶段 × 时间 × 难度），
+//   本文件只调它的**唯一入口**、不再自己读常量、也不再自己乘难度倍率。
+import { describeRecommend, recommendLevel } from '../common/DifficultyRecommend';
+import { RunClearReward } from '../common/RunClearReward';
+import { RunClearHeroExp } from '../common/RunClearHeroExp';
 import { ACH_EFFECT_CODES, ACH_EFFECT_META, achEffectLabel } from '../common/AchievementEffectMeta';
 import type { AchEffectCode } from '../excel_table/Tb_AchievementConfig';
 import type { MallGrant, MallGrantType, MallItemKey } from '../excel_table/Tb_MallItemConfig';
@@ -137,12 +141,30 @@ export interface IOuterDrawPreview {
     ticketUse: number;
     /** 本次需要花金币的抽数 */
     goldDraws: number;
-    /** 金币那部分的总价（按当日阶梯逐个累加） */
+    /** 金币那部分的总价（按当日阶梯逐个累加；抽不动时恒 0） */
     goldCost: number;
-    /** 消耗文案（`抽 取` 按钮上那一行；唯一一处拼装） */
+    /**
+     * **这一次抽（`count` 抽）在价格阶梯上的金币全价** —— 忽略券、也不管买不买得起。
+     *
+     * `costLack` 时按钮上那个红字就是它（那时 `goldCost` 恒为 0，报不出"要攒多少"）；
+     * 抽得动时它只是"如果全用金币付要多少"，**不是**这一下真扣的数（真扣的数看 `goldCost`）。
+     */
+    fullGoldCost: number;
+    /**
+     * 消耗文案（`抽 取` 按钮上那一行；唯一一处拼装 = `OuterRelicDraw.formatButtonText`）：
+     * 抽得动 → 报真正会扣的（`抽取券 N` / `金币 M` / `券N 金币M`）；抽不动 → 报金币全价。
+     */
     costText: string;
     /** 至少抽得动一次（**按钮亮不亮的唯一判据**） */
     enabled: boolean;
+    /**
+     * **券和金币都不够这一次抽**（= `enabled === false` 的另一面）—— 界面据此把消耗那行
+     * 画成**红字**（用户口径 2026-11：都不够时仍显示金币消耗值，但是红色显示）。
+     *
+     * 界面**不靠** `!enabled` 判红：配表没就绪（`previewOuterDraw` 抛异常）时那一行是 `—`，
+     * 它不该是红的 —— 红的语义是"这就是你要攒的钱"，不是"什么都算不出来"。
+     */
+    costLack: boolean;
     /** 能按 `count` 个一次抽完（false = 会少抽几个，界面该给一行提示） */
     full: boolean;
     /** 下一个**付费抽**的单价（"再抽一次要 200"这类提示 / 日志对账用） */
@@ -234,7 +256,7 @@ export class DataCenter {
             getAccountLevel: () => this.playerInfo.data.level,
             getLoginStreak: () => this.playerInfo.data.loginStreak,
             // 遗物**图鉴**种类数（`relic_collected` 的数据源）：
-            // 收集记录只由 `RelicShop.grantRelic` 写入，且已过滤成「有局外版」的那 37 件，
+            // 收集记录的唯一写入方是局外抽取（`drawOuterRelic`），池子 = 「有局外版」的那些件，
             // 所以这里直接取种类数就与图鉴页 `Cmp_OuterRelics` 的「已收集 N/37」同口径
             getRelicKinds: () => this.equipCollection.getDistinctCount(),
             grantReward: (gold, group) => this.grantAchieveReward(gold, group),
@@ -266,8 +288,53 @@ export class DataCenter {
         //    而 `mergeDeep` 会把这种动态字典整片吃掉、读档后剩下的那个对象又过不了 `.find`
         //    （口径与原因见 `funcs/EquipmentCollection` 文件头 ⚠⚠）→ 启动时统一转成数组
         this.equipCollection.migrateCollectedShape();
+        // ⑦ **默认英雄补齐**（幂等，不扣金币）：`records` 是数组 → 读档时整片覆盖默认值，
+        //    所以"默认解锁名单从 1 位加到 2 位"对老档不生效（他只解锁过 1001）。
+        //    这里按名单补一次，老档也能拿到新加的默认英雄，局内候选池才跟着变宽。
+        const heroAdded = this.heroData.ensureDefaultUnlocked();
+        if (heroAdded > 0) {
+            console.log(`[英雄] 默认英雄补齐：本次补了 ${heroAdded} 位（默认名单 ${DEFAULT_UNLOCKED_HERO_IDS.join('/')}）`);
+        }
+        // ⑧ **「推荐难度」这条通路**（2026-11）：按**局外成长**放开难度档位。
+        //    不注入的话 `LevelData` 只会走"通关第 N 档解锁第 N+1 档"——
+        //    那正是"玩家永远追不上自己档位、于是一路秒杀"的根因，
+        //    口径与实测锚点见 `common/DifficultyRecommend` 的文件头。
+        //    ⚠ 注入的是**函数**（不是算好的数）：它会跟着局外收集变化，每次读都现算。
+        this.levelData.setRecommendProvider(() => this.recommendDifficulty());
+        console.log(`[难度] ${describeRecommend(this.avgOuterCopies())}`);
 
         console.log('[DataCenter] 数据中心初始化完成');
+    }
+
+    /* ===================================================================
+     * 「推荐难度」—— 按局外成长决定玩家该从第几档开始
+     *
+     * 分工（口径真源 `common/DifficultyRecommend`）：
+     *   · 曲线（份数 → 战力倍率 → 档位）与标定脚本都在那边，**本文件只负责喂输入**；
+     *   · 注入点只有一处：`levelData.setRecommendProvider`（`LevelData` 因此不用 import 这条链，
+     *     见该方法上的 ⚠）。
+     * =================================================================== */
+
+    /**
+     * 局外遗物的**平均份数** = 已收集总份数 ÷ 局外遗物件数。
+     *
+     * 为什么用"平均"：局外抽取是**档内优先未收集**，所以真实分布本来就接近均匀
+     * （`OuterRelicDraw` 的规则），平均值就是那个分布的第一个矩。
+     * 池子是空的（配表没加载 / 没有 scope 含 outer 的行）→ **回 0（= 档 1），不猜**。
+     */
+    private avgOuterCopies(): number {
+        const kinds = OuterRelicDraw.outerPool().length;
+        if (kinds <= 0) return 0;
+        let total = 0;
+        for (const id of this.equipCollection.getAllCollectedIds()) {
+            total += this.equipCollection.getCollectedCount(id);
+        }
+        return total / kinds;
+    }
+
+    /** 按局外成长算「推荐难度档位」（1 ~ `DIFFICULTY_MAX`）—— 唯一出口是上面那个注入点 */
+    private recommendDifficulty(): number {
+        return recommendLevel(this.avgOuterCopies());
     }
 
     // ────────────── 账号经验 / 等级（唯一入口） ──────────────
@@ -405,26 +472,86 @@ export class DataCenter {
     }
 
     /**
-     * **一局通关结算：发通用英雄经验**（全项目唯一的英雄经验发放点）。
+     * **一局结束结算：发通用英雄经验**（全项目唯一的英雄经验发放点）。
      *
-     * 调用点只有一处：`Scene_Game_Stage.endRun` 的**通关分支**（`clearRewardHeroExpBase` 这个键
-     * 的自述就是"通关局外英雄经验基数（结算时按配置发）"）。中途退出走 `exit()`，不调 `endRun` → 不发。
+     * 调用点只有一处：`Scene_Game_Stage.endRun()` —— **胜利 / 英雄阵亡 / Boss 超时三条路都走它**
+     * （2026-11 用户口径「局内结束还要奖励英雄升级经验，需要管理阶段和时间，给一个范围」）。
+     * 中途退出走 `exit()`，不调 `endRun` → 不发。
      *
-     * 数量 = `clearRewardHeroExpBase × rewardMul(难度档位)`（`DifficultyConfig.rewardMul` —— 与
-     * 局内击杀奖励的收益倍率**同一个函数**，档位越高发得越多，档 1 = ×1）。
+     * 数量由 `common/RunClearHeroExp` 一处算出（**别在这里重算**）：
+     * `clamp(round(基数 × (0.6×阶段进度 + 0.4×时间进度) × rewardMul(难度)), 下限, 上限)`
+     * —— 公式、区间表与三条口径都在那个文件的文件头。
      *
+     * @param stage      本局到达的阶段（0 = 准备期，1~4 常规，5 = Boss 阶段）
+     * @param elapsed    本局存活秒数
      * @param difficulty 本局难度档位（1 ~ `DIFFICULTY_MAX`）
-     * @returns 实际发放的经验（0 = 本次没发）
+     * @returns 实际发放的经验（0 = 本局不发：只有"基数配成 0"这一种可能）
      */
-    grantClearHeroExp(difficulty: number): number {
-        const base = BattleConstUtil.getClearRewardHeroExpBase();
-        const amount = Math.max(0, Math.round(base * rewardMul(difficulty)));
+    grantRunClearHeroExp(stage: number, elapsed: number, difficulty: number): number {
+        const amount = RunClearHeroExp.amountFor(stage, elapsed, difficulty);
         if (amount <= 0) return 0;
 
         this.heroData.addSharedExp(amount);
         this.saveAll();
-        console.log(`[英雄经验] 通关结算 +${amount}（基数 ${base} × 难度收益 ×${rewardMul(difficulty).toFixed(2)}）`
+        console.log(`[英雄经验] 结算 ${RunClearHeroExp.describe(stage, elapsed, difficulty)}`
             + `，通用经验池现有 ${this.heroData.getSharedExp()}`);
+        return amount;
+    }
+
+    /**
+     * **结算面板「看广告翻倍」的补发**（金币 / 英雄经验各一份差额）。
+     *
+     * 为什么是"补差额"而不是"撤销基础值再整份重发"：基础值在 `endRun` 里**已经落库**
+     * （面板只是回执，见 `docs/settle/README.md` §3），撤销要动 `addCurrency` 的负数分支、
+     * 还要防"玩家点确定退得快、存档已经写了两遍" —— 补差额是一笔加法，天然幂等友好
+     * （调用方 `Scene_Game_Stage` 用 `settleAdUsed` 保证一局只调一次）。
+     *
+     * 口径真源 = `common/RewardAdBonus` 的文件头（倍率怎么掷、为什么先掷后看、为什么只补差额）。
+     *
+     * @param gold    要补发的**局外金币**（0 = 不补）
+     * @param heroExp 要补发的**通用英雄经验**（0 = 不补）
+     */
+    grantRunClearAdBonus(gold: number, heroExp: number): void {
+        const g = Math.max(0, Math.floor(gold) || 0);
+        const e = Math.max(0, Math.floor(heroExp) || 0);
+        if (g <= 0 && e <= 0) return;
+
+        if (g > 0) this.itemData.addCurrency(CurrencyType.Gold, g);
+        if (e > 0) this.heroData.addSharedExp(e);
+        this.saveAll();
+        console.log(`[结算翻倍] 补发金币 +${g} / 英雄经验 +${e}`
+            + `（金币现有 ${this.itemData.getCurrency(CurrencyType.Gold)}`
+            + ` · 通用经验池 ${this.heroData.getSharedExp()}）`);
+    }
+
+    /* ===================================================================
+     * 一局打完 → 发局外金币（`common/RunClearReward`）
+     * =================================================================== */
+
+    /**
+     * **一局结算金币**：本局打完就发（胜负都发），**随局数指数衰减**。
+     *
+     * 为什么要有它：一次性金币原来几乎全压在成就的**铜档**上（8,650 / 2~3 局就能全清）
+     * ⇒ 新手第一个晚上就能抽 16 次，局外属性 ×4.4，局内前 4 分钟被压平。
+     * 现在改成「前几局给启动资金、之后迅速回落到很低」，曲线与四条口径全在
+     * `common/RunClearReward` 的文件头（**别在这里重算**）。
+     *
+     * 调用点只有一处：`Scene_Game_Stage.endRun()`，且必须排在 `reportRunTasks()` **之后**
+     * —— 局数取自 `PlayerInfo.totalGames`，而它在 `recordGameEnd()` 里 +1（同一处调用）。
+     * **中途退出**走 `exit()`、不调 `endRun` ⇒ 不发（与「完成对局 +1」的任务口径一致）。
+     *
+     * @param stage 本局到达的阶段（`Scene_Game_Stage.stage`：0 = 准备期，1~4 常规，5 = Boss 阶段）
+     * @returns 实发金币（0 = 本局不发）
+     */
+    grantRunClearGold(stage: number): number {
+        const runIndex = Math.max(1, Math.floor(this.playerInfo.data.totalGames || 1));
+        const amount = RunClearReward.goldFor(runIndex, stage);
+        if (amount <= 0) return 0;
+
+        this.itemData.addCurrency(CurrencyType.Gold, amount);
+        this.saveAll();
+        console.log(`[按局结算] ${RunClearReward.describe(runIndex, stage)}`
+            + `，金币现有 ${this.itemData.getCurrency(CurrencyType.Gold)}`);
         return amount;
     }
 
@@ -442,10 +569,13 @@ export class DataCenter {
      * =================================================================== */
 
     /**
-     * 一次抽取的**预览** —— 界面画按钮（消耗文案 / 亮不亮）只读它，**不自己算钱**。
+     * 一次抽取的**预览** —— 界面画按钮（消耗文案 / 亮不亮 / 红不红）只读它，**不自己算钱**。
      *
      * 与 `drawOuterRelic` 共用同一个 `OuterRelicDraw.plan()`：界面显示的数 == 真正扣的数
      * （与商城 `previewShopDailyGift` 同一套路；让界面自己按阶梯累加迟早差一档）。
+     *
+     * 抽不动时（券和金币都不够）`costText` **不是** `—`，而是这一次抽的**金币全价**、且
+     * `costLack = true` —— 界面把那一行画成红字（"还差这么多"），按钮照旧置灰。
      */
     public previewOuterDraw(count: number): IOuterDrawPreview {
         const want = DataCenter.clampDrawCount(count);
@@ -462,9 +592,13 @@ export class DataCenter {
             ticketUse: plan.ticketUse,
             goldDraws: plan.goldDraws,
             goldCost: plan.goldCost,
-            costText: OuterRelicDraw.formatCost(plan),
+            /** 这一次抽的**全价**（忽略券）—— 抽不动时那行红字取它，见 `formatButtonText` */
+            fullGoldCost: OuterRelicDraw.costOfDraws(want, paidIndex),
+            costText: OuterRelicDraw.formatButtonText(plan, want, paidIndex),
             /** 至少抽得动一次（**按钮亮不亮的唯一判据**） */
             enabled: plan.steps.length > 0,
+            /** 券和金币都不够这一次抽 → 那行金币价改成**红字**（判据与 `enabled` 同源、方向相反） */
+            costLack: plan.steps.length === 0,
             /** 能按 `count` 个一次抽完（false = 会少抽几个） */
             full: plan.steps.length === want,
             /** 下一个**付费抽**的单价（界面的"再抽一次要 200"提示 / 日志对账用） */

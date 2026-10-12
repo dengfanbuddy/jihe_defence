@@ -6,7 +6,9 @@
  *   - shop_draw.json       品质抽取概率（按英雄等级段的 白/蓝/黄/红 权重 + 越阶概率）
  *   - relics.json          肉鸽商店道具（293 件，id 1001~1293）＝ 之前的「遗物」，效果由 modifiers 描述
  *   - abilities.json       技能表（**含肉鸽额外技能 30 个，scope=shop，id 101~130**；原 shop_skills 表已并入）
- *   - kill_buffs.json      击杀商店 Buff（20 个，可重复购买、价格递增）
+ *   - kill_buffs.json      **神器**（20 个，永久、可叠层、每层价格 ×price_growth 递增）——
+ *                          名字是旧称，语义见 docs/artifact-drop/README.md
+ *   - battle_items.json    局内**掉落 Buff**（14 件限时道具，阶段 Boss 掉进 6 格小背包；与神器是两条轨）
  *
  * 道具（遗物）的属性加成统一走 Modifier 管线：
  *   遗物条目引用「属性修改」共享模板（`MODIFY_ATTR_TEMPLATE_ID`），自己的属性与数值写在 `kv.attrs` 里 ——
@@ -32,6 +34,8 @@ import { AbilityCfgContainer, abilityInShop, abilityLevelDesc, abilityMaxLevel }
 import type { AbilityCfg } from '../../excel_table/Tb_AbilityConfig';
 import { KillBuffCfgContainer } from '../../excel_table/Tb_KillBuffConfig';
 import type { KillBuffCfg } from '../../excel_table/Tb_KillBuffConfig';
+import { BattleItemCfgContainer } from '../../excel_table/Tb_BattleItemConfig';
+import type { BattleItemCfg } from '../../excel_table/Tb_BattleItemConfig';
 import { ShopDrawCfgContainer } from '../../excel_table/Tb_ShopDrawConfig';
 import type { ShopDrawCfg } from '../../excel_table/Tb_ShopDrawConfig';
 import { ShopConstCfgContainer } from '../../excel_table/Tb_ShopConstConfig';
@@ -43,7 +47,7 @@ export const SHOP_RARITY_ORDER: ShopRarity[] = ['common', 'rare', 'epic', 'legen
 /** 商店内容（道具/技能）的品质：白/蓝/黄/红（与 relics.rarity 同源） */
 export type ShopRarity = RelicRarity;
 
-/** 道具（遗物）id 段：1000 + 设计稿道具 id（1294 起是**只有局外版**的遗物，不进商店池，靠 scope 过滤） */
+/** 道具（遗物）id 段：1000 + 设计稿道具 id（`scope` 含 `outer` 的件**局内局外同一批**，商店池只认"有局内版"） */
 export const SHOP_RELIC_ID_MIN = 1001;
 export const SHOP_RELIC_ID_MAX = 1293;
 
@@ -56,8 +60,11 @@ const DEFAULTS: Record<string, ShopConstValue> = {
     optionCount: 4,
     pickCount: 1,
     drawCostBase: 50,
-    drawCostStep: 50,
-    drawCostCap: 200,
+    drawCostStep: 25,
+    // 0 = **不封顶**（2026-11：原来是 200，抽到第 7 次之后就一直是 200，等于"费用不再涨"。
+    // 改不封顶后单局可抽次数由 ~48 降到 ~25，局内滚雪球跟着慢下来 ——
+    // 这条本来也是 `docs/局内刷怪节奏设计.md` §12.6 的建议值）
+    drawCostCap: 0,
     drawCostResetEachPhase: 0,
     stageMaxByPhase: [1, 2, 3, 4],
     skillMaxPerDraw: 2,
@@ -72,6 +79,12 @@ const DEFAULTS: Record<string, ShopConstValue> = {
     adRefreshEnabled: 0,
     killBuffPriceGrowth: 1.35,
     killBuffMaxStackDefault: 10,
+    killBuffRefreshCost: 50,
+    killBuffRefreshCostStep: 25,
+    killBuffRefreshCostCap: 200,
+    killBuffFreeRefreshPerRun: 1,
+    killBuffRefreshAdFreePerRun: 1,
+    heroSelectRefreshCost: 100,
 };
 
 /** 容器未就绪时读取常量（每次查询都会尝试重新取容器，加载完成后自动生效） */
@@ -133,8 +146,8 @@ export class ShopConfig {
     static getOptionCount(): number { return ShopConfig.getNumber('optionCount', 4); }
     /** 每次抽取可选择的选项数（选 1 后其余置灰） */
     static getPickCount(): number { return Math.max(1, ShopConfig.getNumber('pickCount', 1)); }
-    /** 抽取费用上限 */
-    static getDrawCostCap(): number { return ShopConfig.getNumber('drawCostCap', 200); }
+    /** 抽取费用上限（**0 = 不封顶**；见 `DEFAULTS.drawCostCap` 的说明） */
+    static getDrawCostCap(): number { return ShopConfig.getNumber('drawCostCap', 0); }
 
     /** 第 drawIndex 次抽取的费用（drawIndex 从 0 开始）：clamp(base + step×n, …, cap) */
     static getDrawCost(drawIndex: number): number {
@@ -190,7 +203,7 @@ export class ShopConfig {
      *
      * ⚠ 2026-07 起 relics 表是「一件遗物一行」：局内版 / 局外版共用 id 与品质，
      * 只是 `modifiers_inner` / `modifiers_outer` 分两侧。因此**必须按 scope 过滤**，
-     * 否则只有局外版的遗物（id 1294~1302）会混进局内商店抽取池。
+     * 否则只有局外版的遗物（`scope='outer'`；2026-11 起表里已经没有）会混进局内商店抽取池。
      * id < 1000 的手工遗物是 demo 内容，同样不进商店池。
      */
     static getRelics(): RelicCfg[] {
@@ -258,8 +271,59 @@ export class ShopConfig {
         }
     }
 
+    /**
+     * 第 `refreshIndex` 次**付费**神器的刷新费用（`refreshIndex` 从 0 开始）：
+     * `clamp(base + step × n, …, cap)` —— 公式与 `getDrawCost`（遗物抽取那套）**逐字同形**，
+     * 因为两个商店的刷新按钮共用同一个面板判据与同一套玩家预期。
+     *
+     * ⚠ 三层口径（改这里之前先看 `docs/artifact-drop/README.md` §12）：
+     *   ① 只有**付费**刷新推进 `refreshIndex` —— 免费刷新（开局白送）与广告刷新**都不抬价**，
+     *      否则"白送的那一次"会当场把后续单价顶高一档；
+     *   ② 封的是**单价**不是**次数** —— 玩家要的"刷新次数无上限"照旧（无尽模式靠这条）；
+     *   ③ `cap <= 0` = 不封顶（与 `getDrawCostCap` 同口径）。
+     */
+    static getKillBuffRefreshCost(refreshIndex: number): number {
+        const base = ShopConfig.getNumber('killBuffRefreshCost', 50);
+        const step = ShopConfig.getNumber('killBuffRefreshCostStep', 25);
+        const cap = ShopConfig.getNumber('killBuffRefreshCostCap', 200);
+        const raw = base + step * Math.max(0, refreshIndex);
+        return cap > 0 ? Math.min(raw, cap) : raw;
+    }
+
+    /** 每局**开局白送**的神器免费刷新次数（`killBuffFreeRefreshPerRun`；0 = 不白送） */
+    static getKillBuffFreeRefreshPerRun(): number {
+        return Math.max(0, ShopConfig.getNumber('killBuffFreeRefreshPerRun', 1));
+    }
+
     /** 技能在指定等级下的效果描述（lv1/lv2/lv3 逐级回落；全空返回 ''） */
     static getSkillLevelDesc(cfg: AbilityCfg, level: number): string {
         return abilityLevelDesc(cfg, level);
+    }
+
+    /* ===================================================================
+     * 局内掉落 Buff（`battle_items.json`）—— 阶段 Boss 掉落、进 6 格小背包
+     *
+     * ⚠ 与上面的「击杀商店 Buff（神器）」是**两条轨**：
+     *   神器 = 永久 + 可叠层 + 花击杀数买刷新；掉落 Buff = **限时 + 一次性消耗 + 打 Boss 掉**。
+     *   见 `docs/artifact-drop/README.md`。
+     * =================================================================== */
+
+    /** 全部掉落 Buff */
+    static getBattleItems(): BattleItemCfg[] {
+        return pick(() => TbRoot.ins.getTbContainer(BattleItemCfgContainer).cfgs, []);
+    }
+
+    static getBattleItem(id: number): BattleItemCfg | undefined {
+        return pick(() => TbRoot.ins.getTbContainer(BattleItemCfgContainer).getCfgById(id), undefined);
+    }
+
+    /** 掉落 Buff 的权重（`weight` 缺省 1；`<= 0` = 配了但不投放） */
+    static getBattleItemWeight(cfg: BattleItemCfg): number {
+        try {
+            return TbRoot.ins.getTbContainer(BattleItemCfgContainer).weightOf(cfg);
+        } catch {
+            const w = cfg?.weight ?? 1;
+            return Number.isFinite(w) && w > 0 ? w : 0;
+        }
     }
 }

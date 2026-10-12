@@ -2,9 +2,12 @@
   {
     "id": 1,
     "name": "燃烧",
+    "icon": "textures/buffs/burning",
     "is_debuff": true,
     "is_hidden": false,
+    "bar_show": true,
     "dispel_level": 1,
+    "desc": "每秒受到 10 点魔法伤害，持续 3 秒。",
     "duration": 3,
     "stack_mode": "stack",
     "effects": [
@@ -72,7 +75,9 @@
     "name": "无敌",
     "is_debuff": false,
     "is_hidden": false,
+    "bar_show": true,
     "dispel_level": 2,
+    "desc": "免疫一切伤害，仍可移动与攻击，持续 5 秒。",
     "duration": 5,
     "stack_mode": "none",
     "effects": [
@@ -220,23 +225,13 @@
   },
   {
     "id": 13,
-    "name": "偷钱(被动)",
+    "name": "悬赏(被动)",
     "is_debuff": false,
     "is_hidden": false,
     "dispel_level": 1,
     "duration": -1,
     "stack_mode": "refresh",
-    "events": [
-      {
-        "event": "on_attack_landed",
-        "actions": [
-          {
-            "type": "steal_gold",
-            "value": 20
-          }
-        ]
-      }
-    ]
+    "script_id": "Modifier_KillBounty"
   },
   {
     "id": 14,
@@ -608,37 +603,12 @@
   },
   {
     "id": 33,
-    "name": "黑洞(被动)",
+    "name": "骷髅地雷(被动)",
     "is_debuff": false,
-    "is_hidden": false,
-    "dispel_level": 1,
+    "is_hidden": true,
+    "dispel_level": 0,
     "duration": -1,
-    "stack_mode": "refresh",
-    "effects": [
-      {
-        "type": "modify_attr",
-        "attrs": [
-          [
-            3,
-            8,
-            "add"
-          ]
-        ]
-      }
-    ],
-    "events": [
-      {
-        "event": "on_attack_landed",
-        "actions": [
-          {
-            "type": "aoe_damage",
-            "radius": 130,
-            "value": 28,
-            "damage_type": "magical"
-          }
-        ]
-      }
-    ]
+    "stack_mode": "refresh"
   },
   {
     "id": 34,
@@ -755,7 +725,10 @@
     "name": "技能·圣盾",
     "is_debuff": false,
     "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "圣盾",
     "dispel_level": 1,
+    "desc": "格挡掉的伤害积攒成护盾池（上限 = 最大生命 ×8%），池满后可继续吸收伤害。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "Modifier_DivineShield"
@@ -1000,10 +973,46 @@
     "name": "技能·时间回廊",
     "is_debuff": false,
     "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "回廊",
     "dispel_level": 1,
+    "desc": "受到致命伤害时把生命补回 30%，之后进入冷却（冷却期间不占格）。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "Modifier_TimeRewind"
+  },
+  {
+    "id": 68,
+    "name": "技能·陷阱",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh"
+  },
+  {
+    "id": 69,
+    "name": "血怒(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 0,
+    "desc": "每损失 1% 生命提升攻击速度；生命高于 60% 时每秒流失 1% 最大生命。",
+    "duration": -1,
+    "stack_mode": "refresh",
+    "strongest_only": true,
+    "script_id": "Modifier_BloodRage"
+  },
+  {
+    "id": 70,
+    "name": "弹幕散射(被动)",
+    "is_debuff": false,
+    "is_hidden": false,
+    "dispel_level": 0,
+    "desc": "普攻命中后，向攻击范围内另外几个敌人各射一箭。",
+    "duration": -1,
+    "stack_mode": "refresh",
+    "strongest_only": true,
+    "script_id": "Modifier_Barrage"
   },
   {
     "id": 200,
@@ -1129,8 +1138,11 @@
     "id": 212,
     "name": "遗物·连击",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "连击",
     "dispel_level": 0,
+    "desc": "命中按概率叠一层攻速；从第一次叠上那击起算窗口，窗口到点整段清零。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_AtkSpeedStack"
@@ -1139,8 +1151,11 @@
     "id": 213,
     "name": "遗物·蓄力",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "蓄力",
     "dispel_level": 0,
+    "desc": "停手蓄力：攒满后下一击附带额外伤害，出手即清空。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_Charge"
@@ -1169,8 +1184,11 @@
     "id": 216,
     "name": "遗物·护盾充能",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "护盾",
     "dispel_level": 0,
+    "desc": "每过一段时间重新获得一层可吸收伤害的护盾。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_ShieldCharge"
@@ -1199,8 +1217,11 @@
     "id": 219,
     "name": "遗物·濒死守护",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "守护",
     "dispel_level": 0,
+    "desc": "生命被打到 25% 以下时大幅减伤，触发后进入冷却。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_NearDeath"
@@ -1209,8 +1230,11 @@
     "id": 220,
     "name": "遗物·不屈",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "不屈",
     "dispel_level": 0,
+    "desc": "受到致命伤害时保留 1 点生命；剩余次数用完就不再占格。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_LastStand"
@@ -1249,8 +1273,11 @@
     "id": 224,
     "name": "遗物·法术屏障",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "法障",
     "dispel_level": 0,
+    "desc": "就绪时下一次法术伤害被大幅减免，随后重新充能。",
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_MagicBarrier"
@@ -1404,6 +1431,235 @@
     "duration": -1,
     "stack_mode": "refresh",
     "script_id": "RelicHook_SilenceProc"
+  },
+  {
+    "id": 240,
+    "name": "神器·天怒",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "KillBuff_Skyfall"
+  },
+  {
+    "id": 241,
+    "name": "神器·波次补给",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "KillBuff_WaveHeal"
+  },
+  {
+    "id": 242,
+    "name": "神器·战地急救",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "KillBuff_CritHeal"
+  },
+  {
+    "id": 243,
+    "name": "神器·滚雪球",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "KillBuff_Snowball"
+  },
+  {
+    "id": 250,
+    "name": "道具·血包",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": 0,
+    "stack_mode": "none",
+    "script_id": "BattleItem_BloodBag"
+  },
+  {
+    "id": 251,
+    "name": "道具·诡雷",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": 15,
+    "stack_mode": "refresh"
+  },
+  {
+    "id": 252,
+    "name": "道具·引爆器",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": 0,
+    "stack_mode": "none",
+    "script_id": "BattleItem_MineTrigger"
+  },
+  {
+    "id": 260,
+    "name": "遗物·哨戒炮台",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Turret"
+  },
+  {
+    "id": 261,
+    "name": "遗物·镜像残影",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Mirror"
+  },
+  {
+    "id": 262,
+    "name": "遗物·增殖体",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Clones"
+  },
+  {
+    "id": 263,
+    "name": "遗物·急造",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 264,
+    "name": "遗物·雷区",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 265,
+    "name": "遗物·重装",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 266,
+    "name": "遗物·扩爆",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 267,
+    "name": "遗物·燃烧雷",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 268,
+    "name": "遗物·连锁雷",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_MineTune"
+  },
+  {
+    "id": 269,
+    "name": "遗物·血怒",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_BloodRush"
+  },
+  {
+    "id": 270,
+    "name": "遗物·拼命",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_DesperateAtk"
+  },
+  {
+    "id": 271,
+    "name": "遗物·焚血",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_SelfBleed"
+  },
+  {
+    "id": 272,
+    "name": "遗物·浴血",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_LastBreath"
+  },
+  {
+    "id": 273,
+    "name": "遗物·散射",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Multishot"
+  },
+  {
+    "id": 274,
+    "name": "遗物·箭雨",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Volley"
+  },
+  {
+    "id": 275,
+    "name": "遗物·跳弹",
+    "is_debuff": false,
+    "is_hidden": true,
+    "dispel_level": 0,
+    "duration": -1,
+    "stack_mode": "refresh",
+    "script_id": "RelicHook_Ricochet"
   },
   {
     "id": 300,
@@ -1596,10 +1852,89 @@
     ]
   },
   {
+    "id": 320,
+    "name": "深渊灼烧",
+    "icon": "textures/buffs/abyss_burn",
+    "is_debuff": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "灼烧",
+    "dispel_level": 1,
+    "desc": "受到的所有伤害 +30%，持续 6 秒（深渊领主的火球附带）。",
+    "duration": 6,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            12,
+            30,
+            "percent"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": 321,
+    "name": "恐惧",
+    "icon": "textures/buffs/fear",
+    "is_debuff": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "恐惧",
+    "dispel_level": 1,
+    "desc": "无法普攻、也无法施放技能，持续 2.5 秒（深渊领主的咆哮）。",
+    "duration": 2.5,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "apply_state",
+        "state": "disarmed"
+      },
+      {
+        "type": "apply_state",
+        "state": "silenced"
+      }
+    ]
+  },
+  {
+    "id": 322,
+    "name": "深渊诅咒",
+    "icon": "textures/buffs/abyss_curse",
+    "is_debuff": true,
+    "is_hidden": false,
+    "bar_show": true,
+    "bar_text": "诅咒",
+    "dispel_level": 1,
+    "desc": "护甲 -12、攻击速度 -25%，持续 8 秒（深渊领主的诅咒）。",
+    "duration": 8,
+    "stack_mode": "refresh",
+    "effects": [
+      {
+        "type": "modify_attr",
+        "attrs": [
+          [
+            6,
+            -12,
+            "add"
+          ],
+          [
+            4,
+            -25,
+            "percent"
+          ]
+        ]
+      }
+    ]
+  },
+  {
     "id": 1000,
     "name": "属性修改",
     "is_debuff": false,
-    "is_hidden": true,
+    "is_hidden": false,
+    "bar_show": true,
     "dispel_level": 0,
     "duration": -1,
     "stack_mode": "none",

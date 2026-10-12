@@ -3,6 +3,7 @@ import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { AtlasIcon } from '../../../../common/AtlasIcon';
 import { NodeUtils } from '../../../../common/NodeUtils';
 import { rarityColor } from '../../../../common/RelicRarityColor';
+import { formatTags } from '../../../../common/RelicTags';
 import { relicOuterDesc, type RelicCfg } from '../../../../excel_table/Tb_RelicConfig';
 
 const { ccclass, property } = _decorator;
@@ -74,11 +75,31 @@ export class OuterRelicItem extends UIWidget {
     @property(Label)
     descLabel: Label = null;
 
+    /**
+     * **流派标签**（`relics.tags` 全部，`·` 连接，见 `common/RelicTags`）。
+     *
+     * 与局内商店格 `ShopRiItem.tagsLabel` 的分工：那一格只有 70px 宽 → 只放**主标签**；
+     * 这里第一行 `name` 右侧空着约 260px → **放得下全部**（2026-11 局外池扩到 268 件之后
+     * 最坏情况仍是 3 个标签：3×4 汉字 @14px ≈ 199px，框宽 260px 以内）。
+     *
+     * ⚠ 标签来自 `relics.tags`（由内层设计推出来，全表 268 件都有）；`gen-relics-inner-from-design`
+     * 会拦"一件没有任何标签"，所以这一行**不该**出现空串 —— 真出现就是那条红线被绕过了。
+     * （历史：以前有 9 件"只有局外版"的中立道具没标签，2026-11 那 9 件已整行删除。）
+     *
+     * 预制件里是 `templates/OuterRelicItem/tags`（fs14 / `#999999` / 左对齐）；
+     * 没在编辑器里拖也能跑：`ensureTags()` 按名字兜底。
+     */
+    @property(Label)
+    tagsLabel: Label = null;
+
     /** 当前显示的遗物 id（0 = 没内容；调试用） */
     relicId = 0;
 
     /** 底框节点名（预制件契约，与 `ShopRiItem` 一致） */
     private static readonly FRAME_NODE = 'head';
+
+    /** 流派标签节点名（预制件契约：本节点的直接子节点 `tags`，与 `name` 同一行） */
+    private static readonly TAGS_NODE = 'tags';
 
     /**
      * 填一行数据。
@@ -104,6 +125,9 @@ export class OuterRelicItem extends UIWidget {
         const border = this.ensureBorder();
         if (border) border.color = new Color(tint);
         if (this.descLabel) this.descLabel.string = relicOuterDesc(cfg);
+        // 流派标签：全部铺上（这一行放得下），9 件仅局外版的中立道具没有 → 空串留白
+        const tags = this.ensureTags();
+        if (tags) tags.string = formatTags(cfg.tags);
         if (this.countLabel) {
             this.countLabel.string = owned ? `×${count}` : '未获得';
             this.countLabel.color = new Color(owned ? COUNT_OWNED_COLOR : COUNT_UNOWNED_COLOR);
@@ -130,16 +154,31 @@ export class OuterRelicItem extends UIWidget {
         return this.frame;
     }
 
+    /** 标签 Label：同上，没拖引用就按名字 `tags` 兜底 */
+    private ensureTags(): Label {
+        if (this.tagsLabel?.isValid) return this.tagsLabel;
+        const found = this.node.getChildByName(OuterRelicItem.TAGS_NODE);
+        this.tagsLabel = found?.getComponent(Label) ?? null;
+        return this.tagsLabel;
+    }
+
     /**
-     * 加载图标。`relics.json` 的 `icon` 对**有局外版的 37 件**全是本地路径
-     * （远程 URL 只剩 7 件**仅局外**的中立道具…的旧记录；实测这 37 件的 `icon` 全是
-     * `textures/relics/<key>`，所以这里只走本地分支）。
+     * 加载图标。`relics.json` 的 `icon` 对**全表 268 件**全是本地路径
+     * （`textures/relics/<key>`），所以这里只走本地分支 —— 原来那 9 件"只有局外版"的中立道具
+     * 有远程 URL 记录，2026-11 已整行删除（`ShopRelicsItem` 里保留着远程那一支做兼容）。
      * 没配图标 → 保持预制件里的占位图不动，不报错（图鉴里空格子比"坏了"更像坏了）。
+     *
+     * ⚠ **异步回来时必须认人**（`relicId` 而不是 `this.icon.isValid` 就算数）：
+     * 总览列表 2026-11 改成虚拟列表后，格子是**对象池里复用**的 —— 同一个节点这一帧画 A、下一帧可能画 B，
+     * 而 `AtlasIcon` 是按路径缓存的 promise（解析快慢不一）。不校验的话，A 那张图晚一步解析完
+     * 会盖到正在显示 B 的格子上，**而且会一直错到那一格再次被重画**（名字写着 B、图标是 A）。
+     * `ItemBagCell.applyIcon` 是同一条口径的先例（那里比的是 `iconPath`）。
      */
     private loadIcon(url: string): void {
         if (!this.icon || !url) return;
+        const expectId = this.relicId;
         AtlasIcon.loadIconFrame(url).then((sf) => {
-            if (sf && this.icon?.isValid) this.icon.spriteFrame = sf;
+            if (sf && this.icon?.isValid && this.relicId === expectId) this.icon.spriteFrame = sf;
         });
     }
 }

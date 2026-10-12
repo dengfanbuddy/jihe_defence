@@ -114,56 +114,58 @@ const listIndexedRecipes = () => {
 };
 
 const IMPLS = {
-    'tool-count-is-8': {
-        desc: 'bridge 里 ctx.tools.register 正好 8 次（工具面表格的前提）',
+    'tool-count-is-7': {
+        desc: 'bridge 里 ctx.tools.register 正好 7 次（工具面表格的前提）',
         run() {
             const text = read(BRIDGE_FILE);
             if (text == null) return { ok: false, detail: '读不到 bridge 插件' };
             const n = (text.match(/ctx\.tools\.register\s*\(/g) || []).length;
             return {
-                ok: n === 8,
-                detail: '实测注册 ' + n + ' 个工具' + (n === 8 ? '' : '（不是 8 → 「工具面」那张表已失真）'),
+                ok: n === 7,
+                detail: '实测注册 ' + n + ' 个工具' + (n === 7 ? '' : '（不是 7 → 「工具面」那张表已失真）'),
             };
         },
     },
     /**
-     * 「点与跑」那一节的锚点：三件套**四处都要在**，缺一处那节说法就站不住 ——
-     * 插件要注册三个工具名、要真发对应的帧、编辑器侧要有分发表条目、
-     * 两个实现文件要有各自的"这条通道靠什么成立"的关键字。
+     * 「点与跑」那一节的锚点：两件套**四处都要在**，缺一处那节说法就站不住 ——
+     * 插件要注册两个工具名、要真发对应的帧、编辑器侧要有分发表条目、
+     * 实现文件要有各自的"这条通道靠什么成立"的关键字。
+     *
+     * ⚠ 2026-10-09 起这一节从**三件套**变成**两件套**：`cocos_runtime` 连同它的实现文件
+     * `source/preview.ts` 一起删掉了（运行预览这条能力彻底退出工具面）。所以这里除了
+     * "两件都在"，还钉一条**相反**的判据：那个文件必须**不在**（留着就是"能力还在"的假象）。
      */
     'interaction-tools-wired': {
-        desc: 'cocos_click_node / cocos_send_keys / cocos_runtime 三处都在（注册 + 帧 + 分发表 + 实现文件），且 runtime 只剩只读 `state`',
+        desc: 'cocos_click_node / cocos_send_keys 四处都在（注册 + 帧 + 分发表 + 实现文件），且预览探针文件已删除',
         run() {
             const bridgeText = read(BRIDGE_FILE);
             const toolsText = read(COCOS_TOOLS_FILE);
             const inputText = read(INPUT_FILE);
-            const previewText = read(PREVIEW_FILE);
-            if (bridgeText == null || toolsText == null || inputText == null || previewText == null) {
-                return { ok: false, detail: '读不到 bridge / cocos-tools / input / preview 源码' };
+            const sceneText = read(SCENE_FILE);
+            if (bridgeText == null || toolsText == null || inputText == null || sceneText == null) {
+                return { ok: false, detail: '读不到 bridge / cocos-tools / input / scene 源码' };
             }
             const missing = [];
-            for (const name of ['cocos_click_node', 'cocos_send_keys', 'cocos_runtime']) {
+            for (const name of ['cocos_click_node', 'cocos_send_keys']) {
                 if (!bridgeText.includes(`name: '${name}'`)) missing.push(`bridge 里没有 ${name} 的注册`);
             }
-            for (const frame of ["'click_node'", "'send_keys'", "'runtime'"]) {
+            for (const frame of ["'click_node'", "'send_keys'"]) {
                 if (!bridgeText.includes(frame)) missing.push(`bridge 里没有发 ${frame} 帧`);
             }
-            for (const entry of ['click_node: withRefs', 'send_keys: withRefs', 'runtime: withRefs']) {
+            for (const entry of ['click_node: withRefs', 'send_keys: withRefs']) {
                 if (!toolsText.includes(entry)) missing.push(`cocos-tools 分发表里没有 ${entry}`);
             }
             if (!inputText.includes('sendInputEvent')) missing.push('input.ts 里没有 sendInputEvent（那就不是真事件了）');
             if (!inputText.includes('MAX_TEXT_CHARS')) missing.push('input.ts 里没有 text 长度上限');
             /**
-             * ⚠ 2026-10-08 之后 `preview.ts` **不再开关预览**（那两条消息连同直调一起撤了）。
-             * 现在这里钉的是**相反的两件事**：只读探针还在（`query-scene-mode`），
-             * 而"开关预览"的那两条消息**一个字都不许留**（留了就是后门）。
+             * 删干净的那一半：文件不在（`preview.ts` 只服务被删掉的那个工具），
+             * 而运行态判据仍然活在场景脚本里（截图/点击链路靠它，别跟着一起删）。
              */
-            if (!previewText.includes('query-scene-mode')) missing.push('preview.ts 里没有只读的 query-scene-mode 探针');
-            if (previewText.includes('editor-preview-set-play')) missing.push('preview.ts 里又出现了 editor-preview-set-play（开关预览的后门）');
-            if (previewText.includes('editor-preview-call-method')) missing.push('preview.ts 里又出现了 editor-preview-call-method（pause/step 的后门）');
+            if (fs.existsSync(PREVIEW_FILE)) missing.push('source/preview.ts 又出现了（运行预览探针已随 cocos_runtime 一起删除）');
+            if (!sceneText.includes('readSceneMode')) missing.push('scene.ts 里没有 readSceneMode（运行态判据没了，截图会拿错画面）');
             return {
                 ok: missing.length === 0,
-                detail: missing.length === 0 ? '注册 / 帧 / 分发表 / 两个实现文件都在，且 runtime 只剩只读那一格' : missing.join('；'),
+                detail: missing.length === 0 ? '注册 / 帧 / 分发表 / 两个实现文件都在，且预览探针文件已删除' : missing.join('；'),
             };
         },
     },
@@ -307,37 +309,43 @@ const IMPLS = {
         },
     },
     /**
-     * 坑 17（运行预览开关已撤掉）的锚点：**四个入口都得堵上** ——
-     * bridge 的 action 白名单、cocos-tools 的拒绝分支、package.json 的 scene methods、scene.ts 的直调。
-     * 只堵一半（比如 UI 上去了、直调还在）等于留了个后门，所以这里逐个点名。
+     * 坑 17（运行预览这条能力已退出工具面）的锚点：**入口一处都不许留** ——
+     * bridge 的工具注册与描述常量、cocos-tools 的实现与分发表项与那个编辑器消息探针、
+     * 构建产物 `dist/preview.js`、`package.json` 的 scene methods。
+     * 只堵一半（比如工具删了、实现还在）等于留了个后门，所以这里逐个点名；
+     * 同时钉住**判据那一半仍然在**（`scene.ts` 读 `_state`）—— 删能力不等于删判据。
      */
-    'preview-control-removed': {
-        desc: '运行预览开关撤干净了：bridge enum 只剩 state、cocos-tools 拒绝五个动作、package.json 无 runtimeControl、scene.ts 不再直调 PreviewPlay 开关',
+    'preview-tool-removed': {
+        desc: '运行预览整条已退出工具面：bridge / cocos-tools / dist / package.json 四处都没有入口，而运行态判据仍在 scene.ts',
         run() {
-            const bridgeText = read(path.join(EXT_ROOT, 'dsh-profile', 'plugin', 'dsh-cocos-bridge', 'index.js'));
-            const toolsText = read(path.join(EXT_ROOT, 'source', 'cocos-tools.ts'));
+            const bridgeText = read(BRIDGE_FILE);
+            const toolsText = read(COCOS_TOOLS_FILE);
             const sceneText = read(SCENE_FILE);
             const pkgText = read(path.join(EXT_ROOT, 'package.json'));
             if (bridgeText == null || toolsText == null || sceneText == null || pkgText == null) {
                 return { ok: false, detail: '读不到 bridge / cocos-tools / scene / package.json' };
             }
             const missing = [];
-            /** ① bridge：action 的 enum 只剩 state，且描述里必须写清"为什么撤" */
-            if (!/enum:\s*\['state'\]/.test(bridgeText)) missing.push('bridge 的 cocos_runtime action enum 不是只剩 [state]');
-            if (/enum:\s*\['state',\s*'play'/.test(bridgeText)) missing.push('bridge 里 play 又在 enum 里了');
-            if (!bridgeText.includes('冻结诊断')) missing.push('bridge 的 runtime 描述里没说清"为什么撤"（没提冻结诊断）');
-            /** ② cocos-tools：只认 state，其余一律拒绝 */
-            if (!/action !== 'state'/.test(toolsText)) missing.push('cocos-tools 里没有"非 state 一律拒"的分支');
-            if (!toolsText.includes('黑屏')) missing.push('cocos-tools 的拒绝文案里没说清黑屏这件事');
-            /** ③ package.json：scene methods 里不许再有 runtimeControl */
+            /** ① bridge：工具名、描述常量、那条 IPC 帧**一个都不许留**（注释里点名删除是可以的） */
+            if (/name:\s*'cocos_runtime'/.test(bridgeText)) missing.push('bridge 里又注册了 cocos_runtime');
+            if (/\nconst RUNTIME_DESCRIPTION\s*=/.test(bridgeText)) missing.push('bridge 里 RUNTIME_DESCRIPTION 又回来了');
+            if (/ipcCall\(\s*'runtime'/.test(bridgeText)) missing.push('bridge 里又在发 runtime 帧');
+            /** ② cocos-tools：实现、分发表项、那个只服务它的编辑器消息探针 */
+            if (/export async function runRuntime\s*\(/.test(toolsText)) missing.push('cocos-tools 里 runRuntime 又回来了');
+            if (/runtime:\s*withRefs\s*\(/.test(toolsText)) missing.push('cocos-tools 分发表里又有 runtime 项');
+            if (toolsText.includes('query-scene-mode')) missing.push('cocos-tools 里又在问 query-scene-mode（那条消息只服务被删掉的那个工具）');
+            /** ③ 源码文件与构建产物：tsc 不会删旧产物，所以两边都要点名 */
+            if (fs.existsSync(PREVIEW_FILE)) missing.push('source/preview.ts 还在（整文件已删）');
+            if (fs.existsSync(path.join(EXT_ROOT, 'dist', 'preview.js'))) missing.push('dist/preview.js 还在（重建之后要手工删掉，tsc 不删旧产物）');
+            /** ④ package.json：scene methods 里不许再有 runtimeControl */
             if (pkgText.includes('runtimeControl')) missing.push('package.json 的 scene methods 里还有 runtimeControl');
-            /** ④ scene.ts：不许再直调 PreviewPlay 的开关方法（只读 `_state` 是允许的） */
-            if (/PreviewPlay\s*\[/.test(sceneText) || /play\[method\]/.test(sceneText)) missing.push('scene.ts 里还在直调 PreviewPlay 的开关方法');
+            /** ⑤ 判据那一半必须still在：运行态靠 `_state` 判，且不许直调开关 */
+            if (!sceneText.includes('PreviewPlay')) missing.push('scene.ts 里连 PreviewPlay._state 都不读了（运行态判据会瞎）');
+            if (/PreviewPlay\s*\[/.test(sceneText) || /play\[method\]/.test(sceneText)) missing.push('scene.ts 里又在直调 PreviewPlay 的开关方法');
             if (/async runtimeControl\s*\(/.test(sceneText)) missing.push('scene.ts 里 runtimeControl 方法又出现了');
-            if (!sceneText.includes('PreviewPlay')) missing.push('scene.ts 里连 PreviewPlay.\u005fstate 都不读了（运行态判据会瞎）');
             return {
                 ok: missing.length === 0,
-                detail: missing.length === 0 ? '四个入口（bridge / cocos-tools / package.json / scene.ts）都堵上了，只读判据仍在' : missing.join('；'),
+                detail: missing.length === 0 ? '四处入口都堵上了，运行态判据仍在 scene.ts 里' : missing.join('；'),
             };
         },
     },

@@ -4,7 +4,7 @@ import { TbContainer } from '../../platform/excel_table/TbContainer';
 /**
  * 肉鸽商店常量配置表（shop_constants.json，KV 结构）
  *
- * 数据源：策划配置（原设计见 docs/prd/肉鸽塔防_局内成长与经济系统.md §3，本表按现行口径覆盖）
+ * 数据源：策划配置（现行口径 = 本表自身；**不再有单独的设计稿** —— 原 `docs/prd/肉鸽塔防_局内成长与经济系统.md` 已于 2026-11 随文档清理删除）
  * 查询：ShopConfig.getNumber('drawCostBase') / ShopConfig.getArray('stageMaxByPhase') …
  *
  * 说明：JSON 顶层是「常量名 → 值」的对象，容器重写 handleData 转成一行一条。

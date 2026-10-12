@@ -108,6 +108,21 @@ export const BattleEvents = {
     OnEntityAdded: 'on_entity_added',
     /** 实体移出战斗上下文（回收/移除） */
     OnEntityRemoved: 'on_entity_removed',
+    /**
+     * **技能形态的显式上报**（2026-11，"路 B"，见 `battle/SkillShape.ts` 与
+     * `docs/打击反馈设计.md` §13.4）。
+     *
+     * 载荷：`{ shape, cx, cy, radius, dirX, dirY, halfAngleDeg, points, source, target }`。
+     *
+     * 为什么要有这条事件：表现层原先只能从"同源同帧 + 普攻/击杀锚点"的落点几何**猜**这一下
+     * 是什么形状，于是"**没有锚点的一次性效果**"（击杀爆炸 / Boss 咆哮 / 神器天怒）
+     * 根本猜不出来 —— 表现就是**技能打中一片怪却什么都不画**。
+     * 战斗侧本来就知道自己放的是什么（circle / sector / chain），直接说一声即可。
+     *
+     * ⚠ 它是**补充**不是替代：`HitVfxLayer` 收不到这条事件时仍然回落几何推断，
+     *   所以老效果（没有上报点的那些）行为一字不变。
+     */
+    OnSkillShape: 'on_skill_shape',
 } as const;
 
 /** ---- 事件数据结构 ---- */
@@ -131,6 +146,15 @@ export interface DamageEventData {
 export interface DeathEventData {
     entity: unknown;
     killer?: unknown;
+    /**
+     * 死亡瞬间的坐标快照（`{ x, y }`）。
+     *
+     * ⚠ **只有这份快照可信**：`OnDeath` 的监听里就 `recycleMonster` 回池了
+     * （`Entity.ResetForPool()` 把 `position` 清零），此后 `entity.position` 恒为 (0,0)。
+     * `OnKill` 载荷里带的是同一份 `deathPos`，所以"以死者位置为圆心"的效果
+     * （技能 122 击杀回响 / 遗物 死亡回响）一律读它，**不要读 `victim.position`**。
+     */
+    deathPos?: { x: number; y: number };
 }
 
 export interface AbilityCastEventData {

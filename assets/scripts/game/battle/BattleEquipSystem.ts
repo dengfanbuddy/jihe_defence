@@ -83,7 +83,7 @@ export class RelicSystem {
             console.warn(`[RelicSystem] 未找到遗物定义: ${id}`);
             return null;
         }
-        // 局内只能获得**有局内版**的遗物（relics 表里 id 1294~1302 是只有局外版的，挂上去不会有任何效果）
+        // 局内只能获得**有局内版**的遗物（`scope='outer'` 的行挂上去不会有任何效果；2026-11 起表里已经没有）
         if (!relicHasInner(def)) {
             console.warn(`[RelicSystem] 遗物 ${id} ${def.name} 没有局内版（scope=${def.scope}），不能在本局获得`);
             return null;

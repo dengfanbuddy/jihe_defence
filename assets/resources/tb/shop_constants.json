@@ -3,7 +3,7 @@
   "pickCount": 1,
   "drawCostBase": 50,
   "drawCostStep": 25,
-  "drawCostCap": 200,
+  "drawCostCap": 0,
   "drawCostResetEachPhase": 0,
   "stageMaxByPhase": [
     1,
@@ -27,5 +27,9 @@
   "killBuffPriceGrowth": 1.35,
   "killBuffMaxStackDefault": 10,
   "killBuffRefreshCost": 50,
+  "killBuffRefreshCostStep": 25,
+  "killBuffRefreshCostCap": 200,
+  "killBuffFreeRefreshPerRun": 1,
+  "killBuffRefreshAdFreePerRun": 1,
   "heroSelectRefreshCost": 100
 }

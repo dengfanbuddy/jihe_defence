@@ -1,5 +1,8 @@
 import { AttributeType } from './Types';
 
+/** `scaledAttrIds()` 的缓存（首次调用时按 `SCALE` 现算一次） */
+let SCALED_IDS_CACHE: number[] | null = null;
+
 /**
  * ============================================================
  * AttributeScaling —— 属性数值缩放映射（配置 int 化统一）
@@ -39,6 +42,23 @@ export class AttributeScaling {
     /** 某属性是否有缩放（是倍率/百分比型） */
     static isScaled(id: number): boolean {
         return AttributeScaling.SCALE[id as AttributeType] !== undefined;
+    }
+
+    /**
+     * 全部「缩放型」属性 id（升序）—— **需要枚举它们的代码走这一个口，别再手抄一张表**。
+     *
+     * 为什么要暴露它（2026-11）：局外加成的 int ↔ float 换算（`data/configs/EquipmentConfig`）
+     * 原来手抄了一份 `[4,7,8,11,12,13,14,15]`，与这里的真源对不上两处（多 13、少 21~25）。
+     * 手抄的那份一旦漂移，表现是"局外给 20 金币获取被当成 2000%"这类**静默的量级错误**。
+     */
+    static scaledAttrIds(): number[] {
+        if (!SCALED_IDS_CACHE) {
+            SCALED_IDS_CACHE = Object.keys(AttributeScaling.SCALE)
+                .map((k) => Number(k))
+                .filter((n) => Number.isFinite(n))
+                .sort((a, b) => a - b);
+        }
+        return SCALED_IDS_CACHE;
     }
 
     /** 某属性的缩放系数（无缩放返回 1） */

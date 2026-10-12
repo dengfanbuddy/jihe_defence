@@ -65,7 +65,19 @@ export type ConfigAction =
           radius?: number;                   // 选择范围（缺省全图）
           hit_effects?: ConfigAction[];      // 命中后执行的动作（如施加毒/减速）
       }
-    | { type: 'execute_script'; script_id: string }; // 复杂逻辑逃逸口（代码类名，保持字符串）
+    | {
+          /**
+           * 复杂逻辑逃逸口（脚本函数，见 `battle/BattleContext.ts` 的 `ScriptRegistry.registerAction`）。
+           *
+           * ⚠ `kv` 是 2026-11 补的：Boss 技能要按**施法者攻击力**换算伤害、还要声明
+           * 自己是什么形状（扇形/圆形），这些参数必须能从配表下发 —— 否则每个数值组合
+           * 都要新增一个 `script_id`（与「纯属性加成一律走共享模板 1000」同一条理由）。
+           * 脚本用 `action.kv` 读它，读法与 `apply_modifier` 的 `kv` 完全一致。
+           */
+          type: 'execute_script';
+          script_id: string;
+          kv?: Record<string, any>;
+      }; // 复杂逻辑逃逸口（代码类名，保持字符串）
 
 export interface AbilityCfg {
     id: number;

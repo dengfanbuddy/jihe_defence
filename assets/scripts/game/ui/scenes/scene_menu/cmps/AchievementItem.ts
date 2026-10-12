@@ -43,8 +43,9 @@ const UNKNOWN_DESC = '未知的挑战';
  * ├── tier_bar      档位刻度条（卡左缘 10×158 竖条，**卡面上唯一的档位色彩载体**）
  * ├── icon          图标槽 → inner(成就图标) / lock(未达成遮罩)
  * ├── name          成就名（`c-ink-900`）
- * ├── lv            档位（铜/银/金，`c-ink-900` —— 颜色由 `tier_bar` 回答）
+ * ├── lv            档位（**`阶段N`**，`c-ink-900` —— 颜色由 `tier_bar` 回答；框 60×24 CLAMP，最长「阶段20」放得下）
  * ├── detail/Label  描述 + 当前档进度（最多 3 行：描述折 2 行 + 进度 1 行）
+ * │                 ⚠ 描述取 **`nextDesc`**（下一档那一行自己的 desc）——「门槛」是逐档写进 desc 的
  * ├── unlock        领取区 → Label / icon(金币) / value(金币数, 缩写)
  * ├── weapon(-001)  2 个效果槽（末档效果生效才亮）
  * └── property(-001) 2 列效果明细（末档效果生效才显示，v1 只会用到第 1 列）
@@ -63,6 +64,12 @@ const UNKNOWN_DESC = '未知的挑战';
  *   ② 效果明细原来是 4 列 × 86px —— 14px 字号下 6 字的效果名（如「局内初始金币」）要 84px，
  *      再塞 20px 图标必然被裁。现在收成 **2 列 × 176px**，与 2 个效果槽一一对应
  *      （配表侧一条成就最多 1 个效果、契约侧 2 个槽 → 4 列里后两列永远是死节点，已删）。
+ *
+ * ⚠ **2026-11 档位改版（铜/银/金 → 阶段N）**：档位数不再固定 3（账号等级 20 档）。
+ *   两处跟着改：`lv` 写 `阶段N`（`tierName`）；`tier_bar` 的颜色按 `tier/maxTier` 的比例取三锚点
+ *   （`tierColor(tier, maxTier)`，见 `common/AchievementTierColor.ts`）。
+ *   卡面文案仍然只放 **2 行描述 + 1 行进度**，所以配表的 `desc` 要控制在 **≤26 个汉字宽**
+ *   （210px / 16px ≈ 13 字一行）—— 生成器已按这条写模板，改文案时也请照办。
  */
 @ccclass('AchievementItem')
 export class AchievementItem extends UIWidget {
@@ -174,8 +181,10 @@ export class AchievementItem extends UIWidget {
      * 不该铺满卡面（浅底上会与正文的深色文字抢对比度，金档尤其）,也不该同时出现在两处。
      */
     private applyBgAndTier(s: AchGroupState): void {
-        const hex = tierColor(s.tier);
+        // ⚠ 档位色按**进度比例**取（`tier / maxTier` 落在铜/银/金哪一段）——档位数不固定（3~20 档）
+        const hex = tierColor(s.tier, s.maxTier);
         if (this.tierBarSprite) this.tierBarSprite.color = new Color().fromHEX(hex);
+        // 「阶段N」（不是「铜/银/金」：账号等级那条有 20 档）
         if (this.tierLabel) this.tierLabel.string = tierName(s.tier);
     }
 
@@ -205,13 +214,16 @@ export class AchievementItem extends UIWidget {
                 this.detailLabel.string = UNKNOWN_DESC;
             } else if (s.state === 'done') {
                 // 已领完末档：不再显示进度（设计稿 §7.4 的表现矩阵）
-                this.detailLabel.string = `${s.desc}\n已完成`;
+                this.detailLabel.string = `${s.nextDesc}\n已完成`;
             } else {
+                // ⚠ 用 **`nextDesc`**（下一档那一行自己的 desc）而不是 `s.desc`：
+                //   改版后「门槛」是逐档写进 desc 的（如「累计3局把战线推进到第2阶段。」），
+                //   用第 1 档的 desc 会让玩家一直看到"第2阶段"却要他打第 8 阶段。
                 const tierCfg = AchievementConfig.getTierCfg(s.group, s.nextTier);
                 const progressText = tierCfg
                     ? AchievementConfig.getProgressText(tierCfg, s.progress)
                     : `${s.progress}/${s.count}`;
-                this.detailLabel.string = `${s.desc}\n${progressText}`;
+                this.detailLabel.string = `${s.nextDesc}\n${progressText}`;
             }
         }
     }

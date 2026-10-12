@@ -64,11 +64,13 @@ export const NUMERIC_ATTRS = [1, 2, 3, 5, 6, 9, 10, 16];
  */
 export const PERCENT_ATTRS = [4, 7, 8, 11, 12, 13, 14, 15];
 
-/** 属性编号 → 显示名（报告/描述文案用） */
+/** 属性编号 → 显示名（报告/描述文案用）。⚠ 12 是**全能减免**（物理与法术都减），13 已退役并入 12 */
 export const ATTR_NAME = {
     1: '最大生命', 2: '最大魔法', 3: '攻击力', 4: '攻击速度', 5: '移动速度', 6: '护甲',
     7: '魔法抗性', 8: '闪避', 9: '生命恢复', 10: '魔法恢复', 11: '伤害输出',
-    12: '物理受伤', 13: '魔法受伤', 14: '暴击率', 15: '暴击伤害', 16: '攻击距离',
+    12: '受伤减免', 13: '魔法受伤（已退役，并入 12）', 14: '暴击率', 15: '暴击伤害', 16: '攻击距离',
+    21: '金币获取', 22: '经验获取', 23: '冷却缩减', 24: '抽卡折扣',
+    25: '吸血', 26: '攻击回复', 27: '攻击回蓝',
 };
 
 /** 该属性是不是百分比型（值本身即百分比） */
@@ -151,6 +153,128 @@ export function classifyAttrAffix(attrId, mode) {
         };
     }
     return { kind: 'numeric_flat', minTier: MIN_TIER_BY_AFFIX.numeric_flat };
+}
+
+// ============================ 3.5 代价词条（有增有减） ============================
+
+/**
+ * 属性的**默认叠加方式**（逐项对齐 `attributes.json` 的 `stack_mode`，改那边要改这里）。
+ *
+ * 为什么门禁需要知道它：`AttributeSystem.combine` 里 `const mode = c.mode ?? defaultMode` ——
+ * **条目不写第三项时用的是属性自己的默认模式**，不是 `add`。所以「代价」必须写对模式，
+ * 否则会落进 `multiply`（复利，全项目禁用）或 `complement`（补数乘法）这两个完全不同的分支。
+ */
+export const ATTR_DEFAULT_MODE = {
+    1: 'add', 2: 'add', 3: 'add', 4: 'multiply', 5: 'add', 6: 'add', 7: 'complement',
+    8: 'complement', 9: 'add', 10: 'add', 11: 'multiply', 12: 'multiply', 13: 'complement',
+    14: 'add', 15: 'best', 16: 'add', 21: 'add', 22: 'add', 23: 'add', 24: 'add',
+    25: 'add', 26: 'add', 27: 'add',
+};
+
+/**
+ * **能当代价用的属性**白名单（2026-11 代价件试点）—— 唯一真源。
+ *
+ * 判据是「写进去之后，最终值**真的会变小**」，需要同时满足：
+ *   ① `attributes.json` 的 `min` 留了下降空间（`AttributeSystem.recalculate` 会钳到 min）；
+ *   ② 叠加方式走得到"减法"那个分支。
+ *
+ * 为什么必须列白名单：**大部分属性减了等于没减**。`闪避(8)` / `暴击率(14)` / `吸血(25)` /
+ * `生命恢复(9)` / `冷却缩减(23)` … 的 `base` 与 `min` **都是 0**，减过去被钳成 0
+ * ⇒ 表里写着「闪避 -10」，运行时一点变化都没有（正是 `npm run audit:attr` 专抓的"配了却没变"）。
+ *
+ * `mode` = **必须用的叠加方式**（`[attr, 值, mode]` 的第三项）：
+ *   · `1/2/3` 用 `percent`（对基础值乘算）；`4/7/11/12` 必须显式写 `add`，
+ *     因为它们的默认模式分别是 `multiply` / `complement` / `multiply` / `multiply`，不写会走进另一个分支；
+ *   · `6/16/21/22` 默认就是 `add`，第三项可省。
+ *
+ * `positive: true` 表示**这条属性的代价是正号**（语义倒置）：`受伤减免(12)` 的值是「受到多少伤害的百分比」，
+ * `100` = 受 100% 伤害，所以"多受伤"要写 **`[12, +15, 'add']`**（上限 300）。
+ * 现有先例：`1292 癫狂` 的「受到伤害 +10%」就是这条轴。
+ */
+export const COST_RULES = {
+    1: { mode: 'percent', note: '最大生命 ×(1−N/100)（min 1，不会减到 0 以下）' },
+    2: { mode: 'percent', note: '最大魔法 ×(1−N/100)（min 0）' },
+    3: { mode: 'percent', note: '攻击力 ×(1−N/100)（min 0）' },
+    4: { mode: 'add', note: '攻击速度 −N（100 = 1.0 次/秒；min 10）' },
+    6: { mode: 'add', note: '护甲 −N —— **唯一能进负值的轴**（min −20，负护甲按 Dota 双曲公式 = 受更多物理伤害）' },
+    7: { mode: 'add', note: '魔法抗性 −N 个百分点（min 0）' },
+    11: { mode: 'add', note: '伤害输出 −N（100 = ×1.0；min 0）' },
+    12: { mode: 'add', positive: true, note: '受伤减免 +N —— **正号写法**（100 = 受 100% 伤害，+N = 多受 N%；min 20 / max 300）' },
+    16: { mode: 'add', note: '攻击距离 −N（min 50）' },
+    21: { mode: 'add', note: '金币获取 −N%（min −100）' },
+    22: { mode: 'add', note: '经验获取 −N%（min −100）' },
+};
+
+/** 该属性的代价是不是**正号**写法（语义倒置轴，目前只有 12 受伤减免） */
+export function isPositiveCostAttr(attrId) {
+    return COST_RULES[attrId]?.positive === true;
+}
+
+/**
+ * 这条词条**从符号上看就是代价**吗（不管它落在哪条属性上）。
+ *
+ * 与 `isCostEntry` 的区别：那个还要求属性在白名单里。
+ * 分两个函数是因为两处调用方的诉求不同：
+ *   · **门禁校验**（`check-affix-gating.mjs`）要用 `looksLikeCost` 决定"走代价那条判据还是走档位判据" ——
+ *     写在 `闪避` 上的 `-10` 也是**玩家的意图是代价**，此时该报的是"闪避不能当代价"，
+ *     而不是误导性的"闪避 -10 需要黄档起"；
+ *   · **文案解析**（`illegalDescriptionClauses`）也只关心符号 —— 负值永远不是"低档承诺了高档收益"。
+ */
+export function looksLikeCost(attr) {
+    if (!Array.isArray(attr)) return false;
+    const [attrId, value] = attr;
+    if (isPositiveCostAttr(attrId)) return Number(value) > 0;
+    return Number(value) < 0;
+}
+
+/**
+ * 判定一条属性词条 `[attrId, value, mode?]` **是不是一条合法的代价**（符号 + 白名单都满足）。
+ *
+ * 口径：**符号本身就是声明** —— 不需要额外的列或标记。
+ *   · 普通轴（`1~11 / 16 / 21 / 22`）：`value < 0` 即代价；
+ *   · 倒置轴（`12`）：`value > 0` 即代价（值越大越吃亏）。
+ *
+ * ⇒ 好处是**存量数据自动正确**：`1292 癫狂` 的 `[12, 10, 'add']` 从今天起被正确识别成代价，
+ * 而不是像以前那样被当成"低档承诺了受伤减免属性"（它现在是 epic 档所以恰好没报，但 rare 档就会误报）。
+ */
+export function isCostEntry(attr) {
+    return looksLikeCost(attr) && !!COST_RULES[attr?.[0]];
+}
+
+/**
+ * 校验一条**代价**词条（`isCostEntry` 为 true 时才该调它）。
+ *
+ * 代价**不受档位门禁约束** —— 门禁管的是"低档不许承诺高档的**收益**"，
+ * 而代价恰恰相反：它是这件遗物的价钱，白档给代价也不存在"承诺过头"的问题。
+ * 但它有自己的两条硬约束（错了都是"配了却不生效"或"数值穿模"）：
+ *   ① 必须落在 `COST_RULES` 白名单里（否则被 `min` 钳成 0，玩家看不到任何变化）；
+ *   ② 必须用该轴要求的叠加方式。
+ *
+ * @returns {{ ok: boolean, violation?: string, note?: string }}
+ */
+export function classifyCostAffix(attrId, value, mode) {
+    const name = ATTR_NAME[attrId] ?? `属性${attrId}`;
+    const rule = COST_RULES[attrId];
+    if (!rule) {
+        return {
+            ok: false,
+            violation: `「${name}」不能当代价：它的 base/min 都是 0（或叠加方式是 best），减过去会被 AttributeSystem 钳成 0`
+                + ` —— 表里写着、运行时一点变化都没有，属"配了却没变"。可用代价轴见 COST_RULES（`
+                + `${Object.keys(COST_RULES).map((id) => ATTR_NAME[id]).join(' / ')}）`,
+        };
+    }
+    const effective = mode ?? ATTR_DEFAULT_MODE[attrId] ?? 'add';
+    if (effective !== rule.mode) {
+        const defaultMode = ATTR_DEFAULT_MODE[attrId] ?? 'add';
+        const hint = mode === undefined
+            ? `该属性的默认叠加方式是 ${defaultMode}，会走进另一个分支`
+            : `当前写的是 ${effective}`;
+        return {
+            ok: false,
+            violation: `「${name}」作为代价必须用 ${rule.mode} 叠加（${hint}）：${rule.note}`,
+        };
+    }
+    return { ok: true, note: rule.note };
 }
 
 // ============================ 4. 折算基准（percent → 固定值） ============================
@@ -417,6 +541,10 @@ export function parseClauseTerms(clause) {
 /**
  * 找出描述里**当前品质档位不允许**的属性词条子句（低档文案清理 / 校验提醒共用）。
  * 语义与 kv.attrs 的门禁完全一致：百分比型属性、以及「数值属性 + %」都要黄档起。
+ *
+ * ⚠ **代价子句不算违规**（2026-11）：`代价：护甲 -4` 里的负值是这件遗物的价钱，
+ * 不是"低档承诺了高档收益"。判定与配表同源（`isCostEntry`，符号即声明），
+ * 所以文案与 `kv.attrs` 不会出现"一边放过、一边报错"的漂移。
  * @returns {string[]} 违规子句原文
  */
 export function illegalDescriptionClauses(desc, tier) {
@@ -426,6 +554,8 @@ export function illegalDescriptionClauses(desc, tier) {
         if (!clause.trim()) continue;
         for (const t of parseClauseTerms(clause)) {
             const mode = (t.percent && !isPercentAttr(t.attrId)) ? 'percent' : 'add';
+            // 代价（负值 / 倒置轴的正值）不受档位门禁约束
+            if (looksLikeCost([t.attrId, t.value, mode])) continue;
             if (tier < classifyAttrAffix(t.attrId, mode).minTier) {
                 bad.push(clause.trim());
                 break;

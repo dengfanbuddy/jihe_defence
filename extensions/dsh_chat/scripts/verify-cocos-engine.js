@@ -198,119 +198,27 @@ function makeFakeCc() {
  */
 function installFakeEditor(options = {}) {
     /**
-     * 假的 `cce.PreviewPlay`（真机验收之后它是**运行态的唯一判据**：`_state`）。
+     * 假的 `cce.PreviewPlay` —— 真机验收之后它是**运行态的唯一判据**：`_state`。
      *
-     * `_state` 走 `'stop' → 'play' → 'pause'`；`start/stop/pause/step` 按 `directBehavior` 行事：
-     * - `'ok'`（默认）：真的改 `_state`（真机实测直调这四个都生效）；
-     * - `'silent'`：**什么都不做**（照抄真机上的 `editor-preview-call-method`：回 ok 而一帧不动）；
-     * - `'throw'`：抛错（照抄真机上那个 `setAttribute` 错）。
+     * ⚠ 这里**只有只读的那一半**：`_state` + `isPause()`。原来还带了
+     * `start/stop/pause/step` 四个直调桩（用来验「开关预览」那条路），
+     * 那套在 2026-10-08 撤掉开关、2026-10-09 连只读工具也删掉之后**没有消费者了** ——
+     * 留着它等于给"能力还在"留一份假证据（见 `docs/冻结诊断.md`）。
+     * 读它的地方只剩场景脚本的 `readSceneMode`（截图/点击链路判运行态）。
      */
     const fakePlay = {
         _state: 'stop',
         isPause() {
             return fakePlay._state === 'pause';
         },
-        start() {
-            fakePlay.calls.push(['start', []]);
-            if (directBehavior === 'silent') return Promise.resolve();
-            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
-            fakePlay._state = 'play';
-            clockRef.frames += 1;
-            return Promise.resolve();
-        },
-        stop() {
-            fakePlay.calls.push(['stop', []]);
-            if (directBehavior === 'silent') return Promise.resolve();
-            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
-            fakePlay._state = 'stop';
-            return Promise.resolve();
-        },
-        pause(isPause) {
-            fakePlay.calls.push(['pause', [isPause]]);
-            if (directBehavior === 'silent') return Promise.resolve();
-            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
-            if (isPause) {
-                fakePlay._state = 'pause';
-                clockRef.directorPaused = true;
-                clockRef.gamePaused = true;
-            } else {
-                fakePlay._state = 'play';
-                clockRef.directorPaused = false;
-                clockRef.gamePaused = false;
-            }
-            return Promise.resolve();
-        },
-        step() {
-            fakePlay.calls.push(['step', []]);
-            if (directBehavior === 'silent') return Promise.resolve();
-            if (directBehavior === 'throw') return Promise.reject(new Error('模拟直调抛错'));
-            clockRef.frames += 1;
-            return Promise.resolve();
-        },
-        /** 直调过哪些方法（断言"到底调了谁"） */
-        calls: [],
     };
-
-    let directBehavior = 'ok';
-    /** 假 `cc` 里的那块时钟（`clock.frames` / 两个暂停位）—— 与假引擎同一份 */
-    const clockRef = require(join(FAKE_PROJECT, 'node_modules', 'cc')).clock;
 
     const state = {
         sceneAvailable: options.sceneAvailable !== false,
         snapshots: 0,
         calls: [],
-        /**
-         * 运行预览（game view）那两条消息的桩：`editor-preview-set-play` /
-         * `editor-preview-call-method`。默认**都成功**（回 true），
-         * 每组测试可以按需改成「编辑器拒绝了这一下」（回 false）。
-         */
-        previewReject: false,
-        /** `editor-preview-call-method` 收到的调用（`[method, ...args]`），断言"到底发了哪条" */
-        previewCalls: [],
-        /** `editor-preview-set-play` 收到的目标状态 */
-        playCalls: [],
-        /** `Message.send` 发出去的每一条（`{name, message, args}`）—— 新口径**不等回执**，靠它断言"发了什么" */
-        sentMessages: [],
-        /**
-         * 那条消息到底有没有把状态带过去。
-         *
-         * `'works'` = 照抄"正常编辑器"（改 `fakePlay._state`）；
-         * `'silent'` = **照抄真机**：消息回 ok 而状态一动不动（真机上 `step`/`resume` 就是这样）；
-         * `'throw'` = 消息抛错（真机上 `pause` 就是这样）。
-         */
-        messageRoute: 'works',
-        /** 直调 `cce.PreviewPlay` 的行为（`'ok'` / `'silent'` / `'throw'`） */
-        set directBehavior(value) {
-            directBehavior = value;
-        },
-        get directBehavior() {
-            return directBehavior;
-        },
         /** 假的 `cce.PreviewPlay`（测试可以直接改 `state.previewPlay._state`） */
         previewPlay: fakePlay,
-        /** `query-scene-mode` 回什么（默认这条消息在真编辑器里"只有声明、没有调用方"，这里模拟回得出 general） */
-        sceneMode: 'general',
-        /** 让 `query-scene-mode` 抛错（验「消息不通 ≠ 不在运行态」） */
-        sceneModeError: false,
-    };
-
-    /**
-     * 消息对状态的影响（**这一处是"编辑器到底做没做"的唯一入口**）。
-     *
-     * 两条路都走它：`request`（老口径）与 `send`（新口径）—— 因为真机上
-     * **副作用与回执是两件事**（`set-play(true)` 不回执但预览起来了）。
-     */
-    const applyPreviewMessage = (message, first, rest) => {
-        if (state.messageRoute === 'throw') throw new Error("Cannot read properties of undefined (reading 'setAttribute')");
-        if (state.messageRoute === 'silent') return;
-        if (message === 'editor-preview-set-play') {
-            fakePlay._state = first === true ? 'play' : 'stop';
-            return;
-        }
-        if (message === 'editor-preview-call-method') {
-            const args = Array.isArray(rest) ? rest : [];
-            if (first === 'pause') fakePlay._state = args[0] === true ? 'pause' : 'play';
-        }
     };
 
     /** 场景脚本实例（模拟编辑器 scene 包的 `execute-scene-script` 查找）。 */
@@ -329,11 +237,13 @@ function installFakeEditor(options = {}) {
         },
         Message: {
             /**
-             * ⚠ 末尾收成 `...rest` 而不是固定三个参数：`editor-preview-call-method` 是
-             * `request('scene', 消息, 方法名, ...参数)` 这种**多参**形状，写死三参就会把
-             * 方法名之后的参数静默丢掉 —— 那正是"断言看着绿、其实没验到"的经典来源。
+             * ⚠ 只桩**真的会被用到**的那几条消息。原来这里还桩了运行预览那三条
+             * （`query-scene-mode` / `editor-preview-set-play` / `editor-preview-call-method`）——
+             * 它们随「开关预览」（2026-10-08）与「只读探针」（2026-10-09）先后撤掉，
+             * 现在**没有任何调用方**，所以桩也一起删了：留着它，删掉的能力就永远有假证据。
+             * 顺带把签名收成固定三参（那条多参形状已经不存在了）。
              */
-            async request(name, message, payload, ...rest) {
+            async request(name, message, payload) {
                 state.calls.push(`${name}/${message}`);
                 if (name === 'scene' && message === 'execute-scene-script') {
                     if (!state.sceneAvailable) throw new Error(SCENE_MISSING_MESSAGE);
@@ -352,45 +262,15 @@ function installFakeEditor(options = {}) {
                 if (name === 'scene' && message === 'query-node-tree') {
                     return { name: 'scene-2d', uuid: 'fake-scene-uuid' };
                 }
-                /**
-                 * 运行预览那三条消息（真编辑器里由 scene 包处理，见 `source/preview.ts` 的出处表）：
-                 * 桩的行为照抄编辑器工具栏的用法 —— `set-play` 回目标状态、`call-method` 回"做到没有"。
-                 */
-                if (name === 'scene' && message === 'query-scene-mode') {
-                    if (state.sceneModeError) throw new Error('Message does not exist: query-scene-mode');
-                    return state.sceneMode;
-                }
-                if (name === 'scene' && message === 'editor-preview-set-play') {
-                    state.playCalls.push(payload);
-                    applyPreviewMessage(message, payload, rest);
-                    return state.previewReject ? !payload : payload;
-                }
-                if (name === 'scene' && message === 'editor-preview-call-method') {
-                    /** 形状照抄真用法：第一个参是**方法名**，后面是给那个方法的参数（`pause` 收一个布尔） */
-                    state.previewCalls.push({ method: payload, args: rest });
-                    applyPreviewMessage(message, payload, rest);
-                    return state.previewReject ? false : true;
-                }
                 throw new Error(`未桩的编辑器消息：${name} / ${message}`);
             },
             /**
-             * 新口径走的是 `send`（**不等回执**）：真机实测 `set-play(true)` 120s 不回执，
-             * 而它的副作用其实发生了 —— 所以这里也照抄"副作用照做、回执没有"。
+             * ⛔ 这里原来还桩了 `Message.send`（**不等回执**那条路）：真机实测
+             * `editor-preview-set-play(true)` 120s 不回执，而它的副作用其实发生了 ——
+             * 那是"开关运行预览"专用的路子。开关 2026-10-08 撤、只读探针 2026-10-09 删，
+             * 于是**全工程一处 `Editor.Message.send` 调用都没有**（`source/types/editor.d.ts`
+             * 里那条声明也一起删了）—— 桩留着只会让"能力还在"看起来像真的。
              */
-            send(name, message, ...args) {
-                state.calls.push(`send:${name}/${message}`);
-                state.sentMessages.push({ name, message, args });
-                if (name !== 'scene') return;
-                if (message === 'editor-preview-set-play') {
-                    state.playCalls.push(args[0]);
-                    applyPreviewMessage(message, args[0]);
-                    return;
-                }
-                if (message === 'editor-preview-call-method') {
-                    state.previewCalls.push({ method: args[0], args: args.slice(1) });
-                    applyPreviewMessage(message, args[0], args.slice(1));
-                }
-            },
             broadcast() {},
         },
         Profile: {
@@ -884,7 +764,8 @@ async function main() {
         ['ping', 'runCode', 'describeApi', 'viewMetrics', 'fitView'].every((m) => sceneMethods.includes(m)) &&
             /**
              * ⚠ 反向也要钉住：`runtimeControl`（运行预览开关）**已于 2026-10-08 撤掉** ——
-             * 它若被谁悄悄加回来，这里当场红（理由见 `cocos_runtime` 的工具说明与 `docs/冻结诊断.md`）。
+             * 它若被谁悄悄加回来，这里当场红（理由见 `docs/冻结诊断.md`；
+             * 2026-10-09 起连只读探针那个工具也删了，所以这里连"入口"都不该有）。
              */
             !sceneMethods.includes('runtimeControl'),
         sceneMethods,
@@ -2576,10 +2457,11 @@ async function main() {
     );
 
     // ---------------------------------------------------------------------
-    console.log('\n[9] 点按 / 按键 / 运行态（真发事件 + 真问编辑器）');
+    console.log('\n[9] 点按 / 按键 / 运行态判据（真发事件 + 真问编辑器）');
     // ---------------------------------------------------------------------
     /**
-     * 这一节验的是「让 agent 自己验收界面」那三件（`click_node` / `send_keys` / `runtime`）。
+     * 这一节验的是「让 agent 自己验收界面」那两件（`click_node` / `send_keys`），
+     * 外加**运行态判据**（它现在只剩截图/点击链路，工具那一格已于 2026-10-09 删掉）。
      *
      * 两件必须钉住的事：
      * ① **发出去的到底是什么** —— 假 webContents 把每次 `sendInputEvent` 的入参原样记下来，
@@ -2607,10 +2489,6 @@ async function main() {
     view.inputEvents.length = 0;
     fakeElectron.windowFocused = true;
     fakeElectron.focusCalls = 0;
-    state.previewReject = false;
-    state.previewCalls.length = 0;
-    state.playCalls.length = 0;
-    state.sceneMode = 'general';
 
     // ---- 9a. 点节点：坐标 = 场景侧算出的 CSS 矩形中心 ----
     const clickNode = await tools.COCOS_IPC_METHODS.click_node({ node: 'card-uuid' });
@@ -2852,117 +2730,69 @@ async function main() {
     );
     view.focused = true;
 
-    // ---- 9g. 运行态：**只读**（开关已于 2026-10-08 撤掉，这一节钉住"撤干净了"）----
+    // ---- 9g. 运行预览这条能力**已退出工具面**（2026-10-09），而判据仍然活着 ----
     /**
-     * ⚠ 这一节在 2026-10-08 之后**变了性质**：原来验的是「直调优先 / 消息兜底」那套开关逻辑，
-     * 现在验的是**那些开关真的没有入口了** —— 场景面板黑屏/画面停住两次现场都在同一条时间线上
-     * （`docs/冻结诊断.md`），撤掉之后的判据是：
+     * ⚠ 这一节的性质变过两次：原来验的是「直调优先 / 消息兜底」那套开关逻辑；2026-10-08
+     * 撤掉五个开关之后，验的是"那些开关真的没有入口了"；2026-10-09 连**只读探针**
+     * （`cocos_runtime`）也一起删了 —— 它只回答"现在是不是运行态"这一句，
+     * 而运行态的判据一直在**截图 / 点击链路**里（场景脚本读 `cce.PreviewPlay._state`）。
      *
-     * ① `state` 照旧把两条独立来源摆出来（只读，一条消息都不发、一次直调都没有）；
-     * ② 五个改状态的动作**全部被拒**，而且**零副作用**（不发消息、不碰 `cce.PreviewPlay`）；
-     * ③ 拒的文案要说清**为什么**撤（不是"参数错了"那种让人再试一次的错）。
+     * 所以现在钉两件事：
+     * ① **工具面里一处入口都没有**（分发表七个键、没有 `runtime`）；
+     * ② **判据那一半仍然活着** —— 用户自己在工具栏按了播放键之后，`capture_view` 的 `mode`
+     *    照样如实报 `preview`；`_state` 读不到时 `mode.note` 照样明说"这条判据不可信"。
+     *    删能力 ≠ 删判据：判据没了，截图会**安静地**拿错画面（那正是坑 5 的病）。
      */
-    state.sceneMode = 'general';
-    globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: generalFacade, PreviewPlay: state.previewPlay };
-    state.previewPlay._state = 'stop';
-    state.previewPlay.calls.length = 0;
-    state.sentMessages.length = 0;
-    state.playCalls.length = 0;
-    state.previewCalls.length = 0;
-
-    const runtimeState = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    const methodNames = Object.keys(tools.COCOS_IPC_METHODS);
     check(
-        'runtime(state)：两条独立来源都摆出来（编辑器消息 + 场景进程 cce 单例）',
-        runtimeState.ok === true &&
-            runtimeState.data.editorMessage.message === 'query-scene-mode' &&
-            runtimeState.data.editorMessage.mode === 'general' &&
-            runtimeState.data.scene &&
-            runtimeState.data.scene.mode === 'general' &&
-            runtimeState.data.scene.running === false,
-        { editorMessage: runtimeState.data.editorMessage, scene: runtimeState.data.scene },
+        '分发表里没有 `runtime`（运行预览那条工具已删）',
+        !methodNames.includes('runtime'),
+        methodNames.join(' / '),
     );
     check(
-        'runtime(state) 只读：**一条消息都没发、一次直调都没有**，且回执里 `readOnly:true` 明写',
-        state.sentMessages.length === 0 && state.previewPlay.calls.length === 0 && runtimeState.data.readOnly === true,
-        { sentMessages: state.sentMessages, directCalls: state.previewPlay.calls, readOnly: runtimeState.data.readOnly },
+        '分发表正好七个方法（与 bridge 注册的七个工具对得上）',
+        methodNames.length === 7,
+        methodNames.join(' / '),
     );
 
     /**
-     * ②③ 五个改状态的动作**全被拒**：判据三件 —— `ok:false`、**零副作用**、文案里点名"为什么撤"。
-     * 用循环逐个 action 验，别只验一个（漏一个就等于留了一个后门）。
-     */
-    for (const action of ['play', 'stop', 'pause', 'resume', 'step']) {
-        state.sentMessages.length = 0;
-        state.previewPlay.calls.length = 0;
-        state.directBehavior = 'ok';
-        state.messageRoute = 'works';
-        const refused = await tools.COCOS_IPC_METHODS.runtime({ action, waitMs: 0 });
-        check(
-            `runtime(${action}) 已被拒（ok:false + 零副作用：不发消息、不碰 cce.PreviewPlay）`,
-            refused.ok === false &&
-                state.sentMessages.length === 0 &&
-                state.previewPlay.calls.length === 0,
-            { error: errorText(refused).slice(0, 120), sentMessages: state.sentMessages, directCalls: state.previewPlay.calls },
-        );
-        check(
-            `runtime(${action}) 的拒绝文案说清**为什么撤**（点名黑屏/冻结诊断，而不是"参数错了"）`,
-            /撤掉/.test(errorText(refused)) && /黑屏/.test(errorText(refused)) && /冻结诊断/.test(errorText(refused)),
-            errorText(refused).slice(0, 240),
-        );
-    }
-
-    /**
-     * 用户自己按了工具栏播放键之后，`state` 必须**照样如实报**（本工具只是不能开，不是不能看）。
+     * ② **判据仍在**：用户自己开了预览 → 抓图链路照样如实报。这里刻意把 facade 留在
+     * `general`（**照抄真机实测的样子**：预览跑着的时候 facade 那两条仍是 `general`）。
      */
     state.previewPlay._state = 'play';
-    const userPlayed = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: generalFacade, PreviewPlay: state.previewPlay };
+    const stillJudged = await engine.captureView({ view: 'game', savePath: join(FAKE_PROJECT, 'shot-9g-running.png'), maxWidth: 4096 });
     check(
-        '用户自己开了预览时：`state` 照旧如实报 `running:true` + `previewState:"play"`（只读不等于看不见）',
-        userPlayed.ok === true &&
-            userPlayed.data.scene.running === true &&
-            userPlayed.data.before.previewState === 'play' &&
-            state.previewPlay.calls.length === 0,
-        { scene: userPlayed.data.scene, before: userPlayed.data.before },
+        '判据仍在：`_state="play"` → 回执照样报 `mode.actual:"preview"` + `running:true`（facade 那条仍是 general）',
+        stillJudged.ok === true &&
+            stillJudged.data.mode.actual === 'preview' &&
+            stillJudged.data.mode.running === true &&
+            stillJudged.data.mode.sources.previewState === 'play' &&
+            stillJudged.data.mode.sources.facadeMode === 'general',
+        stillJudged.data && stillJudged.data.mode,
     );
-    state.previewPlay._state = 'stop';
 
     /**
-     * ⑥ `_state` 读不到时**不许猜**：回退到 facade，并且 `note` 必须说出来。
-     * （真机上 facade 判不出运行态 —— 这条 note 就是"我知道我不准"。）
+     * ③ `_state` 读不到时**不许猜**：回退到 facade，但 `mode.note` 必须把场景脚本那条
+     * 判据说明原样带出来（真机上 facade 判不出运行态 —— 这条 note 就是"我知道我不准"）。
+     *
+     * ⚠ 这条说明原来只有 `cocos_runtime` 那个工具会回；工具 2026-10-09 删掉之后，
+     * 它是**唯一出口** —— 少了它，"判据不可信"就变成静默的，那正是坑 5 那一类病。
      */
-    state.sceneMode = 'preview';
     globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: previewFacade, PreviewPlay: undefined };
-    const noState = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
+    const blindShot = await engine.captureView({ view: 'game', savePath: join(FAKE_PROJECT, 'shot-9g-blind.png'), maxWidth: 4096 });
     check(
-        '拿不到 `_state` 时：回退到 facade，但 `note` 明说"这条判据不可信"（不安静地猜）',
-        noState.ok === true &&
-            noState.data.scene.running === true &&
-            /cce\.PreviewPlay/.test(String(noState.data.scene.note || '')) &&
-            /判不出/.test(String(noState.data.scene.note || '')),
-        noState.data.scene,
+        '拿不到 `_state` 时：回退到 facade（照旧报 running），但 `mode.note` 明说"这条判据不可信"',
+        blindShot.ok === true &&
+            blindShot.data.mode.running === true &&
+            blindShot.data.mode.sources.previewPlayPresent === false &&
+            /cce\.PreviewPlay/.test(String(blindShot.data.mode.note || '')) &&
+            /判不出/.test(String(blindShot.data.mode.note || '')),
+        blindShot.data && { mode: blindShot.data.mode },
     );
+
+    state.previewPlay._state = 'stop';
     globalThis.cce = { ...(globalThis.cce || {}), SceneFacadeManager: generalFacade, PreviewPlay: state.previewPlay };
-
-    // `query-scene-mode` 这条消息不通 ≠ 不在运行态：两条来源各报各的
-    state.sceneModeError = true;
-    const noMessage = await tools.COCOS_IPC_METHODS.runtime({ action: 'state' });
-    check(
-        '`query-scene-mode` 抛错时：如实记原文，**另一条来源照样用**（消息不通 ≠ 状态未知）',
-        noMessage.ok === true &&
-            noMessage.data.editorMessage.ok === false &&
-            /Message does not exist/.test(String(noMessage.data.editorMessage.error)) &&
-            noMessage.data.scene.mode === 'general',
-        { editorMessage: noMessage.data.editorMessage, scene: noMessage.data.scene },
-    );
-    state.sceneModeError = false;
-
-    const badAction = await tools.COCOS_IPC_METHODS.runtime({ action: 'timeScale' });
-    check(
-        'runtime 只认 `state`（`timeScale` 同样被拒）—— 引擎里本来就没有全局倍率这个旋钮，不给"看着像能用"的名字',
-        badAction.ok === false && /只认/.test(errorText(badAction)) && /state/.test(errorText(badAction)),
-        errorText(badAction).slice(0, 140),
-    );
-
 
     // ---- 9h. 参数校验：错的值一律**拒绝**，绝不"猜一个" ----
     view.inputEvents.length = 0;

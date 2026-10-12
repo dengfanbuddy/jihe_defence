@@ -2,6 +2,9 @@ import { _decorator, Button, Color, Label, Node, Sprite } from 'cc';
 import { UIWidget } from 'db://assets/scripts/platform/ui/UIWidget';
 import { useBattleStore } from '../../../../../stores';
 import { ShopConfig } from '../../../../../data/configs/ShopConfig';
+import { primaryTag } from '../../../../../common/RelicTags';
+import { formatNumber } from '../../../../../common/GoldText';
+import { AtlasIcon } from '../../../../../common/AtlasIcon';
 import { StageScopeEvents, StageScopeKeys } from '../StageScope';
 import type { BuffShopVM } from '../../../../../battle/BuffShop';
 
@@ -9,6 +12,9 @@ const { ccclass, property } = _decorator;
 
 /** 不可购买（已满级 / 击杀数不够 / 空摊）时的灰化色 */
 const DISABLED_GREY = new Color(124, 124, 124, 255);
+
+/** 流派标签在预制件里的节点名（`content/tags`：图标上方那一行 12px 灰字） */
+const TAGS_NODE_NAME = 'tags';
 
 /**
  * 击杀商店（Buff 商店）里的**一个摊位**（内嵌 UI 小组件 → 继承 `UIWidget`，**不加 @uiview**）
@@ -29,7 +35,7 @@ const DISABLED_GREY = new Color(124, 124, 124, 255);
 @ccclass('ShopBuffItem')
 export class ShopBuffItem extends UIWidget {
 
-    /** 图标（kill_buffs 暂无图标列，当前保留预制件占位图；配了图标再填这里） */
+    /** 图标（`kill_buffs.icon`，2026-11 起真有图；见 `applyIcon`） */
     @property(Sprite)
     icon: Sprite = null;
     /** Buff 名（`kill_buffs.name`） */
@@ -38,6 +44,20 @@ export class ShopBuffItem extends UIWidget {
     /** 效果 + 层数 + 价格（`per_desc` / `x/y 层` / `价格 n`） */
     @property(Label)
     descLabel: Label = null;
+    /**
+     * **流派标签**（`kill_buffs.tags[0]` 主标签，见 `common/RelicTags`）。
+     *
+     * 神器与遗物、技能共用同一套 8 个词（`RELIC_ARCHETYPES`），同一屏里三处并排，
+     * 只有神器不写标签会让人以为"神器的流派另有一套"。
+     * 表里 19 行**每行恰好 1 个标签**（只用到 8 个词里的 6 个），所以主标签就是全部，
+     * 不存在"放不下几个"的取舍 —— 但仍走 `primaryTag` 与遗物/技能同一口径，
+     * 免得日后表里补出多标签时这里成了唯一一个会溢出的地方（框 70px，4 汉字 @12px = 48px）。
+     *
+     * 预制件里是 `content/tags`（fs12 / `#999999` / 居中 / `overflow=NONE`）；
+     * 没在编辑器里拖也能跑：`ensureTags()` 按名字兜底。
+     */
+    @property(Label)
+    tagsLabel: Label = null;
     /** 内容根节点：空摊时整块收起（按钮留在原地，靠 interactable 关掉点击） */
     @property(Node)
     contentNode: Node = null;
@@ -54,6 +74,8 @@ export class ShopBuffItem extends UIWidget {
     private shop: BuffShopVM = null;
     /** 预制件里的原始颜色（首次使用时缓存，用于从灰化状态恢复） */
     private baseColors = new Map<string, Color>();
+    /** 当前这张图标对应的 `icon` 路径（同一路径不重复走异步；换神器才重新取图） */
+    private iconPath = '';
 
     protected onInit(): void {
         this.shop = this.inject<BuffShopVM>(StageScopeKeys.BuffShop, null);
@@ -110,10 +132,16 @@ export class ShopBuffItem extends UIWidget {
         const maxed = maxStack > 0 && stack >= maxStack;
 
         if (this.nameLabel) this.nameLabel.string = cfg.name ?? '';
+        // 图标：`kill_buffs.icon`（`textures/artifacts/<code>`，图集 `textures/artifacts/artifacts`）
+        this.applyIcon(cfg.icon ?? '');
+        // 流派标签：与遗物/技能同一套词表的**主标签**（`RelicTags` 是唯一口径）
+        this.setTagsLabel(primaryTag(cfg.tags));
         if (this.descLabel) {
             const lines = [cfg.per_desc ?? ''];
-            // 价格单位是**击杀数**（不是金币）→ 文案里写明，免得玩家以为是金币
-            lines.push(maxed ? `${stack}/${maxStack} 层（已满）` : `${stack}/${maxStack} 层 · ${price} 击杀`);
+            // 价格单位是**击杀数**（不是金币）→ 文案里写明，免得玩家以为是金币。
+            // 价格走缩写口径（`formatNumber`）：神器价格按 `price_growth` 逐层涨（1.3~1.55），
+            // 买深了就是四位数
+            lines.push(maxed ? `${stack}/${maxStack} 层（已满）` : `${stack}/${maxStack} 层 · ${formatNumber(price)} 击杀`);
             this.descLabel.string = lines.filter((s) => !!s).join('\n');
         }
 
@@ -124,6 +152,36 @@ export class ShopBuffItem extends UIWidget {
     /** 内容显隐：空摊 → 收起（按钮留在原地但不可点） */
     private applyContentVisible(visible: boolean): void {
         if (this.contentNode) this.contentNode.active = visible;
+    }
+
+    /**
+     * 按 `icon` 路径取图并写进 `icon` 槽（2026-11 补齐 —— 此前 `refresh()` **从不给图标赋图**，
+     * 于是预制件里那张已退场的占位图（`fca27a57…`，全工程没有这个 uuid）就是运行时看到的东西，
+     * 编辑器里画成洋红块）。
+     *
+     * 三条口径与遗物 / 技能格完全一致：
+     *   · 加载走**全工程共用**的 `AtlasIcon.loadIconFrame`（图集本体 → 帧子资源 → 旧碎图三级降级 + 按路径缓存）；
+     *   · **同一个 `icon` 路径不重复走异步** —— `refresh()` 会被「买了一层」「击杀数变了」反复调用，
+     *     每次都重新 load 一遍是白费（`iconPath` 就是这道闸）；
+     *   · 换摊位的瞬间**先清空**再等新图（否则上一层神器的图会短暂留在格子里，玩家会看成"买到了别的东西"）。
+     *
+     * 取不到图**不清空也不报错刷屏**：`AtlasIcon` 内部已按路径缓存失败结果、且三级降级都失败是
+     * "配表填了不存在的路径"这类配置错误 —— 由 `docs/artifact-buff-icons/README.md` 的体检盯着配表，
+     * 运行期这里安静地留空格（不去 `ezgame.error`，那会每次刷新商店刷一行）。
+     */
+    private applyIcon(path: string): void {
+        if (!this.icon) return;
+        if (path === this.iconPath) return;
+        this.iconPath = path;
+        if (!path) {
+            this.icon.spriteFrame = null;
+            return;
+        }
+        this.icon.spriteFrame = null;
+        AtlasIcon.loadIconFrame(path).then((sf) => {
+            // 异步回来时这一格可能已经换成别的神器了 → 只认"还在等这张图"的自己
+            if (sf && this.icon?.isValid && this.iconPath === path) this.icon.spriteFrame = sf;
+        });
     }
 
     /**
@@ -142,6 +200,24 @@ export class ShopBuffItem extends UIWidget {
         tint(this.icon, 'icon');
         tint(this.nameLabel, 'name');
         tint(this.descLabel, 'desc');
+        tint(this.ensureTags(), 'tags');
+    }
+
+    /** 标签 Label：优先用编辑器拖的引用，没拖就按名字 `content/tags` 找（同 `ShopRiItem.ensureTags` 的套路） */
+    private ensureTags(): Label {
+        if (this.tagsLabel?.isValid) return this.tagsLabel;
+        const found = this.node.getChildByName('content')?.getChildByName(TAGS_NODE_NAME);
+        this.tagsLabel = found?.getComponent(Label) ?? null;
+        return this.tagsLabel;
+    }
+
+    /**
+     * 写流派标签（空串 = 这行留白；配表没给标签时走这里）。
+     * 没有标签可写时**不清空节点**：那一行的位置是排好的，藏节点会让名字/图标跳位。
+     */
+    private setTagsLabel(text: string): void {
+        const label = this.ensureTags();
+        if (label) label.string = text;
     }
 
     /** 点击：只负责"通知"，是否买得成、层数怎么涨全在宿主（`BuffShop.buy`） */

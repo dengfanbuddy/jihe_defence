@@ -277,6 +277,41 @@ export class SkillSlots {
         ability.setLevel(Math.max(1, Math.floor(level) || 1));
     }
 
+    /**
+     * 把槽位里的**技能等级**从英雄实体上重新读一遍（宿主在「技能随局内等级进化」之后调用）。
+     *
+     * 为什么必须有这一条：槽位的 `level` 是**独立的一份投影** ——
+     *   · 肉鸽技能升级走 `grant()`（`slots[].level + 1` 与 `Ability.setLevel` 一起改，自洽）；
+     *   · 英雄自带技能随局内等级进化走的是 `Ability.levelUp()`
+     *     （`Scene_Game_Stage.tryAutoUpgradeSkill`，2026-11 起 Lv.15 / Lv.30 各一阶），
+     *     **完全不经过本类**。
+     * 不推的话槽 0 与长按弹出的详情面板会一直显示 `Lv.1`（技能明明已经 3 级了，且那两块都是
+     * 只读 `slots` 渲染的，无从自行纠正）。
+     *
+     * 等级按 `getMaxLevel` 钳住 —— 从任何路径进来的槽位等级都不该越界（详情面板按它选绿字那一行）。
+     *
+     * @returns 是否真的有槽位等级变了（没变就不响 `onChanged`：宿主那条回调会推 store + 重算流派）
+     */
+    syncHeroSkillLevels(): boolean {
+        const hero = this.deps.getHero?.();
+        if (!hero) return false;
+
+        let changed = false;
+        const next = this.slots.value.map((s) => {
+            if (s.skillId <= 0) return s;
+            const lv = Math.floor(hero.abilities?.getAbility?.(s.skillId)?.getLevel?.() ?? 0);
+            if (lv <= 0 || lv === s.level) return s;
+            const max = Math.max(1, Math.floor(this.deps.getMaxLevel(s.skillId) ?? 1));
+            changed = true;
+            return { ...s, level: Math.max(1, Math.min(max, lv)) };
+        });
+        if (changed) {
+            this.slots.value = next;
+            this.deps.onChanged?.();
+        }
+        return changed;
+    }
+
     /* ===================================================================
      * 锁定 / 解锁
      * =================================================================== */

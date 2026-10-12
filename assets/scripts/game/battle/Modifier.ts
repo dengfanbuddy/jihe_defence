@@ -21,6 +21,22 @@ export function normalizeDuration(def: ModifierCfg | undefined, duration?: numbe
 }
 
 /**
+ * 状态栏格子上要显示的**动态值**（`Modifier.GetBarState()` 的返回）。
+ *
+ * 为什么在 Modifier 上而不是在 UI 里算：这些值只有实例自己知道 ——
+ * 「蓄力充能完了没」「护盾池还剩多少」「本局不屈还剩几次」全是脚本类的**私有字段**
+ * （见 `RelicHooks.ts` / `ShopSkillModifiers.ts`），UI 拿不到，也不该去反射。
+ */
+export interface BarState {
+    /** 短标（≤2 汉字）；缺省 = 用配表 `bar_text` / 来源名兜底 */
+    label?: string;
+    /** 进度 0~1（就绪 = 1）；缺省 = 由剩余时长算 */
+    pct?: number;
+    /** 层数 / 剩余次数（**> 1 才显示**） */
+    stacks?: number;
+}
+
+/**
  * Modifier —— 借鉴 Dota 2 的核心设计
  *
  * 一个挂载在实体上的"效果容器"，拥有：
@@ -37,8 +53,7 @@ export function normalizeDuration(def: ModifierCfg | undefined, duration?: numbe
  *   2. 代码驱动：子类覆写方法实现复杂逻辑（script_id 逃逸口）
  */
 export class Modifier {
-    readonly def: ModifierCfg;
-    /** 宿主 */
+    readonly def: ModifierCfg;    /** 宿主 */
     target: unknown;
     /** 来源（施法者/遗物等，可为空） */
     source?: unknown;
@@ -247,6 +262,18 @@ export class Modifier {
     getId(): number { return this.def.id; }
     isDebuff(): boolean { return this.def.is_debuff; }
     isHidden(): boolean { return this.def.is_hidden ?? false; }
+
+    /**
+     * 状态栏（HUD `buff_status`）本帧要显示的值；**返回 null = 这一帧不占格子**。
+     *
+     * 两条判据（`def.bar_show` 是配表白名单，见 `Tb_ModifierConfig.bar_show`）：
+     *   · **限时**效果（`remainingTime > 0`）不用覆写 —— 剩余秒数由 `StatusBar` 直接读实例；
+     *   · **常驻载体**（`duration = -1`，如蓄力 / 护盾充能 / 不屈）必须覆写本方法：
+     *     有内容（充能完成 / 有盾 / 还剩次数）就返回一份状态，没有就返回 null。
+     *
+     * ⚠ 返回 null 是常态（不是错误）：`StatusBar` 靠它实现"没就绪就不占格子"。
+     */
+    GetBarState(): BarState | null { return null; }
     isPermanent(): boolean { return this.duration < 0 || this.remainingTime < 0; }
     getDispelLevel(): DispelLevel { return this.def.dispel_level; }
     getStackMode() { return this.def.stack_mode; }

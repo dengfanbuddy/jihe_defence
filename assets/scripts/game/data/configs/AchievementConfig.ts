@@ -7,7 +7,7 @@
  * 这层只做「读配置」，不含任何进度与领奖逻辑（那些在 `data/funcs/AchievementData.ts`）：
  *   AchievementConfig.getCategories()        // 分类条（只返回**有内容**的分类）
  *   AchievementConfig.getByCategory('stage') // 某分类的成就（已排序）
- *   AchievementConfig.getGroup('st_clear')   // 一条成就（含它的 3 个档位）
+ *   AchievementConfig.getGroup('st_clear')   // 一条成就（含它的全部档位，档位数 3~20 不等）
  *   AchievementConfig.getTargetMode('victory') // 进度模式（add / max / flag）
  *
  * 容错：配表未加载完成时返回空结果（与 TaskConfig / ShopConfig / BattleConstUtil 一致），
@@ -15,21 +15,28 @@
  */
 import { TbRoot } from '../../../platform/excel_table/TbRoot';
 // 容器必须以「值导入」引入：@tb_config 装饰器靠模块求值完成 TbRoot 注册
-import { AchievementCfgContainer, ACH_CATEGORY_NAME, ACH_CATEGORY_ORDER } from '../../excel_table/Tb_AchievementConfig';
+import { AchievementCfgContainer, ACH_CATEGORY_NAME, ACH_CATEGORY_ORDER, ACH_RUN_TARGETS, isRunTarget }
+    from '../../excel_table/Tb_AchievementConfig';
 import type { AchCfg, AchCategory, AchEffectCode, AchGroupCfg, AchTarget } from '../../excel_table/Tb_AchievementConfig';
 import { formatGold } from '../../common/GoldText';
 
 export type { AchCfg, AchCategory, AchEffectCode, AchGroupCfg, AchTarget };
-export { ACH_CATEGORY_NAME, ACH_CATEGORY_ORDER };
+export { ACH_CATEGORY_NAME, ACH_CATEGORY_ORDER, ACH_RUN_TARGETS, isRunTarget };
 
 /**
  * 完成条件的**进度模式**（唯一真源）：进度怎么根据外部事件更新。
- *   add  = 累加（击杀数、通关次数、金币…）
- *   max  = 取峰值（单局最高阶段 / 单局英雄等级 / 单局金币峰值）
+ *   add  = 累加（击杀数、通关次数、金币、**局数**…）
+ *   max  = 取峰值（单局最高阶段 / 单局英雄等级 / 连续登录天数 / 收集种类数）
  *   flag = 置为完成（每日登录这类一次性的）
  *
  * ⚠ 前 12 个与 `TaskData.TargetMode` **同一个词表、必须同一个语义**（改这里要同步那边）；
- *   后 16 个是成就专属（数据来源见 `docs/成就系统设计.md` §3.3）。
+ *   其余的成就专属（数据来源见 `docs/成就系统设计.md` §3.3）。
+ *
+ * ⚠ **`run_*` 这一族是「门槛 × 局数」型**（2026-11 新增，全 `add`）：计数单位是**局**，
+ *   门槛写在那一行的 `param` 里，上报口是 `AchievementData.reportRunGoals()`。
+ *   它们**取代**了旧的「单局峰值」写法 —— 旧写法一局就能把好几档全领掉（用户口径
+ *   「战线推进，一局就能领到银 1000 多」）。`stage_reached` / `hero_level` 仍在词表里，
+ *   但只剩**任务表**在用（`tasks.json` 的周任务「单局到达第4阶段」）。
  */
 export const ACH_TARGET_MODE: Record<AchTarget, 'add' | 'max' | 'flag'> = {
     // —— 与 tasks 共用（口径必须与 TaskData.TargetMode 一致）——
@@ -62,6 +69,12 @@ export const ACH_TARGET_MODE: Record<AchTarget, 'add' | 'max' | 'flag'> = {
     relic_collected: 'max',
     buff_types: 'max',
     skills_picked: 'max',
+    // —— 成就专属·「门槛 × 局数」（param = 门槛，见 ACH_RUN_TARGETS）——
+    run_stage: 'add',
+    run_hero_level: 'add',
+    run_kill: 'add',
+    run_gold: 'add',
+    run_survive: 'add',
 };
 
 /** 分类条的一项 */
@@ -136,6 +149,18 @@ export class AchievementConfig {
     /** 档位的目标数量（防御性：配 0 或负数时按 1 处理，避免「一进游戏就完成」） */
     static getCount(cfg: AchCfg): number {
         return Math.max(1, cfg.count ?? 1);
+    }
+
+    /**
+     * 「门槛 × 局数」型档位的**门槛**（配表 `param`）。
+     *
+     * ⚠ 写坏时返回 **0**，而调用方（`AchievementData.reportRunGoals`）把 0 当作
+     * **永远不成立**（那一档永不推进）—— 不能兜成 1，否则「门槛漏填」会变成
+     * 「门槛 = 1」（一局就达成）。容器装载时已经对这种情况打过 warn。
+     */
+    static getRunParam(cfg: AchCfg): number {
+        const raw = Number(cfg.param);
+        return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
     }
 
     /** 档位的进度文案（如 `12/50`；进度按目标数量钳制） */
