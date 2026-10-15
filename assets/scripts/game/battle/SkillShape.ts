@@ -57,6 +57,19 @@ export interface SkillShapeReport {
     source?: any;
     /** 目标（可空）：给表现层判"打的是不是英雄"用 */
     target?: any;
+    /**
+     * **这一发的图形由上报方自己画**，形态层（`HitVfxLayer`）整条不接（不画、不占额度、不吸收印痕）。
+     *
+     * 唯一的使用者是目前的地雷（`reportMineBlast`）：它的表现是**自己的预制件节点**
+     * （`game_stage/entityview/MineView`，跟着那颗雷的位置走、炸完就地回收），
+     * 而形态层那条同形状的环会在**同一帧、同一个位置**再画一遍 —— 同一发爆炸两个圈。
+     *
+     * ⚠ 它**只关掉"画"**，不关掉"上报"：音效、顿帧、抖动照旧（导演自己订阅总线上的这条事件，
+     *   它对形态的判断与谁画这个环无关）。
+     * ⚠ 别拿它当"我不想看见这个环"的开关用 —— 那样会让打击反馈的账本与画面不一致
+     *   （形态层的额度是按**图形个数**算的，塞进去一堆画不出来的图形会把真要画的挤掉）。
+     */
+    noDraw?: boolean;
 }
 
 /*
@@ -104,5 +117,6 @@ export function publishSkillShape(ctx: BattleContext | undefined, report: SkillS
         points: report.points ?? [],
         source: report.source,
         target: report.target,
+        noDraw: report.noDraw === true,
     });
 }

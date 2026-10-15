@@ -140,6 +140,14 @@ export class HitVfxLayer extends Component {
      */
     private pending: PendingBatch[] = [];
 
+    /**
+     * 本帧已经逐段记录了多少条命中（**单帧采样闸门**，见 `onTakeDamage` 与
+     * `HIT_FEEL_BUDGET.perFrameHitSampleMax`）。
+     *
+     * 帧边界与 `pending` 同步：`flushPending()` 提交完就归零。
+     */
+    private pendingHits = 0;
+
     /** 印痕新建时间戳（1s 滑动窗口，用来卡每秒新建上限） */
     private spawnTimes: number[] = [];
     /** 形态图形新建时间戳（1s 滑动窗口；**与印痕分开记**，见 `shapes` 的注释） */
@@ -161,7 +169,7 @@ export class HitVfxLayer extends Component {
     /** 统计（调试面板 / `npm run audit:hitfeel` 读它；不做任何业务判断） */
     readonly stats: HitVfxStats = {
         marks: 0, attacks: 0, evades: 0, shards: 0, merged: 0,
-        spawnDropped: 0, evicted: 0, shardsDropped: 0, alivePeak: 0, redraws: 0,
+        spawnDropped: 0, evicted: 0, shardsDropped: 0, alivePeak: 0, redraws: 0, hitsDropped: 0,
         shapes: 0, chains: 0, blasts: 0, multis: 0, fans: 0, reported: 0,
         shapesDropped: 0, shapesEvicted: 0, shapeAlivePeak: 0, shapeSpawnDropped: 0,
     };
@@ -250,6 +258,7 @@ export class HitVfxLayer extends Component {
         this.pendingShapes.length = 0;
         this.spawnTimes.length = 0;
         this.shapeSpawnTimes.length = 0;
+        this.pendingHits = 0;
         this.clock = 0;
         if (this.g) this.g.clear();
         this.drewLastFrame = false;
@@ -309,6 +318,19 @@ export class HitVfxLayer extends Component {
     private onTakeDamage(e: any): void {
         const target = e?.target;
         if (!target?.position) return;
+        /**
+         * ⚠ **单帧只逐段记前 `perFrameHitSampleMax` 段**（超出的只累加计数，见 stats.hitsDropped）。
+         *
+         * 为什么：本方法是**每段一个对象**的分配点，而段数一爆（实测 boss 战一帧 4~6.8 万段）
+         * 就是"一帧几万个临时对象 → major GC 停顿几百 ms~数秒"。
+         * 而采样只喂**形态推断**（落点几何），前 512 个落点足够定形状，
+         * 印痕本身另有 `markAliveMax` 淘汰 ⇒ 超出的部分**画面本来也画不出来**。
+         */
+        if (this.pendingHits >= HIT_FEEL_BUDGET.perFrameHitSampleMax) {
+            this.stats.hitsDropped++;
+            return;
+        }
+        this.pendingHits++;
         const srcUid = e?.source?.uid ?? -1;
         const batch = this.batchOf(srcUid);
         const dir = directionOf(e?.source, target);
@@ -370,6 +392,15 @@ export class HitVfxLayer extends Component {
     private onSkillShape(e: any): void {
         if (!e || !Number.isFinite(e.cx) || !Number.isFinite(e.cy)) return;
         if (!Number.isFinite(e.radius) || e.radius <= 0) return;
+        /**
+         * **上报方自己画这一发**（`SkillShapeReport.noDraw`，目前只有地雷）→ 本层整条不接。
+         *
+         * 为什么是"不接"而不是"接了但不画"：形态层的额度是**按图形个数**算的
+         * （`HIT_FEEL_BUDGET.shapeAliveMax` = 8），一次「引爆器」能同时响 5 颗雷 ——
+         * 5 个画不出来的图形占着 5/8 的额度、还参与淘汰，会把真正要画的爆炸/扇形挤掉。
+         * 音效与顿帧**不受影响**：那次上报在总线上照发，导演（`HitFeelDirector`）自己订阅了它。
+         */
+        if (e.noDraw === true) return;
         if (this.pendingShapes.length >= HIT_FEEL_BUDGET.shapeAliveMax * 2) return;   // 上界兜底，别被脏数据撑爆
         this.pendingShapes.push({
             shape: e.shape,
@@ -757,6 +788,8 @@ export class HitVfxLayer extends Component {
         const reports = this.pendingShapes;
         this.pending = [];
         this.pendingShapes = [];
+        // 单帧采样闸门与新的一帧同时重置（放在这里而不是 `update` 末尾：本方法是唯一提交点）
+        this.pendingHits = 0;
         if (batches.length === 0 && reports.length === 0) return;
 
         const claimed: boolean[] = reports.map(() => false);
@@ -1426,6 +1459,13 @@ export interface HitVfxStats {
     alivePeak: number;
     /** 真正重绘过的帧数（空场不重绘 → 它远小于总帧数） */
     redraws: number;
+    /**
+     * 因**单帧采样上限**（`HIT_FEEL_BUDGET.perFrameHitSampleMax`）而没有被逐段记录的命中数。
+     *
+     * 诊断用：这个数变大 ⇒ 这一局出现了**段数爆炸**（见 `battle/DamageMeter.ts` 的文件头）；
+     * 它**不影响表现**（采样只喂形态推断，印痕本身另有 `markAliveMax` 淘汰）。
+     */
+    hitsDropped: number;
 
     // ---- B5 形态层（**与上面那批分开记**：额度不同、淘汰规则也不同）----
     /** 建出的形态图形总数 */

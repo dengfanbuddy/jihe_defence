@@ -24,8 +24,14 @@ import type { BattleContext } from './BattleContext';
  *   ② **形态必须上报**（`publishSkillShape`）：这两个技能都是"看不见的作用范围"，
  *      不上报就是"玩家莫名其妙掉了一格血"。扇形的半角与半径**与实际结算几何同源**
  *      （用同一个 `halfAngleDeg` / `radiusM` 既筛人又画图），不会出现"画 60° 打 90°"。
- *   ③ **只打敌对队伍**：`findEntitiesInRadius(..., 2)` 固定 team=2（怪物侧），
- *      Boss 永远打不到自己人。
+ *   ③ **只打敌对队伍**：`findEntitiesInRadius(center, radius, teamFilter)` 的第三个参数是
+ *      **teamFilter（只保留 `e.team === teamFilter`）**，不是"排除"。所以这里必须传
+ *      **施法者的敌对队伍**（`actor.team === 1 ? 2 : 1`）。
+ *      ⚠ **2026-11 修过一处真 bug**：这里原先写死 `2`，而 `2` 就是**怪物侧**（Boss 自己也是 team 2）
+ *      ⇒ 扇形咆哮 / 深渊诅咒结算的是「Boss 自己 + 身边的小怪」（还附带一次自伤），
+ *      **英雄一次都吃不到** —— 表现就是"最终 Boss 那两个技能完全没有威胁"。
+ *      判据（与全工程一致的取法）：`RelicHooks.enemies()` 用 `GetTeamEntities(2)` 取敌人、
+ *      `BattleContext` 用 `GetTeamEntities(1)` 取英雄 ⇒ 英雄 1 / 怪物 2，Boss 想打英雄就要传 1。
  *
  * 注册：`Scene_Game_Stage.initBattle` 里 `BOSS_SKILL_ACTIONS` 一次性注册
  * （`scriptRegistry.registerAction`，与 `SPECIAL_BUFF_SCRIPT_CLASSES` 同一处）。
@@ -140,13 +146,20 @@ export function bossCast(actor: any, _self: any, action: any, context?: any): vo
 
     const hit = (e: any): void => {
         if (!e || e.IsDead?.()) return;
+        if (e === actor) return;                 // 兜底：绝不结算到自己（见文件头 ③）
         if (dmg > 0) ctx.damagePipeline.ApplyDamage(e, actor, dmg, DamageType.Magical);
         if (modId > 0) {
             e.modifiers?.AddModifier?.(modId, actor, duration, kv, `boss:${actor.id}`);
         }
     };
 
-    const inRange = ctx.findEntitiesInRadius(actor, radius, 2) ?? [];
+    /**
+     * 敌对队伍 = 施法者所在队伍的另一侧（英雄 1 / 怪物 2）。
+     * `actor.team` 缺失时回落 `1`（英雄侧）—— Boss 的技能打不到人才是真正的 bug，
+     * 而"英雄侧写死"对本函数唯一的调用方（Boss）恒为正确值。
+     */
+    const enemyTeam = actor.team === 1 ? 2 : 1;
+    const inRange = ctx.findEntitiesInRadius(actor, radius, enemyTeam) ?? [];
     if (isFan) {
         const cosLimit = Math.cos(halfAngleRad);
         for (const e of inRange) {

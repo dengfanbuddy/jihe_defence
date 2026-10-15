@@ -78,6 +78,23 @@ export default class AudioMgr extends Component{
      */
     private currentBgmUrl: string = '';
 
+    /**
+     * 音效开关（`localStorage.local_sfx == '0'` = 静音）的**缓存**。
+     *
+     * 为什么必须缓存：`playSFX` 是**热路径**（打击反馈的音效由 `HitFeelDirector` 节流后调用，
+     * 上限 2 声 / 50ms ≈ 40 次/秒；boss 战命中密度最高时就是贴着这个上限在打）。
+     * 原来的写法在每次调用里做两件昂贵的事：
+     *   · `sys.localStorage.getItem('local_sfx')` —— 同步读存储；
+     *   · 静音时 `console.log('音效声音为0')` —— **DevTools 开着时每条日志都是同步 DOM 写入**，
+     *     40 条/秒足以把主线程按住（表现为 profiler 里逻辑/渲染都只有 1~2ms，但 FPS 掉到个位数）。
+     * 现在改成"最多每 `SFX_SWITCH_TTL_MS` 读一次存储"，且**只在开关真的翻转时**打一条日志。
+     */
+    private sfxMuted = false;
+    /** 上次读开关的时刻（`Date.now()`，毫秒；-1 = 还没读过） */
+    private sfxSwitchAt = -1;
+    /** 读一次开关的最短间隔（毫秒）—— 控制台里手改 `local_sfx` 后最多 1 秒生效 */
+    private static readonly SFX_SWITCH_TTL_MS = 1000;
+
     //自定义全局点击事件
     public touchStart:Function = null;
     //默认点击事件
@@ -178,6 +195,30 @@ export default class AudioMgr extends Component{
         }
     }
 
+    /**
+     * 当前音效是不是被关掉了（`localStorage.local_sfx == '0'`）。
+     *
+     * 口径（三条，别绕过它去直接读 `localStorage`）：
+     *   · **最多每 `SFX_SWITCH_TTL_MS` 读一次存储**：热路径（每秒几十次）上不能每次都同步读；
+     *   · 控制台里手改 `local_sfx` 后**最多 1 秒生效**（TTL 就是为这条留的逃生口）；
+     *   · 开关**翻转时**才打一条日志（不是每次调用都打）——
+     *     原来的 `console.log("音效声音为0")` 在静音状态下每秒刷几十条，DevTools 开着时
+     *     会把主线程按住（profiler 里逻辑/渲染都 1~2ms、FPS 却只有个位数就是这个味道）。
+     */
+    private isSfxMuted(): boolean {
+        const now = Date.now();
+        if (this.sfxSwitchAt >= 0 && (now - this.sfxSwitchAt) < AudioMgr.SFX_SWITCH_TTL_MS) {
+            return this.sfxMuted;
+        }
+        this.sfxSwitchAt = now;
+        const muted = sys.localStorage.getItem("local_sfx") === "0";
+        if (muted !== this.sfxMuted) {
+            this.sfxMuted = muted;
+            console.log(muted ? "[音效] 已静音（local_sfx = 0），本局不再播放音效" : "[音效] 已恢复播放");
+        }
+        return this.sfxMuted;
+    }
+
     // 播放音效
     /**
      * 播放一个音效（**先查缓存 → 再加载 → 再播**；首次播放会有一次异步加载）。
@@ -190,13 +231,8 @@ export default class AudioMgr extends Component{
      * 首次那一发会晚到（打击反馈里"晚半拍"等于"没响"）。
      */
     public async playSFX(url: string, volume: number = 1) {
-        //音量检查
-        let flag: string = sys.localStorage.getItem("local_sfx");
-        if (flag == "0") {
-            console.log("音效声音为0");
-            return;
-        }
-        //TODO 音效开关检查
+        //音量检查（走缓存：热路径上不许每次调用都读 localStorage / 打日志，见 isSfxMuted 的注释）
+        if (this.isSfxMuted()) return;
 
         if (!url.startsWith("sfx/")) {
             url = "sfx/" + url;

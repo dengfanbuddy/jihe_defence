@@ -503,6 +503,13 @@ export class BattleMines {
  * 爆炸形态上报的**默认实现**（宿主接线用一行）。
  *
  * 单独导出是为了让宿主 / 体检都能复用同一条口径（半径一律**像素**，见 `SkillShape.ts`）。
+ *
+ * ⚠ **`noDraw: true` —— 这个环不由形态层画**（2026-11，雷的表现改成预制件之后）。
+ *   地雷现在每颗是一个节点（`game_stage/entityview/MineView`），"圆圈从原点扩散到爆炸半径"
+ *   就在那颗雷的节点上画、炸完就地回收 —— 形态层要是在同一帧、同一个坐标再画一遍，
+ *   玩家看到的就是**同一发爆炸两个圈**（这个文件的老注释里已经写过一次同样的坑）。
+ *   上报本身**照旧发**：音效、顿帧、抖动、以及"这一批命中被形态吸收"的账都靠它，
+ *   只是"画"这一件事交给了雷自己（`SkillShapeReport.noDraw` 的注释写明了边界）。
  */
 export function reportMineBlast(ctx: any, x: number, y: number, radius: number): void {
     publishSkillShape(ctx, {
@@ -510,5 +517,6 @@ export function reportMineBlast(ctx: any, x: number, y: number, radius: number):
         cx: x,
         cy: y,
         radius,
+        noDraw: true,
     });
 }

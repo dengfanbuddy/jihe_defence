@@ -408,7 +408,8 @@ export class Entity {
             return 0;
         }
 
-        const finalDamage = this.ctx.damagePipeline.ApplyDamage(target, this, damage, damageType, { ability });
+        const finalDamage = this.ctx.meter.withTag(attackTag(ability), () =>
+            this.ctx.damagePipeline.ApplyDamage(target, this, damage, damageType, { ability }));
 
         /**
          * 普攻命中回复（2026-10 遗物重做新增属性 25/26/27）。
@@ -528,4 +529,18 @@ export class Entity {
 /** Modifier 常量（实体内部引用；对应 modifiers.json 中的 id） */
 export namespace Entity {
     export const ModShuriken = 16; // mod_shuriken 在 modifiers.json 中的编号
+}
+
+/**
+ * 命中结算的来源标签（**段数账本**用，见 `battle/DamageMeter.ts`）：
+ * 普攻 = `普攻`；技能命中 = `技能#<技能id>`。
+ *
+ * ⚠ 只标**这一发本身**：由它引发的追加段（遗物钩子的十几条 `on_attack_landed` 系、暴击系）
+ *   **不在这里**标 —— 那些段由 `ModifierSystem` 按"是哪个钩子打的"各自压标签。
+ *   两者合起来才是"一次普攻到底拆成了多少段、每段归谁"。
+ */
+function attackTag(ability: any): string {
+    if (!ability) return '普攻';
+    const id = (typeof ability.getId === 'function') ? ability.getId() : ability?.def?.id;
+    return (id === undefined || id === null) ? '技能' : `技能#${id}`;
 }

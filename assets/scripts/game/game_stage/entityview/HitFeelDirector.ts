@@ -56,6 +56,13 @@ export interface HitFeelStats {
     stops: number;
     /** 因预算超限被丢弃的顿帧次数 */
     stopsDropped: number;
+    /**
+     * 因**最小间隔**（`HIT_FEEL_BUDGET.stopMinGapSec`）被丢弃的常规档位顿帧次数。
+     *
+     * 它是"这一局有没有在**饱和**地打 Boss"的直接证据：与 `stops` 同量级或更大 ⇒
+     * 命中密度已经顶到"每秒必有一发"，也就是用户体感里"一直在卡"的那种局面。
+     */
+    stopsGapDropped: number;
     /** 累计顿帧毫秒（**时间税 = 它 / 真实时间**，验收判据 ≤ 3%） */
     stopMsTotal: number;
     /** 生效过的位移次数 */
@@ -72,6 +79,13 @@ export interface HitFeelStats {
     sfxDropped: number;
     /** 单帧最多命中数（同帧合并前） */
     peakHitsPerFrame: number;
+    /**
+     * 因超过 `HIT_FEEL_BUDGET.perFrameHitSampleMax` 而**没有被逐段落样本**的命中数。
+     *
+     * 它专门用来回答一个诊断问题：这个数很大 ⇒ 这一局出现了**段数爆炸**
+     * （见 `battle/DamageMeter.ts` 的文件头）。它**不影响任何表现**（落点样本只用于形态推断）。
+     */
+    pointsDropped: number;
     /** 当前密度衰减系数 k */
     densityK: number;
     /** 判出技能形态的帧数（B5；**同一帧多次也只在合并后算一次**） */
@@ -156,6 +170,13 @@ export class HitFeelDirector {
     private stopRemainMs = 0;
     private stopUsedMs = 0;
     private stopWindowStart = -Infinity;
+    /**
+     * 上一次**常规档位**顿帧发生的时刻（本类时钟，秒）—— `-Infinity` = 这一局还没停过。
+     *
+     * 只被常规档位写入，峰值档位（T5/T7）不参与：它们本来就吃满账本，
+     * 下一次紧跟其后会被账本自己挡住（见 `requestStop` 与 `HitFeelConfig.stopMinGapSec`）。
+     */
+    private lastStopAt = -Infinity;
 
     // ---- 慢动作 ----
     private slowRemainMs = 0;
@@ -197,10 +218,10 @@ export class HitFeelDirector {
     private hitTimes: number[] = [];
 
     readonly stats: HitFeelStats = {
-        hits: 0, deaths: 0, stops: 0, stopsDropped: 0, stopMsTotal: 0,
+        hits: 0, deaths: 0, stops: 0, stopsDropped: 0, stopsGapDropped: 0, stopMsTotal: 0,
         shakes: 0, shakesDropped: 0, flashes: 0, flashesDropped: 0,
         sfx: 0, sfxDropped: 0,
-        peakHitsPerFrame: 0, densityK: 1,
+        peakHitsPerFrame: 0, densityK: 1, pointsDropped: 0,
         shapeFrames: 0, chainFrames: 0, blastFrames: 0, multiFrames: 0, fanFrames: 0, reportedFrames: 0,
     };
 
@@ -226,6 +247,26 @@ export class HitFeelDirector {
         // 而这些额度在 `HIT_FEEL_SHAPES` 里是按形态分的 —— 所以**必须**知道形状。
         this.unsubs.push(ctx.bus.onBattleEvent(BattleEvents.OnSkillShape, this.onSkillShape, this));
         HitFeelDirector.active = this;
+        this.publishDebug();
+    }
+
+    /**
+     * 把**预算**与**本局统计**挂到控制台（只读诊断，口径同 `window.__dmgMeter` / `window.__runStats`）。
+     *
+     * 为什么需要它：顿帧是"看不见的"——用户在局内不可能知道"这一秒停了几毫秒"，
+     * 而"打 Boss 一直在卡"与"账本按 3% 封顶"这两件事只有把数读出来才能对上账。挂两个口：
+     *   · `__hitFeel.stats` —— `stops` / `stopsDropped` / `stopsGapDropped` / `stopMsTotal`：
+     *     `stopsGapDropped` 与 `stops` 同量级 ⇒ 这一局确实处在"每秒必有一发"的饱和态；
+     *   · `__hitFeelBudget` —— 预算本体，**控制台可直接改**，用来做 A/B：
+     *     `__hitFeelBudget.stopMinGapSec = 0`（关掉最小间隔 = 旧行为）、
+     *     `__hitFeelBudget.stopMsPerWindow = 0`（完全不停，用来确认"卡帧就是顿帧"）。
+     *   ⚠ 只发布引用、不参与任何业务判断；`window` 不存在（体检脚本环境）时静默跳过。
+     */
+    private publishDebug(): void {
+        const g: any = (typeof window !== 'undefined') ? window : undefined;
+        if (!g) return;
+        g.__hitFeel = this;
+        g.__hitFeelBudget = HIT_FEEL_BUDGET;
     }
 
     /** 解绑（换局 / 组件销毁）：退订 + 清空全部计时器与位移，**保证不留下任何残留偏移** */
@@ -256,6 +297,7 @@ export class HitFeelDirector {
         this.stopRemainMs = 0;
         this.stopUsedMs = 0;
         this.stopWindowStart = -Infinity;
+        this.lastStopAt = -Infinity;
         this.slowRemainMs = 0;
         this.slowScale = 1;
         this.shakeRemainMs = 0;
@@ -399,9 +441,19 @@ export class HitFeelDirector {
         this.stats.hits++;
         this.frameHits++;
         this.hitTimes.push(this.clock);
-        // 形态推断的落点（位置必须在回调里快照：实体可能马上被回收）
+        /**
+         * 形态推断的落点（位置必须在回调里快照：实体可能马上被回收）。
+         *
+         * ⚠ **每帧只留前 `perFrameHitSampleMax` 个**：段数爆炸时（实测一帧 4~6.8 万段）
+         *   这一段就是"每段一个对象"的分配源；而形态推断只需要落点几何，
+         *   前 512 个足够定形状 —— 超出的**只累加计数**（`stats.pointsDropped` 记账）。
+         */
         if (target.position) {
-            this.framePoints.push({ uid: target.uid ?? 0, x: target.position.x, y: target.position.y });
+            if (this.framePoints.length < HIT_FEEL_BUDGET.perFrameHitSampleMax) {
+                this.framePoints.push({ uid: target.uid ?? 0, x: target.position.x, y: target.position.y });
+            } else {
+                this.stats.pointsDropped++;
+            }
         }
 
         const tier = resolveHitTier(e);
@@ -600,16 +652,28 @@ export class HitFeelDirector {
     }
 
     /**
-     * 顿帧账本（1s 滑动窗口）
+     * 顿帧账本（1s 滑动窗口）+ **最小间隔**（`stopMinGapSec`）
      *
      * 两类档位走两套算法（**这是"两个旋钮各管一件事"的落点**，见 HIT_FEEL_BUDGET 的注释）：
      *   · 常规档位：单次 = `min(请求, 窗口剩余)` —— 窗口快满时**自动缩短**而不是整次丢弃，
      *     只有"窗口已经用光"才丢弃并计数。所以一次暴击拿到的是 30ms（= 窗口上限）而不是档位表里的请求值。
      *   · 峰值档位（T5/T7）：单次 = `min(请求, stopHardMaxMs)`，并且**把账本一次吃满** ——
      *     大击杀/通关那一秒之后不会再有第二次顿帧（绝不叠加）。
+     *
+     * ⚠ **常规档位还要过"最小间隔"这一关**（峰值档位不过）：账本按"总量"封顶，
+     *   它拦不住"每一秒都被首发吃满"这种**频率饱和** —— 打 Boss 的 T4 就是
+     *   （最终 Boss 265 万血 = 原地输出 100+ 秒，命中密度必然 ≥1 次/秒 ⇒ 每秒定格 2 帧）。
+     *   间隔这一条让饱和态退化成"最多每 `stopMinGapSec` 秒沉一下"；而稀疏的常规节奏
+     *   （实测平均间隔 2.86s，见 `HitFeelConfig.stopMinGapSec`）一发都不会被拦。
      */
     private requestStop(ms: number, isPeak: boolean): void {
         if (!(ms > 0)) return;
+        // 最小间隔（只约束常规档位；配 0 = 关掉这条，回到 2026-11 之前的纯账本口径）
+        const gapSec = HIT_FEEL_BUDGET.stopMinGapSec;
+        if (!isPeak && gapSec > 0 && this.clock - this.lastStopAt < gapSec) {
+            this.stats.stopsGapDropped++;
+            return;
+        }
         if (this.clock - this.stopWindowStart >= HIT_FEEL_BUDGET.stopWindowSec) {
             this.stopWindowStart = this.clock;
             this.stopUsedMs = 0;
@@ -633,6 +697,8 @@ export class HitFeelDirector {
         this.stopRemainMs += use;
         this.stats.stops++;
         this.stats.stopMsTotal += use;
+        // 常规档位才能刷新"最小间隔"的起点（峰值档位下一次会被账本挡住，不占这个坑）
+        if (!isPeak) this.lastStopAt = this.clock;
     }
 
     /** 位移：幅度取本窗口内的最大值（**不相加**），已在播且不更弱就忽略 */

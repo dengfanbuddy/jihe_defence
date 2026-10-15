@@ -1123,5 +1123,117 @@
     },
     "collision_radius": 48,
     "prefab": "prefabs/units/monster_9"
+  },
+  {
+    "id": 2011,
+    "name": "最终boss1",
+    "team": 2,
+    "category": "monster",
+    "subtype": "boss",
+    "base_attributes": [
+      [
+        1,
+        500000
+      ],
+      [
+        2,
+        300
+      ],
+      [
+        5,
+        140
+      ],
+      [
+        3,
+        60
+      ],
+      [
+        4,
+        80
+      ],
+      [
+        6,
+        100
+      ],
+      [
+        7,
+        90
+      ],
+      [
+        16,
+        180
+      ]
+    ],
+    "abilities": [
+      1,
+      30,
+      31
+    ],
+    "attack_interval": 2.5,
+    "gold": 500,
+    "goldReward": 40,
+    "expReward": 200,
+    "killReward": 1,
+    "rewardType": "boss",
+    "ai": {
+      "type": "boss",
+      "params": {
+        "skills": [
+          {
+            "abilityId": 1,
+            "interval": 6,
+            "delay": 3
+          },
+          {
+            "abilityId": 30,
+            "interval": 16,
+            "delay": 8,
+            "hpBelow": 0.65
+          },
+          {
+            "abilityId": 31,
+            "interval": 22,
+            "delay": 14,
+            "hpBelow": 0.35
+          }
+        ],
+        "phases": [
+          {
+            "hpRatio": 1,
+            "behavior": "chase",
+            "params": {
+              "speedMul": 0.8
+            }
+          },
+          {
+            "hpRatio": 0.7,
+            "behavior": "orbit",
+            "params": {
+              "orbitRadius": 150,
+              "angularSpeed": 1.2
+            }
+          },
+          {
+            "hpRatio": 0.4,
+            "behavior": "chase",
+            "params": {
+              "speedMul": 1.6
+            }
+          },
+          {
+            "hpRatio": 0.2,
+            "behavior": "attack_stop",
+            "params": {
+              "stopDuration": 1.2,
+              "speedMul": 1.8
+            },
+            "onEnterModifier": 9,
+            "onEnterDuration": 8
+          }
+        ]
+      }
+    },
+    "collision_radius": 40,
+    "prefab": "prefabs/units/monster_9"
   }
 ]

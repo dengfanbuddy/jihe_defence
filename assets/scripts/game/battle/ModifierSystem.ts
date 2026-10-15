@@ -253,18 +253,32 @@ export class ModifierSystem {
     // ============ 每帧更新 ============
 
     Tick(dt: number): void {
+        /**
+         * 段数账本（`battle/DamageMeter.ts`，只读诊断）：**钩子的 `OnTick` 里打出的伤害是最大的
+         * 一类"追加段"**（箭雨/炮台/灼烧光环/缺血流…），所以这里给每一拍的调用压上它自己的标签。
+         * 标签是 `名字#id@origin`（如 `箭雨#274@relic:1198`），由 `tagOfModifier` 缓存 ⇒ 每帧每
+         * Modifier 只是一次 `WeakMap` 查找，不分配字符串。
+         *
+         * ⚠ **本循环用显式 `pushTag`/`try`/`popTag` 而不是 `meter.withTag(tag, () => …)`**：
+         *   这是"每帧 × 每实体 × 每条 Modifier"的热路径，回调写法每次都要分配一个闭包。
+         *   低频调用点（技能动作 / 弹道命中 / 普攻命中）才用 `withTag`，见那个方法的注释。
+         */
+        const meter = this.ctx.meter;
         for (const m of [...this.modifiers]) {
             // 自带冷却（cd）：每个实例独立计时，互不影响
             if (m.cdRemaining > 0) m.cdRemaining = Math.max(0, m.cdRemaining - dt);
             // 周期效果（DoT/HoT）—— 每条周期效果各持一个计时器；在剩余时间扣除前处理
             for (const eff of m.advanceTicks(dt)) this.processTickEffect(m, eff);
-            if (m.paused || m.isPermanent()) {
+            // 暂停 / 永久：不扣时长、也不判过期（与旧写法逐字等价，只是 OnTick 包了一层标签）
+            const lastsForever = m.paused || m.isPermanent();
+            if (!lastsForever) m.remainingTime -= dt;
+            meter.pushTag(meter.tagOfModifier(m));
+            try {
                 m.OnTick(dt);
-                continue;
+            } finally {
+                meter.popTag();
             }
-            m.remainingTime -= dt;
-            m.OnTick(dt);
-            if (m.remainingTime <= 0) {
+            if (!lastsForever && m.remainingTime <= 0) {
                 this.RemoveModifier(m);
             }
         }
@@ -277,10 +291,17 @@ export class ModifierSystem {
         switch (eff.type) {
             case 'tick_damage': {
                 if (eff.value > 0) {
-                    this.ctx.damagePipeline.ApplyDamage(
-                        target, source, eff.value,
-                        eff.damage_type ?? DamageType.Magical,
-                    );
+                    // 段数账本：DoT 的每一跳也归属到"施加它的那条 Modifier"（同 Tick 的标签口径）
+                    const meter = this.ctx.meter;
+                    meter.pushTag(meter.tagOfModifier(m));
+                    try {
+                        this.ctx.damagePipeline.ApplyDamage(
+                            target, source, eff.value,
+                            eff.damage_type ?? DamageType.Magical,
+                        );
+                    } finally {
+                        meter.popTag();
+                    }
                 }
                 break;
             }
@@ -335,8 +356,22 @@ export class ModifierSystem {
      * @returns 事件是否被吞掉
      */
     DispatchEvent(eventName: string, event: any): boolean {
+        /**
+         * 段数账本（只读诊断）：**这里是"钩子互相触发"的唯一入口** —— `on_deal_damage` / `on_kill`
+         * 系钩子打出的追加段全部经过它。压上被调用者自己的标签，就得到了
+         * 「这一帧的 N 段分别是哪个钩子打的」（栈式：钩子 A 触发钩子 B 时 B 的标签盖住 A）。
+         *
+         * ⚠ 同 `Tick`：热路径用显式 push/try/finally，不用回调写法（避免每次分配闭包）。
+         */
+        const meter = this.ctx.meter;
         for (const m of [...this.modifiers]) {
-            const consumed = m.OnBattleEvent(eventName, event);
+            let consumed = false;
+            meter.pushTag(meter.tagOfModifier(m));
+            try {
+                consumed = m.OnBattleEvent(eventName, event);
+            } finally {
+                meter.popTag();
+            }
             if (consumed) return true;
         }
         return false;

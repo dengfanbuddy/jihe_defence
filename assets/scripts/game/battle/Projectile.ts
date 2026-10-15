@@ -30,6 +30,13 @@ export class Projectile {
     /** 视图引用（表现层绑定：ProjectileView 组件，可为空） */
     view: any = null;
 
+    /**
+     * 段数账本用的**来源标签**（见 `battle/DamageMeter.ts`）：
+     * 普攻弹道 = `弹道`（内部 `普攻` 会盖住它）；技能弹道 = `弹道#<技能id>`。
+     * 构造时算一次 ⇒ 命中路径（每帧可能几十发）零字符串分配。
+     */
+    readonly meterTag: string;
+
     /** 当前位置（逻辑层推进，表现层只读同步）——与 Entity.position 同构 */
     position: { x: number; y: number } = { x: 0, y: 0 };
 
@@ -84,6 +91,15 @@ export class Projectile {
             this.dirX = 0;
             this.dirY = 0;
         }
+
+        // 段数账本标签（见字段注释）：普攻弹道不带 id，技能弹道带技能 id
+        if (this.isAttack) {
+            this.meterTag = '弹道';
+        } else {
+            const ability: any = this.ability;
+            const id = (typeof ability?.getId === 'function') ? ability.getId() : ability?.def?.id;
+            this.meterTag = (id === undefined || id === null) ? '弹道' : `弹道#${id}`;
+        }
     }
 
     /** 弹道飞行进度 0~1（表现层可用来插值/特效进度） */
@@ -118,6 +134,22 @@ export class Projectile {
      * @returns 实际伤害
      */
     onHit(): number {
+        /**
+         * 段数账本（`battle/DamageMeter.ts`，**只读诊断**）：弹道命中也是"一段"，
+         * 而"这条弹道是谁发的"只有这里知道 ⇒ 压上 `meterTag`（构造时算好，命中路径不拼字符串）。
+         * 普攻弹道内层还会走 `Entity.resolveAttackHit`（那边压 `普攻`），栈顶以更内层为准。
+         */
+        const meter = this.ctx.meter;
+        meter.pushTag(this.meterTag);
+        try {
+            return this.onHitInner();
+        } finally {
+            meter.popTag();
+        }
+    }
+
+    /** 命中结算的执行体（`onHit` 只负责压/弹来源标签） */
+    private onHitInner(): number {
         const t = this.target;
         if (!t) return 0;
 

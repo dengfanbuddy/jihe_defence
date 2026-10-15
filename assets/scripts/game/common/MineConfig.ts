@@ -123,14 +123,59 @@ export const MINE_LAYER_STYLE = {
     mineCoreRadius: 2.5,
     /** 本体线宽（像素） */
     mineLineWidth: 1.6,
-    /** 待触发虚线圈半径（像素）—— 比本体大一圈，读作"这一颗在警戒" */
-    mineTriggerRing: 14,
-    /** 地雷虚线圈的段数（12 段在 14px 半径上刚好读成虚线，再多就糊成实线） */
-    mineDashCount: 12,
+
+    // ---- 触发范围（雷达盘）----
+    /**
+     * 触发半径**虚线圈**的线宽 / 段数。
+     *
+     * ⚠ 2026-11 起这个圈的半径 = **真实触发半径**（`MineRuntime.triggerRadius`，骷髅王 45px），
+     *   不再是过去那个"画在 14px 上的装饰圈"：雷达盘要能回答"敌人走到哪一步会踩响"，
+     *   而 14px 的圈与 45px 的判定差了三倍 —— 那是**表现骗人**，不是美术选择。
+     */
+    triggerLineWidth: 1.2,
+    /** 触发虚线圈段数（45px 半径上 24 段刚好读成虚线，与燃烧地面的段数同值） */
+    triggerDashCount: 24,
+    /**
+     * **雷达扫描线**的转速（度/秒）—— 唯一的作用是"让这颗雷看起来在等敌人"，
+     * **不参与任何逻辑判定**（触发判定在纯 TS 的 `BattleMines.tick` 里）。
+     * 130°/s ≈ 2.8 秒转一圈：比一圈 1 秒的"扫描雷达"慢，因为场上最多同时 5 颗，
+     * 快了会变成一片转圈的风扇、抢掉"哪颗雷要炸"的读图注意力。
+     */
+    sweepDegPerSec: 130,
+    /** 扫描线线宽（与触发圈同档，细线不抢本体） */
+    sweepLineWidth: 1.2,
+    /** 扫描线**尖端的两侧刻度**长度（像素）—— 制图里"箭头"的语法，读作"扫到这里了" */
+    sweepTipTickLen: 4,
+
     /** 燃烧地面的虚线环线宽（比地雷细，避免抢主体） */
     fieldLineWidth: 1.2,
     /** 燃烧地面虚线圈段数 */
     fieldDashCount: 24,
+
+    // ---- 爆炸扩散圈（引爆时画，从原点扩到**真实爆炸半径**）----
+    /**
+     * 寿命（毫秒）——**与形态层的 `HIT_FEEL_SHAPES[Blast].lifeMs` 同值（260）**。
+     *
+     * 为什么刻意同值：地雷的爆炸圈现在由雷自己的预制件节点画（见 `MineView`），
+     * 而形态层那条**同形状**的环在同一套打击反馈里出现（技能爆炸、击杀爆炸）——
+     * 两条路画出来的爆炸必须"同重同快"，否则玩家会读出"地雷的爆炸和技能的爆炸不是一回事"。
+     */
+    blastLifeMs: 260,
+    /** 半径缓动指数（< 1 → **起步快**、末段收）—— 与形态层 `HIT_FEEL_SHAPE.blastGrowPow` 同口径 */
+    blastGrowPow: 0.45,
+    /** 淡出指数（> 1 → 先实后收，与形态层 `fadePow` 同口径） */
+    blastFadePow: 1.7,
+    /** 起始不透明度（形态层的 0.85~0.95 那一档：形态是"这一下是什么"的答案，必须一次读出来） */
+    blastAlpha: 0.95,
+    /** 线宽（= 形态层 Blast 的 2.8px；用户 2026-11 口径「爆炸的圈太浅看不清」→ 靠描边加粗，不靠发光） */
+    blastLineWidth: 2.8,
+    /** 环上的径向刻度条数 / 长度 / 线宽（制图"尺寸标注"语法，读作"这一圈就是范围"） */
+    blastTicks: 8,
+    blastTickLen: 6,
+    blastTickWidth: 1.9,
+    /** 刻度出现的时间比例：环接近到位（35%）之前不画，否则刻度会飘在半径之外、读成"炸歪了" */
+    blastTickFrom: 0.35,
+
     /** 地雷本体/引信色（`c-ink-600`） */
     mineStroke: [106, 105, 107],
     mineCore: [70, 82, 89],
@@ -138,7 +183,18 @@ export const MINE_LAYER_STYLE = {
     armedColor: [192, 204, 209],
     /** 燃烧地面色（`c-range-line-2`） */
     burnColor: [140, 168, 179],
+    /** 爆炸圈色（= `HitFeelConfig.HIT_FEEL_MARK.ink`，与形态层的爆炸环**同色**，理由见 `blastLifeMs`） */
+    blastColor: [20, 24, 27],
 } as const;
+
+/**
+ * 地雷**预制件路径**（`resources.load` 用，不带扩展名）。
+ *
+ * ⚠ 2026-11 起每颗雷是**一个预制件节点**（`MineView` + `Graphics`），走对象池；
+ *   以前是"整层一个 Graphics、每帧 clear 重画"。路径写在这里而不是散在表现层里：
+ *   `MineLayer` 是唯一消费方，而"换一张地雷外观"应该是改这一个常量 + 换一个预制件文件。
+ */
+export const MINE_PREFAB_PATH = 'prefabs/unit/mines/mine';
 
 /** 表现层节点名（宿主按名字三级取用：预制件里摆好的 → 子树里已有的 → 运行时建一个） */
 export const MINE_LAYER_NODE_NAME = 'mine_layer';

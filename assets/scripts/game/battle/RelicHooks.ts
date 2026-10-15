@@ -206,10 +206,16 @@ function atkPct(host: any, pct: number): number {
     return atkMul(host, pct / 100);
 }
 
-/** 追加一段独立结算的伤害（≤0 / 目标已死直接跳过，避免无效的管线调用） */
-function deal(ctx: BattleContext, source: any, target: any, amount: number, type: DamageType): void {
+/**
+ * 追加一段独立结算的伤害（≤0 / 目标已死直接跳过，避免无效的管线调用）。
+ *
+ * `options` 透传给 `DamagePipeline.ApplyDamage` —— 目前只有一件用途：**给"钩子自己打出的追加段"
+ * 盖 `isEcho` 标记**（防回响互相触发，见 `RelicHook_CritEcho`）。其它钩子打出的追加段不带标记，
+ * 它们照样能触发回响（"暴击时附带的一圈伤害"本身就是回响该响的场合）。
+ */
+function deal(ctx: BattleContext, source: any, target: any, amount: number, type: DamageType, options?: { isEcho?: boolean }): void {
     if (!alive(target) || !(amount > 0)) return;
-    ctx.damagePipeline.ApplyDamage(target, source, amount, type);
+    ctx.damagePipeline.ApplyDamage(target, source, amount, type, options);
 }
 
 /** 所有存活敌人（team = 2），按离 `from` 的距离升序；`exclude` 排除自己人/已命中者 */
@@ -787,15 +793,27 @@ export class RelicHook_FirstStrike extends Modifier {
  * 而且它派发给的是**伤害来源**（`source.modifiers`），所以判 `event.source === host`。
  *
  * 伤害量用 `event.finalDamage`（本次实际打出的伤害）× `pct/100`，圆心是**受击目标**（含它自己）。
- * 坑：`on_deal_damage` 对**每一次**伤害都派发（含 DoT、含本钩子自己打出的追加段）→
- * **必须用 busy 标志防递归**（回响伤害自己也可能 roll 出暴击）。
+ *
+ * ⚠ **防递归必须两层，缺一层就是 2026-11 那次"Boss 一帧几万段 + FPS 掉到 1"**：
+ *   ① `event.isEcho` —— **跨实例**：本钩子打出的追加段**不许再触发任何一份回响**。
+ *      19 件遗物的 `modifiers_inner` 都引 `遗物·暴击回响#211`（`relics.json`），一局可能同时挂
+ *      **N 份**；实例身份是 `(def.id, origin)`，所以每件遗物各是一个独立实例。
+ *      只有 `busy` 时：A 打出的段会触发 B、B 的会触发 C…… 段数 = `Σ n!/k! ≈ e·n!`
+ *      （实测：N=6 → 1957 段/次暴击；N=11 → **2867 万段/次暴击**，被 `MAX_DEPTH` 截断；
+ *      复现与验收脚本 `tools/analysis/crit-echo-cascade-check.cjs`）。
+ *      修正后一次暴击**恰好 N 段**（N 件遗物各一圈），与文案「暴击时对 radius 内敌人造成 pct% 伤害」一致。
+ *   ② `busy` —— **本实例**：同一次 `on_deal_damage` 派发里不许自己重入（`aoe` 是同步的，
+ *      重入就会自己套自己）。保留它是因为"一次派发只打一圈"这条语义本身就要求它。
+ *      ⚠ **只留 ② 是不够的**（这就是 2026-11 的 bug）：`busy` 是每实例一个字段。
  */
 export class RelicHook_CritEcho extends Modifier {
-    /** 防递归：本钩子自己打出的范围伤害会再次派发 on_deal_damage */
+    /** 防递归（**仅本实例**）：本钩子自己打出的范围伤害会再次派发 on_deal_damage */
     private busy = false;
 
     OnBattleEvent(eventName: string, event: any): boolean {
         if (eventName !== 'on_deal_damage' || this.busy) return false;
+        // 跨实例防递归：这一段是「回响」打出来的 → 不再开新一代（见类注释①）
+        if (event?.isEcho) return false;
         const host = this.target as any;
         if (!host || event?.source !== host) return false;
         if (!event?.isCrit) return false;
@@ -811,7 +829,7 @@ export class RelicHook_CritEcho extends Modifier {
 
         this.busy = true;
         try {
-            aoe(ctx, victim, radius, (t) => deal(ctx, host, t, dmg, DamageType.Magical));
+            aoe(ctx, victim, radius, (t) => deal(ctx, host, t, dmg, DamageType.Magical, { isEcho: true }));
         } finally {
             this.busy = false;
         }

@@ -249,9 +249,9 @@
     "name": "英雄宗师",
     "desc": "累计3局单局英雄等级达到5级。",
     "target": "run_hero_level",
+    "param": "5",
     "count": 3,
     "reward_gold": 60,
-    "param": "5",
     "sort": 2
   },
   {
@@ -262,9 +262,9 @@
     "name": "英雄宗师",
     "desc": "累计5局单局英雄等级达到10级。",
     "target": "run_hero_level",
+    "param": "10",
     "count": 5,
     "reward_gold": 100,
-    "param": "10",
     "sort": 2
   },
   {
@@ -275,9 +275,9 @@
     "name": "英雄宗师",
     "desc": "累计8局单局英雄等级达到15级。",
     "target": "run_hero_level",
+    "param": "15",
     "count": 8,
     "reward_gold": 160,
-    "param": "15",
     "sort": 2
   },
   {
@@ -288,9 +288,9 @@
     "name": "英雄宗师",
     "desc": "累计10局单局英雄等级达到20级。",
     "target": "run_hero_level",
+    "param": "20",
     "count": 10,
     "reward_gold": 260,
-    "param": "20",
     "sort": 2
   },
   {
@@ -301,9 +301,9 @@
     "name": "英雄宗师",
     "desc": "累计15局单局英雄等级达到25级。",
     "target": "run_hero_level",
+    "param": "25",
     "count": 15,
     "reward_gold": 430,
-    "param": "25",
     "sort": 2
   },
   {
@@ -314,9 +314,9 @@
     "name": "英雄宗师",
     "desc": "累计20局单局英雄等级达到30级。",
     "target": "run_hero_level",
+    "param": "30",
     "count": 20,
     "reward_gold": 700,
-    "param": "30",
     "effect_code": "battle_exp_bonus",
     "effect_value": 10,
     "sort": 2
@@ -559,9 +559,9 @@
     "name": "战线推进",
     "desc": "累计3局把战线推进到第2阶段。",
     "target": "run_stage",
+    "param": "2",
     "count": 3,
     "reward_gold": 60,
-    "param": "2",
     "sort": 2
   },
   {
@@ -572,9 +572,9 @@
     "name": "战线推进",
     "desc": "累计5局把战线推进到第3阶段。",
     "target": "run_stage",
+    "param": "3",
     "count": 5,
     "reward_gold": 100,
-    "param": "3",
     "sort": 2
   },
   {
@@ -585,9 +585,9 @@
     "name": "战线推进",
     "desc": "累计8局把战线推进到第4阶段。",
     "target": "run_stage",
+    "param": "4",
     "count": 8,
     "reward_gold": 165,
-    "param": "4",
     "sort": 2
   },
   {
@@ -598,9 +598,9 @@
     "name": "战线推进",
     "desc": "累计12局把战线推进到第5阶段。",
     "target": "run_stage",
+    "param": "5",
     "count": 12,
     "reward_gold": 270,
-    "param": "5",
     "sort": 2
   },
   {
@@ -611,9 +611,9 @@
     "name": "战线推进",
     "desc": "累计15局把战线推进到第6阶段。",
     "target": "run_stage",
+    "param": "6",
     "count": 15,
     "reward_gold": 440,
-    "param": "6",
     "sort": 2
   },
   {
@@ -624,9 +624,9 @@
     "name": "战线推进",
     "desc": "累计18局把战线推进到第8阶段。",
     "target": "run_stage",
+    "param": "8",
     "count": 18,
     "reward_gold": 730,
-    "param": "8",
     "sort": 2
   },
   {
@@ -637,9 +637,9 @@
     "name": "战线推进",
     "desc": "累计20局把战线推进到第10阶段。",
     "target": "run_stage",
+    "param": "10",
     "count": 20,
     "reward_gold": 1200,
-    "param": "10",
     "effect_code": "shop_option_plus",
     "effect_value": 1,
     "sort": 2
@@ -846,9 +846,9 @@
     "name": "单局屠戮",
     "desc": "累计5局单局击杀达到250只。",
     "target": "run_kill",
+    "param": "250",
     "count": 5,
     "reward_gold": 50,
-    "param": "250",
     "sort": 2
   },
   {
@@ -859,9 +859,9 @@
     "name": "单局屠戮",
     "desc": "累计8局单局击杀达到600只。",
     "target": "run_kill",
+    "param": "600",
     "count": 8,
     "reward_gold": 80,
-    "param": "600",
     "sort": 2
   },
   {
@@ -872,9 +872,9 @@
     "name": "单局屠戮",
     "desc": "累计10局单局击杀达到1000只。",
     "target": "run_kill",
+    "param": "1000",
     "count": 10,
     "reward_gold": 135,
-    "param": "1000",
     "sort": 2
   },
   {
@@ -885,9 +885,9 @@
     "name": "单局屠戮",
     "desc": "累计12局单局击杀达到1500只。",
     "target": "run_kill",
+    "param": "1500",
     "count": 12,
     "reward_gold": 220,
-    "param": "1500",
     "sort": 2
   },
   {
@@ -898,9 +898,9 @@
     "name": "单局屠戮",
     "desc": "累计15局单局击杀达到2500只。",
     "target": "run_kill",
+    "param": "2500",
     "count": 15,
     "reward_gold": 365,
-    "param": "2500",
     "sort": 2
   },
   {
@@ -911,9 +911,9 @@
     "name": "单局屠戮",
     "desc": "累计20局单局击杀达到4000只。",
     "target": "run_kill",
+    "param": "4000",
     "count": 20,
     "reward_gold": 600,
-    "param": "4000",
     "sort": 2
   },
   {
@@ -1228,9 +1228,9 @@
     "name": "单局首富",
     "desc": "累计3局单局持有300金币。",
     "target": "run_gold",
+    "param": "300",
     "count": 3,
     "reward_gold": 50,
-    "param": "300",
     "sort": 3
   },
   {
@@ -1241,9 +1241,9 @@
     "name": "单局首富",
     "desc": "累计5局单局持有600金币。",
     "target": "run_gold",
+    "param": "600",
     "count": 5,
     "reward_gold": 90,
-    "param": "600",
     "sort": 3
   },
   {
@@ -1254,9 +1254,9 @@
     "name": "单局首富",
     "desc": "累计8局单局持有1200金币。",
     "target": "run_gold",
+    "param": "1200",
     "count": 8,
     "reward_gold": 160,
-    "param": "1200",
     "sort": 3
   },
   {
@@ -1267,9 +1267,9 @@
     "name": "单局首富",
     "desc": "累计12局单局持有2000金币。",
     "target": "run_gold",
+    "param": "2000",
     "count": 12,
     "reward_gold": 280,
-    "param": "2000",
     "sort": 3
   },
   {
@@ -1280,9 +1280,9 @@
     "name": "单局首富",
     "desc": "累计15局单局持有3500金币。",
     "target": "run_gold",
+    "param": "3500",
     "count": 15,
     "reward_gold": 500,
-    "param": "3500",
     "sort": 3
   },
   {
@@ -1842,9 +1842,9 @@
     "name": "屹立不倒",
     "desc": "累计3局单局存活达到300秒。",
     "target": "run_survive",
+    "param": "300",
     "count": 3,
     "reward_gold": 100,
-    "param": "300",
     "silent": 1,
     "sort": 4
   },
@@ -1856,9 +1856,9 @@
     "name": "屹立不倒",
     "desc": "累计5局单局存活达到600秒。",
     "target": "run_survive",
+    "param": "600",
     "count": 5,
     "reward_gold": 170,
-    "param": "600",
     "silent": 1,
     "sort": 4
   },
@@ -1870,9 +1870,9 @@
     "name": "屹立不倒",
     "desc": "累计8局单局存活达到900秒。",
     "target": "run_survive",
+    "param": "900",
     "count": 8,
     "reward_gold": 295,
-    "param": "900",
     "silent": 1,
     "sort": 4
   },
@@ -1884,9 +1884,9 @@
     "name": "屹立不倒",
     "desc": "累计10局单局存活达到1200秒。",
     "target": "run_survive",
+    "param": "1200",
     "count": 10,
     "reward_gold": 510,
-    "param": "1200",
     "silent": 1,
     "sort": 4
   },
@@ -1898,9 +1898,9 @@
     "name": "屹立不倒",
     "desc": "累计12局单局存活达到1800秒。",
     "target": "run_survive",
+    "param": "1800",
     "count": 12,
     "reward_gold": 875,
-    "param": "1800",
     "silent": 1,
     "sort": 4
   },
@@ -1912,9 +1912,9 @@
     "name": "屹立不倒",
     "desc": "累计15局单局存活达到3000秒。",
     "target": "run_survive",
+    "param": "3000",
     "count": 15,
     "reward_gold": 1500,
-    "param": "3000",
     "silent": 1,
     "sort": 4
   }

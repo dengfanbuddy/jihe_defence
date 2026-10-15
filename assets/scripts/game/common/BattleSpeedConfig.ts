@@ -48,6 +48,7 @@ export const BATTLE_SPEED_STEPS: BattleSpeedStep[] = [
     { mul: 1, label: '1×', node: 'x1' },
     { mul: 1.5, label: '1.5×', node: 'x1_5' },
     { mul: 2, label: '2×', node: 'x2' },
+    { mul: 3, label: '3×', node: 'x3' },
 ];
 
 /** 默认倍率（= 第一档）。⚠ 跨局保留玩家选的档位，换局**不**复位成它 */

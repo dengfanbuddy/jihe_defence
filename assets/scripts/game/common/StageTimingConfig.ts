@@ -27,7 +27,7 @@ export const STAGE_COUNT = 4;
 export const PREPARE_TIME_SEC = 7;
 
 /** 常规阶段时长（秒）：阶段 1~4 各持续这么久 */
-export const STAGE_TIME_SEC = 240;
+export const STAGE_TIME_SEC = 240;//240
 
 /** Boss 阶段时长（秒）：最终 Boss 阶段超时未击杀 = 本局失败 */
 export const BOSS_TIME_SEC = 150;

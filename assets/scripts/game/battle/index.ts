@@ -176,6 +176,14 @@ export type {
     RunStatsHero, RunStatsModifier, RunStatsReport, RunStatsDeps,
 } from './RunStats';
 
+//   · DamageMeter  **伤害段数账本**（只读诊断，与 RunStats 正交）：
+//                 回答"一帧里结算了多少段 / 每段是谁打的 / 谁挨得最多 / 有没有递归链"——
+//                 RunStats 记的是"一局的成长账"，它记的是"伤害的**结构**"。
+//                 单帧段数（或 1 秒滑窗）超阈值会当场 `console.warn`；随时 `__dmgMeterReport()`。
+//                 ⚠ 它**不改任何伤害**：只在管线入口/出口数数，来源靠调用方 `withTag` 压栈。
+export { DamageMeter } from './DamageMeter';
+export type { DamageBucket, DamageTargetBucket } from './DamageMeter';
+
 // ============ 怪物 AI 脚本系统 ============
 
 export { MonsterAI, AIRegistry, ChaseAI, WanderAI, OrbitAI, AttackStopAI, BossAI, initializeAI } from './ai';

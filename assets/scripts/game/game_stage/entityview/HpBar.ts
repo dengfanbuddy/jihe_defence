@@ -134,6 +134,28 @@ export class HpBar {
         if (this.lagNode?.isValid && !this.lagNode.active) this.lagNode.active = true;
     }
 
+    /**
+     * **只更新百分比宽度**（轻量版 `hit`）——给"同一帧内被打了很多次"的场景用。
+     *
+     * 与 `hit` 的差别（为什么需要两个）：
+     *   · `hit` = 显示血条 + 宽度 + **残影条重新起跑** + 重置隐藏倒计时（一帧一次就够）；
+     *   · `setRatio` = 只写宽度与 `hpPct`（段数爆炸时同帧会有几万段，每段都走 `hit` 的完整流程
+     *     等于每帧几万次节点写入；而画面上只有**最后一笔**数值可见）。
+     * 残影条不用管：它的追赶目标就是 `hpPct`（见 `tickLag`），所以同帧连打时它会从
+     * "这一帧开始时的位置"一路追到"这一帧结束时的位置" —— 正是残影条该有的表现。
+     *
+     * @param ratio 生命百分比 0~1（越界自动夹取）
+     */
+    setRatio(ratio: number): void {
+        const node = this.node;
+        const trans = this.trans;
+        if (!node?.isValid || !trans) return;
+        const pct = ratio > 0 ? (ratio < 1 ? ratio : 1) : 0;
+        this.hpPct = pct;
+        trans.setContentSize(this.fullWidth * pct, HP_BAR.worldHeight);
+        this.paintLag();
+    }
+
     /** 每帧推进（由 View.update 驱动）：残影条追赶 + 未受击满 hideDelay 秒后自动隐藏 */
     tick(dt: number): void {
         this.tickLag(dt);

@@ -58,6 +58,23 @@ export class EffectExecutor {
      * @param context 执行上下文（actor/target/point/event/self）
      */
     execute(action: ConfigAction, context: ActionContext): void {
+        /**
+         * 段数账本（`battle/DamageMeter.ts`，**只读诊断**）：**声明式动作是本执行器唯一的入口**，
+         * 所以"这一段伤害是哪条动作打出来的"只能在这里压标签 ——
+         * 归属 = `动作:damage@ability:1` / `脚本:boss_cast@boss:2011` / `动作:aoe_damage`（无来源组）。
+         * 用 `try/finally` 出栈：动作里抛异常也不能让标签栈错位（诊断代码不许污染战斗）。
+         */
+        const meter = this.ctx.meter;
+        meter.pushTag(tagOfAction(action, context?.origin));
+        try {
+            this.executeInner(action, context);
+        } finally {
+            meter.popTag();
+        }
+    }
+
+    /** 动作的实际执行体（`execute` 只负责压/弹来源标签） */
+    private executeInner(action: ConfigAction, context: ActionContext): void {
         const { actor, target, point, event, self, origin } = context;
         const ctx = this.ctx;
 
@@ -86,7 +103,15 @@ export class EffectExecutor {
             case 'aoe_damage': {
                 const center = target ?? actor;
                 const radius = action.radius;
-                const hits = ctx.findEntitiesInRadius(center, radius);
+                /**
+                 * ⚠ **必须按"施法者的敌对队伍"筛人**：`findEntitiesInRadius` 的第三个参数是
+                 * `teamFilter`（只留 `e.team === teamFilter`）；**不传 = 谁都打** —— 包括施法者自己
+                 * 与友军。2026-11 与 `BossSkills.bossCast` 的同一处坑一起收口（那边曾把
+                 * 「自己 + 身边小怪」当成目标）。`actor.team` 缺失时保持旧行为（不筛）。
+                 */
+                const ownTeam = actor?.team;
+                const enemyTeam = ownTeam === 1 ? 2 : (ownTeam === 2 ? 1 : undefined);
+                const hits = ctx.findEntitiesInRadius(center, radius, enemyTeam);
                 /**
                  * **先上报形态、再结算伤害**（设计文档 §13.4 的"路 B"）。
                  *
@@ -249,3 +274,16 @@ export class EffectExecutor {
 
 /** 便捷导出（供外部引用类型） */
 export type { ConfigAction, Entity };
+
+/**
+ * 动作的来源标签（**段数账本**用，见 `battle/DamageMeter.ts`）：`动作:类型@来源组`。
+ *
+ * 为什么要带 `origin`：同一条 `damage` 动作可能来自技能（`ability:1`）、遗物（`relic:1030`）、
+ * 神器（`killbuff:16`）或掉落道具（`item:…`）—— 只有带上来源组，报告里才分得清"谁打的"。
+ * `execute_script` 带 `script_id`（如 `boss_cast`），因为脚本自己怎么打伤害只有它知道。
+ */
+function tagOfAction(action: ConfigAction, origin?: string): string {
+    const raw = action as any;
+    const head = raw?.script_id ? `脚本:${raw.script_id}` : `动作:${raw?.type ?? 'unknown'}`;
+    return origin ? `${head}@${origin}` : head;
+}

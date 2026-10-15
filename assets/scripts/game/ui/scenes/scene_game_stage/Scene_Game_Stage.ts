@@ -280,6 +280,15 @@ const SPAWN_MAX_CONCURRENT = 8;
  */
 const CLEAR_FAST_BOSS_WINDOW_SEC = 30;
 
+/**
+ * 收尾那两块**诊断报告**（`RunStats.finishRun` + `DamageMeter.finish`）推迟多久打印（秒）。
+ *
+ * ⚠ 取值必须**长于 T7 的通关仪式**：`HIT_FEEL_TIERS[Clear]` = 90ms 定格 + 420ms @0.25× 慢放，
+ *   合计约 0.51s 现实时间 —— 报告挤在这半秒里，就是把"仪式感"和"卡一下"叠在一起。
+ *   0.6s 刚好落在仪式之后，而玩家点结算面板「确定」需要一次新的点击输入，实际远晚于它。
+ */
+const END_REPORT_DELAY_SEC = 0.6;
+
 /** 按权重抽一个单位 id（权重全为 0/空 → 返回 0，调用方跳过） */
 function pickWeighted(mix: [number, number][]): number {
   let total = 0;
@@ -679,7 +688,16 @@ export class Scene_Game_Stage extends BaseView {
     {
       const g: any = (typeof window !== 'undefined') ? window : undefined
       if (g) {
-        g.__runStatsDump = () => this.runStats?.dumpRun(this.statsEndInfo('abort', 'manual_dump'))
+        // 顺手把「伤害段数账本」（`battle/DamageMeter.ts`）也挂上 ——
+        // 它自己会挂 `window.__dmgMeter` / `__dmgMeterReport()`（见那个文件的发布口），
+        // 这里让"手动催一份报告"也能一次看到段数账（与 RunStats 的输出挨着，方便整段复制）。
+        g.__runStatsDump = () => {
+          this.runStats?.dumpRun(this.statsEndInfo('abort', 'manual_dump'))
+          // 账本走 `dump()`（**不置"已收尾"标记**）：手动催一份不该吃掉本局结束那次的完整报告。
+          // ⚠ 准备期（还没选英雄 ⇒ 没有 ctx）时出声，否则"催了没反应"会被误当成功能没接上
+          if (this.ctx) this.ctx.meter.dump()
+          else console.warn('[伤害段数] 还没有 BattleContext（准备期/已换局），账本暂不可用')
+        }
       }
     }
 
@@ -963,6 +981,22 @@ export class Scene_Game_Stage extends BaseView {
       this.runStats.finishRun(this.statsEndInfo('abort', 'exit'));
     }
 
+    /**
+     * ⚠ **段数账本也要在这一条路上收尾**（2026-11 用户报「结束时控制台没有打印」时补的）。
+     *
+     * 与上面 RunStats 那一段**逐条同理由**：`exit()` 是「HUD 退出按钮」与「结算面板确定」
+     * 的共同出口，而**测试时最常走的就是它**（"打一会儿 → 退出看账"）。
+     * 只在 `endRun()` 里打账 ⇒ 中途退出那条路上**一个字都不会有**，而这在中途看起来
+     * 跟"账本根本没接上"一模一样 —— RunStats 早就为同一个坑加过这一段（见它上面那段注释）。
+     *
+     * ⚠ `hasDumped()` 那一问是必须的："打完 → 点确定"这条路上 `endRun()` 已经打过一份，
+     *   这一局已经停了（账本数字不再变化），再打一次就是**逐字重复**的一大块。
+     * ⚠ 放在 `exit()` 的**清理动作之前**（与 RunStats 同位）：下面会拆掉这一局的现场。
+     */
+    if (this.ctx && !this.ctx.meter.hasDumped()) {
+      this.ctx.meter.finish('exit 中途退出');
+    }
+
     // 退出副本：先把打击反馈的位移归零并退订（否则残留偏移会跟着场景一起被销毁前的最后一帧画出去）
     this.hitFeel?.unbind();
     this.hitFeel = null;
@@ -1001,6 +1035,16 @@ export class Scene_Game_Stage extends BaseView {
     this.hitVfx = null;
     // 屏幕层同上（不碰画布，onDestroy 里自己退订）
     this.hitScreen = null;
+    /**
+     * ── 段数账本的最后一道兜底 ──
+     * 正常收尾有两条路（`endRun` 打完 / `exit` 离开），但"玩家以我们没想到的方式离开"
+     * （直接切场景、域重载、别的入口拆掉本界面）会**绕过它们** —— 那时账本已经攒了一整局，
+     * 丢掉的正是唯一能回答"Boss 怎么死的"那份数据。`hasDumped()` 保证只在一次都没打过时才补。
+     * ⚠ 放在 `bus.clear()` 之前：账本是纯计数、不依赖总线，这里只是"先收账、再拆现场"。
+     */
+    if (this.ctx && !this.ctx.meter.hasDumped()) {
+      this.ctx.meter.finish('onDestroy 兜底：没走到 endRun / exit');
+    }
     if (this.ctx) this.ctx.bus.clear();
     // 必须调 super：UIComponent.onDestroy 负责 scope.dispose()（撤 provide / 停 watcher / 清局部事件）
     // 与绑定清理 —— 少了它，本场景 provide 出去的键与 watcher 都不会回收
@@ -2200,7 +2244,7 @@ export class Scene_Game_Stage extends BaseView {
       // 阶段 Boss 缩放 ×1.5、最终 Boss 缩放 ×2，配色/受击色见 common/EntityVisualConfig.ts
       // 想临时关掉 Boss 刷新就把对应项设为 0
       stageBossUnitId: 2006,
-      finalBossUnitId: 2006,
+      finalBossUnitId: 2011,
       shopEvery: 20,
       winTime: 90,
       maxSkillSlots: 3,
@@ -3465,7 +3509,14 @@ export class Scene_Game_Stage extends BaseView {
     // 本局结束 → 手动锁定与选中环一并收掉（面板弹出后 `update` 不再推进，标记不会自己消失）
     this.clearManualTarget();
 
-    console.log(`========== 战斗结算 ==========\n结果: ${result}（${reason}） 难度 ${this.difficulty} 存活 ${this.elapsed.toFixed(0)}s\n击杀: ${this.killCount}\n金币: ${Math.floor(this.hero?.gold ?? 0)}`);
+    /**
+     * ⚠ **段数证据提前一行钉在这里**（2026-11 用户报「结束时控制台没有打印」后的加固）：
+     *   完整账本打在 `endRun` 的**最后一步**（见文末），而"最后一步"只要上面任何一处出岔子
+     *   （读配表 / 结算面板脚本 / 任务落盘）就永远不会执行 —— 那时控制台里连"账本存在过"都看不出来。
+     *   摘要行与完整账本读的是同一份数据，放在结算块的**第一条日志**里 = 收尾一进函数就落地。
+     */
+    console.log(`========== 战斗结算 ==========\n结果: ${result}（${reason}） 难度 ${this.difficulty} 存活 ${this.elapsed.toFixed(0)}s\n击杀: ${this.killCount}\n金币: ${Math.floor(this.hero?.gold ?? 0)}`
+      + `\n伤害账本: ${this.ctx ? this.ctx.meter.summary() : '（没有 BattleContext，账本不可用）'}`);
 
     // 通关 → **解锁下一档**（「通关第 N 档 → 解锁第 N+1 档」，见 LevelData.markCleared）。
     // ⚠ 放在 reportRunTasks 之前：进度先落盘，任务/成就上报里若以后要读"已解锁到第几档"才是新值。
@@ -3524,20 +3575,39 @@ export class Scene_Game_Stage extends BaseView {
     this.uiView?.showEnd(this.victory, runGold, heroExp, this.elapsed, this.settleAdMul);
 
     /**
-     * ── 局内成长统计：收尾打印（**本局最后一块控制台输出**，方便整段复制给 AI 分析）──
+     * ── 局内成长统计 + 伤害段数账本：收尾打印 ──
      *
-     * 三条口径（改这里之前先读 `battle/RunStats.ts` 的文件头）：
-     *   ① **必须在这里调**：属性分解要读 `hero.modifiers.getAll()`，而英雄实体在 `exit()`
-     *      （点结算面板「确定」）里会被作废 —— 放到那之后就什么都读不到了；
-     *   ② 放在 `endRun` 的**最后一行**：上面那几笔（`reportRunTasks` 的落盘、结算金币/经验、
-     *      广告倍率）都已经算完，报告才是"这一局的最终账"；同时它是本局最后一段日志，
-     *      翻控制台时不用在几十行里找；
-     *   ③ 它**只读**，不参与任何结算（统计坏了最坏也只是少一份报告，不会改奖励）。
+     * ⚠ **两块报告都推迟到 `END_REPORT_DELAY_SEC` 之后**（2026-11 修「通关一瞬间卡」）：
+     *   最终 Boss 阵亡那一帧本来就背着 T7 的仪式（`HIT_FEEL_TIERS.Clear`：90ms 定格 +
+     *   420ms @0.25× 慢放 + 全屏墨闪）与上面那一串**同步**结算（`DataCenter` 的 localStorage 落盘），
+     *   而这两份报告是**一整块大字符串 + 两次 console.log**（控制台开着时，渲染几千字符比生成它还贵）
+     *   —— 三件事挤在同一帧就是玩家读到的"卡一下"。它们是**纯诊断**，晚半秒打印零影响。
+     *
+     * 三条口径（改这里之前先读 `battle/RunStats.ts` / `battle/DamageMeter.ts` 的文件头）：
+     *   ① **必须在 `exit()` 之前调**：属性分解要读 `hero.modifiers.getAll()`，而英雄实体在
+     *      `exit()`（点结算面板「确定」）里会被作废 —— 延迟只是从"这一帧"挪到"半秒后**、
+     *      仍然远早于玩家点确定（那需要一次新的点击输入）；
+     *   ② 顺序不变（RunStats 在前、账本在后）：结算块头部那行摘要已经把关键读数提前钉住了，
+     *      整段输出仍然可以一次复制带走；
+     *   ③ 两个 `hasReported()` / `hasDumped()` 守卫是**必须的**：万一玩家在延迟窗口内就点了确定，
+     *      `exit()` 会自己打一份 —— 没有守卫就会把同一份账打两遍（与 `exit()` 里那两条守卫同源）。
      *
      * ⚠ 终局读数走 `statsEndInfo`（与 `exit()` 的"中途退出"那一份**同一处口径**）：
      *   两处各写一遍字面量的话，以后 `RunEndInfo` 加字段时必然只改一处。
      */
-    this.runStats?.finishRun(this.statsEndInfo(result, reason));
+    this.scheduleOnce(() => {
+      if (this.runStats && !this.runStats.hasReported()) {
+        this.runStats.finishRun(this.statsEndInfo(result, reason));
+      }
+      // 账本必须读 `this.ctx.meter` 而不是缓存引用：换局会 `new BattleContext()`（账本随之一换）。
+      // 走 `finish()` 而不是 `dump()`：后者不置"已收尾"标记（那是控制台手动催一份用的）。
+      // `ctx` 为空时**必须出声**：`?.` 静默跳过正是"结束时控制台一片空白"的成因（见结算块那行摘要）。
+      if (this.ctx && !this.ctx.meter.hasDumped()) {
+        this.ctx.meter.finish(`endRun(${result}/${reason})`);
+      } else if (!this.ctx) {
+        console.warn('[伤害段数] 收尾时没有 BattleContext，本局账本不可用（战斗结算不受影响）');
+      }
+    }, END_REPORT_DELAY_SEC);
   }
 
   /**

@@ -1,5 +1,5 @@
-import { _decorator, Component, Node } from 'cc';
-import { Entity, BattleEvents } from '../../battle';
+import { _decorator, Component, director, Node } from 'cc';
+import { Entity } from '../../battle';
 import { UnitKind, getUnitVisualStyle } from '../../common/EntityVisualConfig';
 import { HP_BAR } from '../../common/EntityHpBarConfig';
 import { getTierSpec, resolveHitTier } from '../../common/HitFeelConfig';
@@ -15,15 +15,15 @@ const { ccclass, property } = _decorator;
  * 职责：
  *   1. 位置跟随（脏检查，逻辑驱动移动）
  *   2. **外观初始化**：绑定时按 Entity.unitKind 设底色 + 缩放（见 EntityVisualConfig）
- *   3. **受击反馈**：订阅战斗总线的 OnTakeDamage，只处理打在自己身上的那次伤害 ——
+ *   3. **受击反馈**：由 `DamagePipeline` 第 7 阶段**直调** `onTakeDamage(e)` ——
  *      染色（HitFlash）+ 血条（HpBar）+ **打击反馈**（抖动 / 膨胀 / 层级弹出，见下）
  *   4. **血条**：同一个受击事件驱动 —— 默认隐藏，受击时显示当前生命百分比（改宽度），
  *      未受击 2s 后隐藏（见 HpBar / EntityHpBarConfig；父预制件缩放的抵消口径也在那里）
  *
  * ---- 打击反馈（B1）：为什么在本类里做，而不是全丢给 HitFeelDirector ----
  *   `HitFeelDirector` 只管**全局**那几件事（顿帧 / 慢动作 / 战斗内容层位移 / 预算账本），
- *   而"这只怪自己抖一下、鼓一下"是**按目标分组**的表现 —— 本类已经订阅了同一个
- *   `OnTakeDamage`（和 HitFlash / HpBar 一条路），直接在这里做，不需要多一层中转。
+ *   而"这只怪自己抖一下、鼓一下"是**按目标分组**的表现 —— 本类已经拿到了同一个
+ *   `OnTakeDamage` 事件（和 HitFlash / HpBar 一条路），直接在这里做，不需要多一层中转。
  *   两处共用同一个判定函数 `resolveHitTier`（`common/HitFeelConfig.ts`），
  *   所以"这一下是几档"只有一处实现。
  *
@@ -36,18 +36,21 @@ const { ccclass, property } = _decorator;
  *   （`hero/range`），抖它或缩它都会读成"射程变了"。英雄受击的反馈 = 染色 + 方向性容器位移
  *   （由 director 出）—— 见 `docs/打击反馈设计.md` §4 的 T6。
  *
- * 事件来源说明（为什么不给 Entity 单独做一套事件系统）：
- *   BattleContext 已经有一条 per-battle 的 EventBus（ctx.bus），伤害管线在扣血后
- *   统一 publish(OnTakeDamage)，负载里带 target —— 视图层只需按 target 过滤即可。
- *   再往 Entity 里塞一个微型 emitter 会增加第二套事件语义（谁在何时订阅/解绑），
- *   而这些生命周期问题在这里已经用 unsub 句柄解决了。
- *   代价：每次伤害事件会遍历所有已订阅视图（过滤一次 === 比较），
- *   当前规模（同时存活几十只）可忽略；若将来实体数上千，再换成 Entity 侧回调。
+ * ---- 为什么**不再**每个实体各订阅一次总线（2026-11 改）----
+ *   旧写法：`bind` 时 `bus.onBattleEvent(OnTakeDamage, this.onTakeDamage, this)`，
+ *   N 只怪 = N 个订阅者，每次伤害事件 `publish` **遍历全部订阅者**、各自按 `e.target` 过滤
+ *   （类注释原话："每次伤害事件会遍历所有已订阅视图…若将来实体数上千，再换成 Entity 侧回调"）。
+ *   正常段数（一帧几十段）下可忽略，但**段数爆炸**时（实测 boss 战一帧 4~6.8 万段）事件数变成
+ *   `段数 × 存活实体数`：50 只怪 × 5.7 万段 = **285 万次回调/帧** —— 这是那次"一帧卡 3 秒"的
+ *   主要放大器之一。
+ *   现在：视图**不订阅**，由 `DamagePipeline` 拿着 `target.view` 直调一次
+ *   （反向引用本来就存在，见 `bind` 里的 `entity.view = this`）⇒ 每段只有 1 次调用，
+ *   过滤掉的那 N-1 次直接不存在。总线上仍留着**中央层**（飘字 / 印痕 / 导演 / 屏闪 / 场景），
+ *   它们的数量是常数（≤5），与实体数无关。
  *
  * 对象池约定（EntityViewPool）：
- *   bind 里拿到的状态必须在 unbind 里还回去：退订事件 + 恢复原色/原缩放 + 隐藏血条
- *   + 清掉抖动/膨胀/层级弹出的残留。漏掉退订会导致池化复用后同一节点上叠着多个 handler
- *   （一只怪受击闪 N 次）。
+ *   bind 里拿到的状态必须在 unbind 里还回去：恢复原色/原缩放 + 隐藏血条
+ *   + 清掉抖动/膨胀/层级弹出的残留 + 断开 `entity.view` 反向引用（直调链的入口）。
  */
 @ccclass('EntityView')
 export class EntityView extends Component {
@@ -62,8 +65,15 @@ export class EntityView extends Component {
     /** 血条控制器（百分比宽度 / 2s 自动隐藏；bind 时 attach，unbind 时复位） */
     private hpBar: HpBar | null = null;
 
-    /** 受击事件退订句柄（unbind 必须调用，否则池化复用会重复订阅） */
-    private unsubHit: (() => void) | null = null;
+    /**
+     * 本帧是否已经对"打在自己身上"的伤害做过**整套受击反应**（帧号见 `reactFrame`）。
+     *
+     * 为什么要它：段数爆炸时（实测一帧 4~6.8 万段、且可能全落在同一只怪身上），
+     * 同一次反应被做几万遍毫无意义 —— 闪一下/抖一下/血条写一个数，做一次和做几万次**画面完全一样**，
+     * 但每次都要写节点（`setScale`/`sprite.color`/`setContentSize`）⇒ 每帧几万次节点写。
+     * 所以"整套反应"按帧去重，**血条百分比仍然每次都写**（那是数值，必须最新）。
+     */
+    private reactFrame = -1;
 
     /** 上次同步到节点的位置（脏检查：位置没变就跳过 setPosition，省 transform 重算） */
     private _lastX = 0;
@@ -103,11 +113,11 @@ export class EntityView extends Component {
     /** 表现层节点（子节点引用，可在预制件中绑定或运行时获取） */
     // @property(Node) body: Node = null;  // 预留：身体/动画节点
 
-    /** 工厂创建后调用：绑定逻辑实体 + 记录预制件路径 + 初始化外观 + 订阅受击事件 */
+    /** 工厂创建后调用：绑定逻辑实体 + 记录预制件路径 + 初始化外观（受击反应由 `DamagePipeline` 直调） */
     bind(entity: Entity, prefabPath = '') {
         this.entity = entity;
         this.prefabPath = prefabPath;
-        entity.view = this;         // 反向引用（Entity 已有该字段）
+        entity.view = this;         // 反向引用（Entity 已有该字段；`DamagePipeline` 靠它直调本视图）
 
         // 1) 外观初始化：按表现类别设底色 + 缩放
         //    （英雄不染底、普通怪 6B8E9B、精英 9B59B6、各 Boss 见 EntityVisualConfig）
@@ -116,8 +126,9 @@ export class EntityView extends Component {
         this.flash = this.flash ?? new HitFlash(this.node);
         this.flash.apply(kind, style);
 
-        // 2) 受击闪烁：订阅战斗总线，按 target 过滤出"打在自己身上"的伤害
-        this.subscribeHit();
+        // 2) 受击反应**不订阅总线**（2026-11 改）：由 `DamagePipeline` 第 7 阶段直调
+        //    `target.view.onTakeDamage(e)`。理由见类注释「为什么不再每个实体各订阅一次」。
+        this.reactFrame = -1;
 
         // 3) 血条：默认隐藏，受击才显示（池化复用会换到另一只怪身上，所以每次 bind 都重挂 + 复位）
         //    onLoad 已预取过；这里兜底再查一次（预制件里换名字/动态改层级时仍能拿到）
@@ -136,20 +147,19 @@ export class EntityView extends Component {
     }
 
     /**
-     * 对象池回收前调用（节点**不销毁**、要回池复用）：退订事件 + 恢复外观 + 解除引用。
+     * 对象池回收前调用（节点**不销毁**、要回池复用）：恢复外观 + 解除引用。
      * 「恢复外观」只在这里做 —— 节点都要销毁时走 `onDestroy`，那里不回滚表现。
      */
     unbind() {
-        // 先退订：节点要回池复用，handler 不能跟着留
-        this.unsubscribeHit();
         // 恢复本色与原缩放（受击中回收也不会把受击色带到下一只怪身上）
         if (this.flash) this.flash.reset();
         // 隐藏血条 + 复位长度（否则下一只怪出场就带着上一只的残血血条）
         if (this.hpBar) this.hpBar.reset();
         // 清掉抖动/置顶残留（节点马上要换父节点，这里不回滚 sibling 索引，只清计时器）
         this.resetHitFeel();
+        this.reactFrame = -1;
         if (this.entity) {
-            this.entity.view = null; // 切断 Entity → View 反向引用
+            this.entity.view = null; // 切断 Entity → View 反向引用（直调链的入口）
             this.entity = null;
         }
         // 若有子引用（血条/特效），一并解除
@@ -191,7 +201,6 @@ export class EntityView extends Component {
      * 何况节点马上就要销毁，颜色/缩放/位置没有任何回滚的意义。
      */
     onDestroy() {
-        this.unsubscribeHit();
         if (this.entity) {
             this.entity.view = null; // 切断 Entity → View 反向引用（实体可能还活着）
             this.entity = null;
@@ -335,33 +344,41 @@ export class EntityView extends Component {
         node.setSiblingIndex(idx > max ? max : idx);
     }
 
-    // ============ 受击事件 ============
-    /** 订阅受击事件（重复调用安全：先退订再订阅） */
-    private subscribeHit(): void {
-        this.unsubscribeHit();
-        const bus = this.entity?.ctxRef?.bus;
-        if (!bus) return;
-        // 句柄式退订：handler 是每次新建的闭包，靠返回的 unsubscribe 精确移除
-        this.unsubHit = bus.onBattleEvent(BattleEvents.OnTakeDamage, this.onTakeDamage, this);
-    }
+    // ============ 受击事件（**直调入口**）============
 
-    /** 退订受击事件 */
-    private unsubscribeHit(): void {
-        if (this.unsubHit) {
-            this.unsubHit();
-            this.unsubHit = null;
+    /**
+     * 受击反应 —— **由 `DamagePipeline` 第 7 阶段直调**（`target.view.onTakeDamage(e)`），
+     * 不再订阅战斗总线（理由见类注释「为什么不再每个实体各订阅一次」）。
+     *
+     * ⚠ **公开方法 + 调用方只传同一只怪的 `dmgEvent`** ⇒ 这里不必再判 `e.target === this.entity`
+     *   （原来那行过滤是"N 个订阅者各自过滤"的产物，直调之后没有可过滤的东西了）；
+     *   但**保留一次轻量校验**：视图可能已经解绑/换绑（`entity === null` 或事件属于别的实体）。
+     *
+     * ⚠ **同帧去重**：段数爆炸时同一只怪一帧能吃几万段，整套反应做几万次与做一次**画面完全一样**
+     *   （闪一下 / 抖一下），但每做一次都要写节点（`setScale` / `sprite.color` / `setContentSize`）。
+     *   所以：**整套反应每帧只做一次，血条百分比每次都写**（数值必须最新）。
+     */
+    onTakeDamage(e: any): void {
+        const entity = this.entity;
+        if (!entity || (e?.target && e.target !== entity)) return;
+
+        /**
+         * 同帧去重：段数爆炸时同一只怪一帧能吃几万段，整套反应做几万次与做一次**画面完全一样**
+         * （闪一下 / 抖一下 / 血条起跑一次），但每做一次都要写节点。
+         * ⇒ 第一段做**整套**（显示血条 + 起跑残影条 + 染色 + 抖动），
+         *   同帧的后续段只**更新血条宽度**（数值必须是最新的一笔），不再碰其它。
+         */
+        const frame = director.getTotalFrames();
+        if (this.reactFrame === frame) {
+            this.hpBar?.setRatio(this.hpRatio());
+            return;
         }
-    }
+        this.reactFrame = frame;
 
-    /** 战斗总线 OnTakeDamage：只认打在自己身上的伤害（闪烁 + 血条 + 打击反馈，同一个入口驱动） */
-    private onTakeDamage(e: any): void {
-        if (!this.entity || e?.target !== this.entity) return;
-        this.flash?.hit();
-        // 打击反馈（B1）：抖动 / 膨胀 / 层级弹出（档位来自 HitFeelConfig，与全局表现共用判定）
-        this.applyHitReaction(e);
-        // 事件发生在扣血之后（DamagePipeline Phase 6 先 ChangeHp、Phase 7 才 publish），
-        // 所以这里读到的 entity.hp 就是"这一击之后"的血量 → 血条显示的是实时百分比
         this.hpBar?.hit(this.hpRatio());
+        // 打击反馈（抖动 / 膨胀 / 层级弹出）：同帧只起一次（档位来自 HitFeelConfig，与全局表现共用判定）
+        this.flash?.hit();
+        this.applyHitReaction(e);
     }
 
     /** 当前生命百分比 0~1（上限取属性系统的 MaxHp；上限为 0 时按 0 处理） */

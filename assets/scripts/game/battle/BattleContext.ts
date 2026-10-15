@@ -9,6 +9,7 @@ import { AIRegistry } from './ai/AIRegistry';
 import { AttributeType } from './core/Types';
 import { BattleConstUtil } from './core/BattleConstUtil';
 import { BattleMines, reportMineBlast } from './BattleMines';
+import { DamageMeter } from './DamageMeter';
 import { UnitKind } from '../common/EntityVisualConfig';
 import type { AttributeCfg } from '../excel_table/Tb_AttributeConfig';
 import type { ModifierCfg } from '../excel_table/Tb_ModifierConfig';
@@ -76,6 +77,16 @@ export class BattleContext {
      * 宿主每帧 `mines.tick(dt)`、换局/换英雄 `mines.reset()`；遗物钩子经 `hostCtx(host).mines` 改它。
      */
     readonly mines: BattleMines;
+    /**
+     * 「伤害段数账本」（`battle/DamageMeter.ts`，**只读诊断**）。
+     *
+     * 为什么挂在 ctx 上：它是**这一局**的账（随 `new BattleContext()` 一起换新），
+     * 而记账的两个天然落点都在 ctx 手里 —— `ctx.Tick` 划帧边界、`damagePipeline` 数段数；
+     * 调用方（钩子/技能/普攻/弹道/地雷）只负责压一个**来源标签**（`meter.withTag` 或热路径上的
+     * `pushTag`/`popTag`，见那个文件的文件头）。
+     * 关掉它：控制台 `__dmgMeter.enabled = false`（记账全部跳过，只剩标签栈的一进一出）。
+     */
+    readonly meter = new DamageMeter();
     readonly scriptRegistry = new ScriptRegistry();
 
     /** 飞行中的弹道列表（两阶段结算） */
@@ -124,10 +135,28 @@ export class BattleContext {
                 return null;
             },
             getEnemies: () => this.GetTeamEntities(2),
-            applyDamage: (target, source, amount, type) => this.damagePipeline.ApplyDamage(target, source, amount, type),
+            /**
+             * 地雷的伤害：**压一个来源标签**再进管线 —— 地雷是"英雄之外的第二个伤害源"，
+             * 不标就会被混进 `未标注`，而"地雷到底贡献了几段"正是段数账本要回答的问题之一。
+             */
+            applyDamage: (target, source, amount, type) => this.meter.withTag('地雷', () =>
+                this.damagePipeline.ApplyDamage(target, source, amount, type)),
             reportBlast: (x, y, radius) => reportMineBlast(this, x, y, radius),
             random: () => Math.random(),
         });
+
+        /**
+         * 段数账本的**开机自检**：一局只打一行。
+         *
+         * 为什么值得这一行：这块代码的产出"只在结束时出现一次"，所以"新代码到底有没有加载"
+         * 在局中**完全看不出来**（没接上 / 还没走到收尾，两种在一局中间长得一模一样）——
+         * 2026-11 用户报「结束时控制台没有打印」时，第一件要分清的就是这两者。
+         * 看到这一行 = 本局结束（含中途退出）一定会再打一份完整账本。
+         */
+        if (this.meter.enabled) {
+            console.log('[伤害段数] 账本已就绪：本局结束（打输/打赢/中途退出）会自动打印一份；'
+                + '随时 `__dmgMeterReport()` 催一份，关闭 `__dmgMeter.enabled = false`');
+        }
     }
 
     // ============ 配置查询（走 TbRoot 管线，不持有数据） ============
@@ -422,30 +451,44 @@ export class BattleContext {
 
     // ============ 战斗循环 ============
 
-    /** 每帧更新（dt 秒）。所有实体 + 弹道 + 调度器 + 时间推进。 */
+    /**
+     * 每帧更新（dt 秒）。所有实体 + 弹道 + 调度器 + 时间推进。
+     *
+     * ⚠ **这里同时是伤害段数账本（`meter`）的帧边界**：`beginFrame` 在开头、`endFrame` 在结尾
+     *   （`endFrame` 里做单帧/滑窗的阈值判断与告警）。
+     *   · 用 `try/finally` 而不是顺序调用：本帧中途抛异常时也要把这一帧结掉 ——
+     *     否则帧内计数会**攒进下一帧**，账本给出的峰值是假的（诊断代码更要经得起异常）。
+     *   · 在 `ctx.Tick` **之外**发生的伤害（场景单独调的 `ctx.mines.tick`）算进下一帧，
+     *     见 `DamageMeter` 文件头口径④。
+     */
     Tick(dt: number): void {
-        this.time += dt;
-        for (const e of this.spatialMap) e.Tick(dt);
-        // AI 移动后做实体分离（软碰撞），防止敌人重叠
-        this.separateEntities();
+        this.meter.beginFrame();
+        try {
+            this.time += dt;
+            for (const e of this.spatialMap) e.Tick(dt);
+            // AI 移动后做实体分离（软碰撞），防止敌人重叠
+            this.separateEntities();
 
-        // 弹道推进：到达 → 对齐终点 → 命中结算 → 移除
-        const arrived: Projectile[] = [];
-        for (const p of this.projectiles) {
-            if (p.tick(dt)) arrived.push(p);
-        }
-        if (arrived.length > 0) {
-            this.projectiles = this.projectiles.filter((p) => !arrived.includes(p));
-            for (const p of arrived) {
-                p.snapToEnd(); // 逻辑位置对齐终点（表现层同步读到）
-                p.onHit();
+            // 弹道推进：到达 → 对齐终点 → 命中结算 → 移除
+            const arrived: Projectile[] = [];
+            for (const p of this.projectiles) {
+                if (p.tick(dt)) arrived.push(p);
             }
-        }
+            if (arrived.length > 0) {
+                this.projectiles = this.projectiles.filter((p) => !arrived.includes(p));
+                for (const p of arrived) {
+                    p.snapToEnd(); // 逻辑位置对齐终点（表现层同步读到）
+                    p.onHit();
+                }
+            }
 
-        for (const t of [...this.tasks]) {
-            t.remaining -= dt;
-            if (t.remaining <= 0) t.callback();
+            for (const t of [...this.tasks]) {
+                t.remaining -= dt;
+                if (t.remaining <= 0) t.callback();
+            }
+            this.tasks = this.tasks.filter((t) => t.remaining > 0);
+        } finally {
+            this.meter.endFrame();
         }
-        this.tasks = this.tasks.filter((t) => t.remaining > 0);
     }
 }
